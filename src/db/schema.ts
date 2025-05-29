@@ -1,6 +1,6 @@
 import {
   boolean,
-  decimal,
+  doublePrecision,
   integer,
   pgTable,
   text,
@@ -8,9 +8,11 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { InferSelectModel, InferInsertModel } from "drizzle-orm";
+
 export const usersTable = pgTable("users", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  username: varchar({ length: 255 }).notNull(),
+  username: varchar({ length: 255 }).notNull().unique(),
   email: varchar({ length: 255 }).notNull().unique(),
   createdAt: timestamp().defaultNow(),
   deletedAt: timestamp(),
@@ -23,7 +25,7 @@ export const groupsTable = pgTable("groups", {
     .references(() => usersTable.id),
   name: varchar({ length: 255 }).notNull(),
   isIncome: boolean().notNull().default(false),
-  share: decimal(),
+  share: doublePrecision(),
 });
 
 export const activityTable = pgTable("activity", {
@@ -35,7 +37,15 @@ export const activityTable = pgTable("activity", {
     .notNull()
     .references(() => groupsTable.id),
   timestamp: timestamp().defaultNow(),
-  amount: decimal(),
+  amount: doublePrecision(),
   directDepositOverride: boolean().default(false),
   note: text(),
 });
+
+export type User = InferSelectModel<typeof usersTable>;
+export type Group = InferSelectModel<typeof groupsTable>;
+export type Activity = InferSelectModel<typeof activityTable>;
+
+export type NewUser = InferInsertModel<typeof usersTable>;
+export type NewGroup = InferInsertModel<typeof groupsTable>;
+export type NewActivity = InferInsertModel<typeof activityTable>;

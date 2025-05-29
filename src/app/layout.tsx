@@ -72,7 +72,11 @@ export default function RootLayout({
                 </div>
               </header>
 
-              <main className="flex-1">{children}</main>
+              <div className="flex flex-1 justify-center">
+                <main className="mx-auto mt-12 w-10/12 lg:w-1/2">
+                  {children}
+                </main>
+              </div>
 
               <footer className="border-t border-gray-200 bg-gray-100 py-6 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                 <div className="container mx-auto flex flex-col items-center justify-between px-4 text-sm sm:flex-row">
