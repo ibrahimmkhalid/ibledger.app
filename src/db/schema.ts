@@ -3,6 +3,7 @@ import {
   doublePrecision,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   varchar,
@@ -10,42 +11,64 @@ import {
 
 import { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
-export const usersTable = pgTable("users", {
+const timestamps = {
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp(),
+  deletedAt: timestamp(),
+};
+
+export const users = pgTable("users", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   username: varchar({ length: 255 }).notNull().unique(),
   email: varchar({ length: 255 }).notNull().unique(),
-  createdAt: timestamp().defaultNow(),
-  deletedAt: timestamp(),
+  ...timestamps,
 });
 
-export const groupsTable = pgTable("groups", {
+export const accounts = pgTable("accounts", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   userId: integer()
     .notNull()
-    .references(() => usersTable.id),
-  name: varchar({ length: 255 }).notNull(),
-  isIncome: boolean().notNull().default(false),
-  share: doublePrecision(),
+    .references(() => users.id),
+  name: varchar({ length: 255 }),
+  ...timestamps,
 });
 
-export const activityTable = pgTable("activity", {
+export const accountFeeds = pgTable(
+  "account_feeds",
+  {
+    source: integer()
+      .notNull()
+      .references(() => accounts.id),
+    dest: integer()
+      .notNull()
+      .references(() => accounts.id),
+    feedPercentage: doublePrecision(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.dest] })],
+);
+
+export const transactions = pgTable("transactions", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   userId: integer()
     .notNull()
-    .references(() => usersTable.id),
-  groupID: integer()
+    .references(() => users.id),
+  accountId: integer()
     .notNull()
-    .references(() => groupsTable.id),
-  timestamp: timestamp().defaultNow(),
+    .references(() => accounts.id),
   amount: doublePrecision(),
-  directDepositOverride: boolean().default(false),
-  note: text(),
+  withdraw: boolean().default(true),
+  feedName: varchar({ length: 255 }),
+  feedPercentage: doublePrecision(),
+  description: text(),
+  ...timestamps,
 });
 
-export type User = InferSelectModel<typeof usersTable>;
-export type Group = InferSelectModel<typeof groupsTable>;
-export type Activity = InferSelectModel<typeof activityTable>;
+export type User = InferSelectModel<typeof users>;
+export type Account = InferSelectModel<typeof accounts>;
+export type Transaction = InferSelectModel<typeof transactions>;
+export type AccountFeed = InferSelectModel<typeof accountFeeds>;
 
-export type NewUser = InferInsertModel<typeof usersTable>;
-export type NewGroup = InferInsertModel<typeof groupsTable>;
-export type NewActivity = InferInsertModel<typeof activityTable>;
+export type NewUser = InferInsertModel<typeof users>;
+export type NewAccount = InferInsertModel<typeof accounts>;
+export type NewTransaction = InferInsertModel<typeof transactions>;
+export type NewAccountFeed = InferInsertModel<typeof accountFeeds>;
