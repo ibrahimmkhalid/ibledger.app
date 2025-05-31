@@ -1,0 +1,19 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { currentUser } from "@clerk/nextjs/server";
+
+export default async function SettingsPage() {
+  const user = await currentUser();
+  if (!user) {
+    throw new Error();
+  }
+  return (
+    <div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Settings</CardTitle>
+        </CardHeader>
+        <CardContent>placeholder</CardContent>
+      </Card>
+    </div>
+  );
+}

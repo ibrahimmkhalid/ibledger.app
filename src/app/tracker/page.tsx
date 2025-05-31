@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import TrackerUpdateForm from "./update";
 import { currentUser } from "@clerk/nextjs/server";
 
 export default async function TrackerPage() {
@@ -13,9 +12,7 @@ export default async function TrackerPage() {
         <CardHeader>
           <CardTitle>{user.username}&apos;s financial tracker</CardTitle>
         </CardHeader>
-        <CardContent>
-          <TrackerUpdateForm />
-        </CardContent>
+        <CardContent></CardContent>
       </Card>
     </div>
   );
