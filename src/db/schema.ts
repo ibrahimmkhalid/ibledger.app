@@ -30,7 +30,7 @@ export const accounts = pgTable("accounts", {
     .notNull()
     .references(() => users.id),
   name: varchar({ length: 255 }),
-  amount: doublePrecision(),
+  amount: doublePrecision().default(0),
   ...timestamps,
 });
 
@@ -54,7 +54,7 @@ export const wallets = pgTable("wallets", {
     .notNull()
     .references(() => users.id),
   name: varchar({ length: 255 }),
-  amount: doublePrecision(),
+  amount: doublePrecision().default(0),
   ...timestamps,
 });
 
