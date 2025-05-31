@@ -30,6 +30,7 @@ export const accounts = pgTable("accounts", {
     .notNull()
     .references(() => users.id),
   name: varchar({ length: 255 }),
+  amount: doublePrecision(),
   ...timestamps,
 });
 
@@ -47,6 +48,16 @@ export const accountFeeds = pgTable(
   (table) => [primaryKey({ columns: [table.source, table.dest] })],
 );
 
+export const wallets = pgTable("wallets", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer()
+    .notNull()
+    .references(() => users.id),
+  name: varchar({ length: 255 }),
+  amount: doublePrecision(),
+  ...timestamps,
+});
+
 export const transactions = pgTable("transactions", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   userId: integer()
@@ -55,6 +66,9 @@ export const transactions = pgTable("transactions", {
   accountId: integer()
     .notNull()
     .references(() => accounts.id),
+  walletId: integer()
+    .notNull()
+    .references(() => wallets.id),
   amount: doublePrecision(),
   withdraw: boolean().default(true),
   feedName: varchar({ length: 255 }),
@@ -67,8 +81,10 @@ export type User = InferSelectModel<typeof users>;
 export type Account = InferSelectModel<typeof accounts>;
 export type Transaction = InferSelectModel<typeof transactions>;
 export type AccountFeed = InferSelectModel<typeof accountFeeds>;
+export type Wallet = InferSelectModel<typeof wallets>;
 
 export type NewUser = InferInsertModel<typeof users>;
 export type NewAccount = InferInsertModel<typeof accounts>;
 export type NewTransaction = InferInsertModel<typeof transactions>;
 export type NewAccountFeed = InferInsertModel<typeof accountFeeds>;
+export type NewWallet = InferInsertModel<typeof wallets>;
