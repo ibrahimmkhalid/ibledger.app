@@ -40,12 +40,9 @@ export async function GET() {
       userId: userId,
     };
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("--> API Route /tracker/api ERROR:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+    console.error("API: Error fetching data", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
