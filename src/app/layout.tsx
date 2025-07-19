@@ -1,6 +1,5 @@
 import { type Metadata } from "next";
 import {
-  ClerkProvider,
   SignInButton,
   SignUpButton,
   SignedIn,
@@ -13,6 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AuthProvider } from "@/components/auth-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,8 +34,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const currentYear = new Date().getFullYear();
+  const isDevTesting = process.env.DEV_TESTING === "true";
+
   return (
-    <ClerkProvider>
+    <AuthProvider devTesting={isDevTesting}>
       <html lang="en" suppressHydrationWarning>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -56,17 +58,26 @@ export default function RootLayout({
                     Ibrahim&apos;s Ledger App
                   </Link>
                   <div className="flex items-center gap-4">
-                    <SignedOut>
-                      <Button asChild>
-                        <SignInButton />
-                      </Button>
-                      <Button asChild>
-                        <SignUpButton />
-                      </Button>
-                    </SignedOut>
-                    <SignedIn>
-                      <UserButton />
-                    </SignedIn>
+                    {!isDevTesting && (
+                      <>
+                        <SignedOut>
+                          <Button asChild>
+                            <SignInButton />
+                          </Button>
+                          <Button asChild>
+                            <SignUpButton />
+                          </Button>
+                        </SignedOut>
+                        <SignedIn>
+                          <UserButton />
+                        </SignedIn>
+                      </>
+                    )}
+                    {isDevTesting && (
+                      <span className="text-muted-foreground text-sm">
+                        Dev Mode: Test User
+                      </span>
+                    )}
                     <DarkModeToggle />
                   </div>
                 </div>
@@ -119,6 +130,6 @@ export default function RootLayout({
           </ThemeProvider>
         </body>
       </html>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

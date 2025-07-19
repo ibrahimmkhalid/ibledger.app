@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@/lib/auth";
 import { GET as getUserTrackerInfoAPI } from "@/app/api/tracker/overview/route";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
