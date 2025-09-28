@@ -1,9 +1,9 @@
 export const testUser = {
-  id: "test_user_123",
+  id: 1,
   firstName: "Test",
   lastName: "User",
   fullName: "Test User",
-  username: "testuser",
+  username: "test_user_123",
   emailAddresses: [{ emailAddress: "test@example.com" }],
   imageUrl: "https://img.clerk.com/preview.png",
   publicMetadata: {},
