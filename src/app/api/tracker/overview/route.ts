@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db/index";
-import { wallets, accounts, transactions } from "@/db/schema";
+import { wallets, funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 export async function GET() {
@@ -16,10 +16,10 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 400 });
     }
 
-    const accountsInfo = await db
-      .select({ name: accounts.name, amount: accounts.amount })
-      .from(accounts)
-      .where(eq(accounts.userId, user.id));
+    const fundsInfo = await db
+      .select({ name: funds.name, amount: funds.amount })
+      .from(funds)
+      .where(eq(funds.userId, user.id));
 
     const walletsInfo = await db
       .select({ name: wallets.name, amount: wallets.amount })
@@ -33,10 +33,10 @@ export async function GET() {
         withdraw: transactions.withdraw,
         description: transactions.description,
         createdAt: transactions.createdAt,
-        walletName: accounts.name,
+        walletName: wallets.name,
       })
       .from(transactions)
-      .leftJoin(accounts, eq(accounts.id, transactions.walletId))
+      .leftJoin(wallets, eq(wallets.id, transactions.walletId))
       .where(eq(transactions.userId, user.id))
       .orderBy(desc(transactions.createdAt))
       .limit(10);
@@ -44,7 +44,7 @@ export async function GET() {
     const data = {
       user: user,
       wallets: walletsInfo,
-      accounts: accountsInfo,
+      funds: fundsInfo,
       recentTransactions: recentTransactions,
     };
 

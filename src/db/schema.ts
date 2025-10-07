@@ -24,7 +24,7 @@ export const users = pgTable("users", {
   ...timestamps,
 });
 
-export const accounts = pgTable("accounts", {
+export const funds = pgTable("funds", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   userId: integer()
     .notNull()
@@ -34,15 +34,15 @@ export const accounts = pgTable("accounts", {
   ...timestamps,
 });
 
-export const accountFeeds = pgTable(
-  "account_feeds",
+export const fundFeeds = pgTable(
+  "fund_feeds",
   {
     source: integer()
       .notNull()
-      .references(() => accounts.id),
+      .references(() => funds.id),
     dest: integer()
       .notNull()
-      .references(() => accounts.id),
+      .references(() => funds.id),
     feedPercentage: doublePrecision(),
   },
   (table) => [primaryKey({ columns: [table.source, table.dest] })],
@@ -63,9 +63,9 @@ export const transactions = pgTable("transactions", {
   userId: integer()
     .notNull()
     .references(() => users.id),
-  accountId: integer()
+  fundId: integer()
     .notNull()
-    .references(() => accounts.id),
+    .references(() => funds.id),
   walletId: integer()
     .notNull()
     .references(() => wallets.id),
@@ -78,13 +78,13 @@ export const transactions = pgTable("transactions", {
 });
 
 export type User = InferSelectModel<typeof users>;
-export type Account = InferSelectModel<typeof accounts>;
+export type Fund = InferSelectModel<typeof funds>;
 export type Transaction = InferSelectModel<typeof transactions>;
-export type AccountFeed = InferSelectModel<typeof accountFeeds>;
+export type FundFeed = InferSelectModel<typeof fundFeeds>;
 export type Wallet = InferSelectModel<typeof wallets>;
 
 export type NewUser = InferInsertModel<typeof users>;
-export type NewAccount = InferInsertModel<typeof accounts>;
+export type NewFund = InferInsertModel<typeof funds>;
 export type NewTransaction = InferInsertModel<typeof transactions>;
-export type NewAccountFeed = InferInsertModel<typeof accountFeeds>;
+export type NewFundFeed = InferInsertModel<typeof fundFeeds>;
 export type NewWallet = InferInsertModel<typeof wallets>;

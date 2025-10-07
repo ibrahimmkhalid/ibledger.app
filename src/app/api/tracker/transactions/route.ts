@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db/index";
-import { accounts, transactions } from "@/db/schema";
+import { funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -28,10 +28,10 @@ export async function GET(request: NextRequest) {
         withdraw: transactions.withdraw,
         description: transactions.description,
         createdAt: transactions.createdAt,
-        walletName: accounts.name,
+        fundName: funds.name,
       })
       .from(transactions)
-      .leftJoin(accounts, eq(accounts.id, transactions.walletId))
+      .leftJoin(funds, eq(funds.id, transactions.fundId))
       .where(eq(transactions.userId, user.id))
       .offset(page * pageSize)
       .orderBy(desc(transactions.createdAt))

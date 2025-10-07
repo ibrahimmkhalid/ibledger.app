@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { funds } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(
   _req: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/accounts">,
+  ctx: RouteContext<"/api/user/account/[id]/settings/funds">,
 ) {
   try {
     const authUser = await currentUser();
@@ -25,13 +25,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userAccounts = await db
+    const userFunds = await db
       .select()
-      .from(accounts)
-      .where(eq(accounts.userId, user.id));
+      .from(funds)
+      .where(eq(funds.userId, user.id));
 
     return NextResponse.json({
-      accounts: userAccounts,
+      funds: userFunds,
     });
   } catch (error) {
     console.log(error);
@@ -44,7 +44,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/accounts">,
+  ctx: RouteContext<"/api/user/account/[id]/settings/funds">,
 ) {
   try {
     const authUser = await currentUser();
@@ -65,8 +65,8 @@ export async function POST(
 
     const data = await request.json();
 
-    const newAccount = await db
-      .insert(accounts)
+    const newFund = await db
+      .insert(funds)
       .values({
         userId: user.id,
         name: data.name,
@@ -75,7 +75,7 @@ export async function POST(
       .returning();
 
     return NextResponse.json({
-      account: newAccount,
+      fund: newFund,
     });
   } catch (error) {
     console.log(error);
@@ -88,7 +88,7 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/accounts">,
+  ctx: RouteContext<"/api/user/account/[id]/settings/funds">,
 ) {
   try {
     const authUser = await currentUser();
@@ -109,30 +109,27 @@ export async function DELETE(
 
     const data = await request.json();
 
-    const account = await db
+    const fund = await db
       .select()
-      .from(accounts)
-      .where(eq(accounts.id, data.id))
-      .where(eq(accounts.userId, user.id));
+      .from(funds)
+      .where(eq(funds.id, data.id))
+      .where(eq(funds.userId, user.id));
 
-    if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 400 });
+    if (!fund) {
+      return NextResponse.json({ error: "Fund not found" }, { status: 400 });
     }
 
-    if (account.amount > 0) {
-      return NextResponse.json(
-        { error: "Account has balance" },
-        { status: 400 },
-      );
+    if (fund.amount > 0) {
+      return NextResponse.json({ error: "Fund has balance" }, { status: 400 });
     }
 
-    const deletedAccount = await db
-      .delete(accounts)
-      .where(eq(accounts.id, data.id))
+    const deletedFund = await db
+      .delete(funds)
+      .where(eq(funds.id, data.id))
       .returning();
 
     return NextResponse.json({
-      account: deletedAccount,
+      fund: deletedFund,
     });
   } catch (error) {
     console.log(error);
@@ -145,7 +142,7 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/accounts">,
+  ctx: RouteContext<"/api/user/account/[id]/settings/funds">,
 ) {
   try {
     const authUser = await currentUser();
@@ -166,27 +163,27 @@ export async function PATCH(
 
     const data = await request.json();
 
-    const account = await db
+    const fund = await db
       .select()
-      .from(accounts)
-      .where(eq(accounts.id, data.id))
-      .where(eq(accounts.userId, user.id));
+      .from(funds)
+      .where(eq(funds.id, data.id))
+      .where(eq(funds.userId, user.id));
 
-    if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 400 });
+    if (!fund) {
+      return NextResponse.json({ error: "Fund not found" }, { status: 400 });
     }
 
-    const updatedAccount = await db
-      .update(accounts)
+    const updatedFund = await db
+      .update(funds)
       .set({
         name: data.name,
         amount: data.amount,
       })
-      .where(eq(accounts.id, data.id))
+      .where(eq(funds.id, data.id))
       .returning();
 
     return NextResponse.json({
-      account: updatedAccount,
+      fund: updatedFund,
     });
   } catch (error) {
     console.log(error);
