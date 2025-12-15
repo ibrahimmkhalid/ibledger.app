@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 import { db } from "@/db";
 import { wallets } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function GET(
   _req: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/wallets">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -28,7 +28,7 @@ export async function GET(
     const userWallets = await db
       .select()
       .from(wallets)
-      .where(eq(wallets.userId, user.id));
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)));
 
     return NextResponse.json({
       wallets: userWallets,
@@ -44,7 +44,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/wallets">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -88,7 +88,7 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/wallets">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -109,17 +109,31 @@ export async function DELETE(
 
     const data = await request.json();
 
-    const wallet = await db
+    const selectedWallets = await db
       .select()
       .from(wallets)
-      .where(eq(wallets.id, data.id))
-      .where(eq(wallets.userId, user.id));
+      .where(
+        and(
+          eq(wallets.id, data.id),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      );
 
-    if (!wallet) {
+    if (!selectedWallets || selectedWallets.length === 0) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 400 });
     }
 
-    if (wallet.amount > 0) {
+    if (selectedWallets.length > 1) {
+      return NextResponse.json(
+        { error: "Multiple wallets found" },
+        { status: 400 },
+      );
+    }
+
+    const selectedWallet = selectedWallets[0];
+
+    if (selectedWallet.amount > 0) {
       return NextResponse.json(
         { error: "Wallet has balance" },
         { status: 400 },
@@ -127,8 +141,15 @@ export async function DELETE(
     }
 
     const deletedWallet = await db
-      .delete(wallets)
-      .where(eq(wallets.id, data.id))
+      .update(wallets)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(wallets.id, data.id),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      )
       .returning();
 
     return NextResponse.json({
@@ -145,7 +166,7 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/wallets">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -166,13 +187,18 @@ export async function PATCH(
 
     const data = await request.json();
 
-    const wallet = await db
+    const selectedWallets = await db
       .select()
       .from(wallets)
-      .where(eq(wallets.id, data.id))
-      .where(eq(wallets.userId, user.id));
+      .where(
+        and(
+          eq(wallets.id, data.id),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      );
 
-    if (!wallet) {
+    if (!selectedWallets || selectedWallets.length === 0) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 400 });
     }
 
@@ -181,8 +207,15 @@ export async function PATCH(
       .set({
         name: data.name,
         amount: data.amount,
+        updatedAt: new Date(),
       })
-      .where(eq(wallets.id, data.id))
+      .where(
+        and(
+          eq(wallets.id, data.id),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      )
       .returning();
 
     return NextResponse.json({

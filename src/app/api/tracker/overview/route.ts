@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/index";
 import { wallets, funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
@@ -19,12 +19,12 @@ export async function GET() {
     const fundsInfo = await db
       .select({ name: funds.name, amount: funds.amount })
       .from(funds)
-      .where(eq(funds.userId, user.id));
+      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
 
     const walletsInfo = await db
       .select({ name: wallets.name, amount: wallets.amount })
       .from(wallets)
-      .where(eq(wallets.userId, user.id));
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)));
 
     const recentTransactions = await db
       .select({

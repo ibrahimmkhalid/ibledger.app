@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 import { db } from "@/db";
 import { funds } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function GET(
   _req: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/funds">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -28,7 +28,7 @@ export async function GET(
     const userFunds = await db
       .select()
       .from(funds)
-      .where(eq(funds.userId, user.id));
+      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
 
     return NextResponse.json({
       funds: userFunds,
@@ -44,7 +44,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/funds">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -88,7 +88,7 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/[id]/funds">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -109,23 +109,45 @@ export async function DELETE(
 
     const data = await request.json();
 
-    const fund = await db
+    const selectedFunds = await db
       .select()
       .from(funds)
-      .where(eq(funds.id, data.id))
-      .where(eq(funds.userId, user.id));
+      .where(
+        and(
+          eq(funds.id, data.id),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      );
 
-    if (!fund) {
+    if (!selectedFunds || selectedFunds.length === 0) {
       return NextResponse.json({ error: "Fund not found" }, { status: 400 });
     }
 
-    if (fund.amount > 0) {
+    if (selectedFunds.length > 1) {
+      //this should not be possible
+      return NextResponse.json(
+        { error: "Multiple funds found" },
+        { status: 400 },
+      );
+    }
+
+    const selectedFund = selectedFunds[0];
+
+    if (selectedFund.amount > 0) {
       return NextResponse.json({ error: "Fund has balance" }, { status: 400 });
     }
 
     const deletedFund = await db
-      .delete(funds)
-      .where(eq(funds.id, data.id))
+      .update(funds)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(funds.id, data.id),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      )
       .returning();
 
     return NextResponse.json({
@@ -142,7 +164,7 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/user/account/[id]/settings/funds">,
+  ctx: { params: Promise<{ id: string }> },
 ) {
   try {
     const authUser = await currentUser();
@@ -163,13 +185,18 @@ export async function PATCH(
 
     const data = await request.json();
 
-    const fund = await db
+    const selectedFunds = await db
       .select()
       .from(funds)
-      .where(eq(funds.id, data.id))
-      .where(eq(funds.userId, user.id));
+      .where(
+        and(
+          eq(funds.id, data.id),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      );
 
-    if (!fund) {
+    if (!selectedFunds || selectedFunds.length === 0) {
       return NextResponse.json({ error: "Fund not found" }, { status: 400 });
     }
 
@@ -178,8 +205,15 @@ export async function PATCH(
       .set({
         name: data.name,
         amount: data.amount,
+        updatedAt: new Date(),
       })
-      .where(eq(funds.id, data.id))
+      .where(
+        and(
+          eq(funds.id, data.id),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      )
       .returning();
 
     return NextResponse.json({
