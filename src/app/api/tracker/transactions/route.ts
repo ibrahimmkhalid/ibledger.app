@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server";
-import { eq, desc } from "drizzle-orm";
-import { db } from "@/db/index";
-import { funds, transactions } from "@/db/schema";
+import { and, desc, eq, isNull } from "drizzle-orm";
+
+import { db } from "@/db";
+import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -16,7 +17,10 @@ export async function GET(request: NextRequest) {
 
     const user = await currentUserWithDB(authUser);
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User not found. Call POST /api/bootstrap first." },
+        { status: 400 },
+      );
     }
 
     const pageSize = 20;
@@ -24,17 +28,23 @@ export async function GET(request: NextRequest) {
     const pagedTransactions = await db
       .select({
         id: transactions.id,
+        parentId: transactions.parentId,
+        isPosting: transactions.isPosting,
+        status: transactions.status,
         amount: transactions.amount,
-        withdraw: transactions.withdraw,
         description: transactions.description,
-        createdAt: transactions.createdAt,
+        occurredAt: transactions.occurredAt,
         fundName: funds.name,
+        walletName: wallets.name,
       })
       .from(transactions)
       .leftJoin(funds, eq(funds.id, transactions.fundId))
-      .where(eq(transactions.userId, user.id))
+      .leftJoin(wallets, eq(wallets.id, transactions.walletId))
+      .where(
+        and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)),
+      )
       .offset(page * pageSize)
-      .orderBy(desc(transactions.createdAt))
+      .orderBy(desc(transactions.occurredAt), desc(transactions.id))
       .limit(pageSize);
 
     const count = pagedTransactions.length;
@@ -42,10 +52,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: pagedTransactions,
       currentPage: page,
-      nextPage: count == pageSize ? page + 1 : -1,
+      nextPage: count === pageSize ? page + 1 : -1,
     });
   } catch (error) {
-    console.error("API: Error fetching data", error);
+    console.error("API: Error fetching tracker transactions", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

@@ -1,5 +1,5 @@
 export const testUser = {
-  id: 1,
+  id: "test_user_123",
   firstName: "Test",
   lastName: "User",
   fullName: "Test User",

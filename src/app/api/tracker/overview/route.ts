@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db } from "@/db/index";
-import { wallets, funds, transactions } from "@/db/schema";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+
+import { db } from "@/db";
+import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 export async function GET() {
@@ -13,44 +14,86 @@ export async function GET() {
 
     const user = await currentUserWithDB(authUser);
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User not found. Call POST /api/bootstrap first." },
+        { status: 400 },
+      );
     }
 
     const fundsInfo = await db
-      .select({ name: funds.name, amount: funds.amount })
+      .select({
+        id: funds.id,
+        name: funds.name,
+        kind: funds.kind,
+        balance: sql<number>`
+          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balance"),
+      })
       .from(funds)
-      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+      .leftJoin(
+        transactions,
+        and(
+          eq(transactions.userId, user.id),
+          eq(transactions.fundId, funds.id),
+          eq(transactions.status, "posted"),
+          eq(transactions.isPosting, true),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
+      .groupBy(funds.id, funds.name, funds.kind, funds.openingAmount);
 
     const walletsInfo = await db
-      .select({ name: wallets.name, amount: wallets.amount })
+      .select({
+        id: wallets.id,
+        name: wallets.name,
+        balance: sql<number>`
+          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balance"),
+      })
       .from(wallets)
-      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)));
+      .leftJoin(
+        transactions,
+        and(
+          eq(transactions.userId, user.id),
+          eq(transactions.walletId, wallets.id),
+          eq(transactions.status, "posted"),
+          eq(transactions.isPosting, true),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+      .groupBy(wallets.id, wallets.name, wallets.openingAmount);
 
     const recentTransactions = await db
       .select({
         id: transactions.id,
+        parentId: transactions.parentId,
+        isPosting: transactions.isPosting,
+        status: transactions.status,
         amount: transactions.amount,
-        withdraw: transactions.withdraw,
         description: transactions.description,
-        createdAt: transactions.createdAt,
+        occurredAt: transactions.occurredAt,
         walletName: wallets.name,
+        fundName: funds.name,
       })
       .from(transactions)
       .leftJoin(wallets, eq(wallets.id, transactions.walletId))
-      .where(eq(transactions.userId, user.id))
-      .orderBy(desc(transactions.createdAt))
+      .leftJoin(funds, eq(funds.id, transactions.fundId))
+      .where(
+        and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)),
+      )
+      .orderBy(desc(transactions.occurredAt), desc(transactions.id))
       .limit(10);
 
-    const data = {
-      user: user,
+    return NextResponse.json({
+      user,
       wallets: walletsInfo,
       funds: fundsInfo,
-      recentTransactions: recentTransactions,
-    };
-
-    return NextResponse.json(data);
+      recentTransactions,
+    });
   } catch (error) {
-    console.error("API: Error fetching data", error);
+    console.error("API: Error fetching tracker overview", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

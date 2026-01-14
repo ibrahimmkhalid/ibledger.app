@@ -15,18 +15,51 @@ export async function currentUser() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function currentUserWithDB(user: any) {
-  const dbUserEmail = user.emailAddresses[0]?.emailAddress;
-  if (!dbUserEmail) {
+  const clerkId = user?.id;
+  const email = user?.emailAddresses?.[0]?.emailAddress;
+
+  if (!clerkId && !email) {
     return null;
   }
-  const dbUser = await db
+
+  if (clerkId) {
+    const byClerkId = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .limit(1)
+      .then((res) => res[0]);
+
+    if (byClerkId) {
+      return byClerkId;
+    }
+  }
+
+  if (!email) {
+    return null;
+  }
+
+  const byEmail = await db
     .select()
     .from(users)
-    .where(eq(users.email, dbUserEmail))
+    .where(eq(users.email, email))
     .limit(1)
     .then((res) => res[0]);
-  if (!dbUser) {
+
+  if (!byEmail) {
     return null;
   }
-  return dbUser;
+
+  if (clerkId && !byEmail.clerkId) {
+    const updated = await db
+      .update(users)
+      .set({ clerkId, updatedAt: new Date() })
+      .where(eq(users.id, byEmail.id))
+      .returning()
+      .then((res) => res[0]);
+
+    return updated ?? byEmail;
+  }
+
+  return byEmail;
 }
