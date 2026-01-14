@@ -1,6 +1,7 @@
 import {
   boolean,
   doublePrecision,
+  foreignKey,
   integer,
   pgTable,
   primaryKey,
@@ -9,7 +10,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { InferSelectModel, InferInsertModel } from "drizzle-orm";
+import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp().defaultNow().notNull(),
@@ -19,6 +20,7 @@ const timestamps = {
 
 export const users = pgTable("users", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  clerkId: varchar({ length: 255 }).unique(),
   username: varchar({ length: 255 }).notNull().unique(),
   email: varchar({ length: 255 }).notNull().unique(),
   ...timestamps,
@@ -29,8 +31,9 @@ export const funds = pgTable("funds", {
   userId: integer()
     .notNull()
     .references(() => users.id),
-  name: varchar({ length: 255 }),
-  amount: doublePrecision().default(0).notNull(),
+  name: varchar({ length: 255 }).notNull(),
+  kind: varchar({ length: 32 }).default("regular").notNull(),
+  openingAmount: doublePrecision().default(0).notNull(),
   ...timestamps,
 });
 
@@ -43,7 +46,7 @@ export const fundFeeds = pgTable(
     dest: integer()
       .notNull()
       .references(() => funds.id),
-    feedPercentage: doublePrecision(),
+    feedPercentage: doublePrecision().default(0).notNull(),
   },
   (table) => [primaryKey({ columns: [table.source, table.dest] })],
 );
@@ -53,38 +56,49 @@ export const wallets = pgTable("wallets", {
   userId: integer()
     .notNull()
     .references(() => users.id),
-  name: varchar({ length: 255 }),
-  amount: doublePrecision().default(0).notNull(),
+  name: varchar({ length: 255 }).notNull(),
+  openingAmount: doublePrecision().default(0).notNull(),
   ...timestamps,
 });
 
-export const transactions = pgTable("transactions", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  userId: integer()
-    .notNull()
-    .references(() => users.id),
-  fundId: integer()
-    .notNull()
-    .references(() => funds.id),
-  walletId: integer()
-    .notNull()
-    .references(() => wallets.id),
-  amount: doublePrecision(),
-  withdraw: boolean().default(true).notNull(),
-  feedName: varchar({ length: 255 }),
-  feedPercentage: doublePrecision(),
-  description: text(),
-  ...timestamps,
-});
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id),
+
+    parentId: integer(),
+
+    occurredAt: timestamp().defaultNow().notNull(),
+    description: text(),
+    status: varchar({ length: 32 }).default("posted").notNull(),
+    isPosting: boolean().default(true).notNull(),
+
+    fundId: integer().references(() => funds.id),
+    walletId: integer().references(() => wallets.id),
+
+    amount: doublePrecision().notNull(),
+
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+    }),
+  ],
+);
 
 export type User = InferSelectModel<typeof users>;
 export type Fund = InferSelectModel<typeof funds>;
-export type Transaction = InferSelectModel<typeof transactions>;
 export type FundFeed = InferSelectModel<typeof fundFeeds>;
 export type Wallet = InferSelectModel<typeof wallets>;
+export type Transaction = InferSelectModel<typeof transactions>;
 
 export type NewUser = InferInsertModel<typeof users>;
 export type NewFund = InferInsertModel<typeof funds>;
-export type NewTransaction = InferInsertModel<typeof transactions>;
 export type NewFundFeed = InferInsertModel<typeof fundFeeds>;
 export type NewWallet = InferInsertModel<typeof wallets>;
+export type NewTransaction = InferInsertModel<typeof transactions>;
