@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentUser } from "@/lib/auth";
 
 export default async function SettingsPage() {
@@ -8,14 +7,5 @@ export default async function SettingsPage() {
   if (!user) {
     throw new Error();
   }
-  return (
-    <div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Settings</CardTitle>
-        </CardHeader>
-        <CardContent>placeholder</CardContent>
-      </Card>
-    </div>
-  );
+  return <div></div>;
 }

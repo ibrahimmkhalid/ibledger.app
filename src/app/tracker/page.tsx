@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { currentUser } from "@/lib/auth";
 import { GET as getUserTrackerInfoAPI } from "@/app/api/tracker/overview/route";
 
@@ -23,16 +22,5 @@ export default async function TrackerPage() {
   }
   const data = await getUserTrackerInfo();
 
-  return (
-    <div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{user.username}&apos;s financial tracker</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <div>{JSON.stringify(data)}</div>;
 }
