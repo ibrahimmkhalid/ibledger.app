@@ -46,3 +46,6 @@ next-env.d.ts
 
 .nvim.lua
 .todo
+
+# ai stuff
+PLAN.md
