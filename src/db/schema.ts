@@ -75,6 +75,7 @@ export const transactions = pgTable(
     description: text(),
     status: varchar({ length: 32 }).default("posted").notNull(),
     isPosting: boolean().default(true).notNull(),
+    isPending: boolean().default(true).notNull(),
 
     fundId: integer().references(() => funds.id),
     walletId: integer().references(() => wallets.id),
