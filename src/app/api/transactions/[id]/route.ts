@@ -9,6 +9,7 @@ type TransactionLineInput = {
   walletId?: number | null;
   fundId?: number | null;
   amount: number;
+  isPending: boolean;
 };
 
 function parseOccurredAt(input: unknown): Date {
@@ -133,15 +134,56 @@ export async function PATCH(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json();
 
+    const hasStructuralChanges =
+      body?.type !== undefined ||
+      body?.lines !== undefined ||
+      body?.walletId !== undefined ||
+      body?.amount !== undefined ||
+      body?.occurredAt !== undefined ||
+      body?.description !== undefined;
+
+    // Lightweight toggle: only update pending status.
+    if (!hasStructuralChanges && body?.isPending !== undefined) {
+      const nextPending = Boolean(body.isPending);
+
+      await db
+        .update(transactions)
+        .set({ isPending: nextPending, updatedAt: new Date() })
+        .where(
+          and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
+        );
+
+      await db
+        .update(transactions)
+        .set({ isPending: nextPending, updatedAt: new Date() })
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.parentId, eventId),
+          ),
+        );
+
+      return NextResponse.json({ eventId });
+    }
+
     const occurredAt = parseOccurredAt(body?.occurredAt ?? parent.occurredAt);
     const description = body?.description
       ? String(body.description)
       : parent.description;
     const type = body?.type ? String(body.type) : "expense";
+    const eventIsPending =
+      body?.isPending === undefined
+        ? Boolean(parent.isPending)
+        : Boolean(body.isPending);
 
     await db
       .update(transactions)
-      .set({ occurredAt, description, updatedAt: new Date() })
+      .set({
+        occurredAt,
+        description,
+        isPending: eventIsPending,
+        updatedAt: new Date(),
+      })
       .where(eq(transactions.id, eventId));
 
     // Void existing children so balances recompute from ledger.
@@ -158,6 +200,7 @@ export async function PATCH(
     if (type === "income") {
       const walletId = Number(body?.walletId);
       const amount = Number(body?.amount);
+      const isPending = eventIsPending;
 
       if (!walletId || Number.isNaN(walletId)) {
         return NextResponse.json(
@@ -228,6 +271,7 @@ export async function PATCH(
         description: null,
         status: "posted",
         isPosting: true,
+        isPending,
         walletId,
         fundId: null,
         amount,
@@ -245,6 +289,7 @@ export async function PATCH(
           description: null,
           status: "posted",
           isPosting: true,
+          isPending,
           walletId: null,
           fundId: pull.destFundId,
           amount: allocated,
@@ -259,6 +304,7 @@ export async function PATCH(
         description: null,
         status: "posted",
         isPosting: true,
+        isPending,
         walletId: null,
         fundId: savingsFundId,
         amount: savingsAllocated,
@@ -284,6 +330,8 @@ export async function PATCH(
         line.fundId === null || line.fundId === undefined
           ? null
           : Number(line.fundId);
+      const isPending =
+        line.isPending === undefined ? eventIsPending : Boolean(line.isPending);
 
       if (Number.isNaN(amount) || amount === 0) {
         throw new Error("Invalid amount");
@@ -301,7 +349,7 @@ export async function PATCH(
         throw new Error("Line must include walletId or fundId");
       }
 
-      return { walletId, fundId, amount };
+      return { walletId, fundId, amount, isPending };
     });
 
     const neededWalletIds = Array.from(
@@ -363,6 +411,71 @@ export async function PATCH(
     const fundBalanceCache = new Map<number, number>();
 
     for (const line of parsedLines) {
+      if (line.fundId) {
+        const fundKind = fundKindById.get(line.fundId);
+
+        if (fundKind === "regular") {
+          const balanceBefore =
+            fundBalanceCache.get(line.fundId) ??
+            (await getFundBalanceAsOf({
+              userId: user.id,
+              fundId: line.fundId,
+              occurredAt,
+            }));
+
+          const balanceAfter = balanceBefore + line.amount;
+
+          await db.insert(transactions).values({
+            userId: user.id,
+            parentId: eventId,
+            occurredAt,
+            description: null,
+            status: "posted",
+            isPosting: true,
+            isPending: line.isPending,
+            walletId: line.walletId ?? null,
+            fundId: line.fundId,
+            amount: line.amount,
+          });
+
+          if (balanceAfter < 0) {
+            const deficit = -balanceAfter;
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: eventId,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId: line.fundId,
+              amount: deficit,
+            });
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: eventId,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId: savingsFundId,
+              amount: -deficit,
+            });
+
+            fundBalanceCache.set(line.fundId, 0);
+          } else {
+            fundBalanceCache.set(line.fundId, balanceAfter);
+          }
+
+          continue;
+        }
+      }
+
       await db.insert(transactions).values({
         userId: user.id,
         parentId: eventId,
@@ -370,61 +483,11 @@ export async function PATCH(
         description: null,
         status: "posted",
         isPosting: true,
+        isPending: line.isPending,
         walletId: line.walletId ?? null,
         fundId: line.fundId ?? null,
         amount: line.amount,
       });
-
-      if (!line.fundId) {
-        continue;
-      }
-
-      const fundKind = fundKindById.get(line.fundId);
-      if (!fundKind || fundKind !== "regular") {
-        continue;
-      }
-
-      const balanceBefore =
-        fundBalanceCache.get(line.fundId) ??
-        (await getFundBalanceAsOf({
-          userId: user.id,
-          fundId: line.fundId,
-          occurredAt,
-        }));
-
-      const balanceAfter = balanceBefore + line.amount;
-
-      if (balanceAfter < 0) {
-        const deficit = -balanceAfter;
-
-        await db.insert(transactions).values({
-          userId: user.id,
-          parentId: eventId,
-          occurredAt,
-          description: null,
-          status: "posted",
-          isPosting: true,
-          walletId: null,
-          fundId: line.fundId,
-          amount: deficit,
-        });
-
-        await db.insert(transactions).values({
-          userId: user.id,
-          parentId: eventId,
-          occurredAt,
-          description: null,
-          status: "posted",
-          isPosting: true,
-          walletId: null,
-          fundId: savingsFundId,
-          amount: -deficit,
-        });
-
-        fundBalanceCache.set(line.fundId, 0);
-      } else {
-        fundBalanceCache.set(line.fundId, balanceAfter);
-      }
     }
 
     return NextResponse.json({ eventId });

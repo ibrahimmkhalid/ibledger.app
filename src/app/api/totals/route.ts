@@ -25,8 +25,12 @@ export async function GET() {
         id: wallets.id,
         name: wallets.name,
         balance: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(${wallets.openingAmount}, 0) +
+          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
+        balanceWithPending: sql<number>`
+          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
       })
       .from(wallets)
       .leftJoin(
@@ -48,8 +52,12 @@ export async function GET() {
         name: funds.name,
         kind: funds.kind,
         balance: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(${funds.openingAmount}, 0) +
+          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
+        balanceWithPending: sql<number>`
+          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
       })
       .from(funds)
       .leftJoin(
@@ -70,8 +78,15 @@ export async function GET() {
       0,
     );
 
+    const grandTotalWithPending = walletTotals.reduce(
+      (acc: number, w: { balanceWithPending: number }) =>
+        acc + Number(w.balanceWithPending),
+      0,
+    );
+
     return NextResponse.json({
       grandTotal,
+      grandTotalWithPending,
       wallets: walletTotals,
       funds: fundTotals,
     });

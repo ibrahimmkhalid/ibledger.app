@@ -26,8 +26,12 @@ export async function GET() {
         name: funds.name,
         kind: funds.kind,
         balance: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(${funds.openingAmount}, 0) +
+          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
+        balanceWithPending: sql<number>`
+          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
       })
       .from(funds)
       .leftJoin(
@@ -48,8 +52,12 @@ export async function GET() {
         id: wallets.id,
         name: wallets.name,
         balance: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(${wallets.openingAmount}, 0) +
+          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
+        balanceWithPending: sql<number>`
+          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
       })
       .from(wallets)
       .leftJoin(
@@ -70,6 +78,7 @@ export async function GET() {
         id: transactions.id,
         parentId: transactions.parentId,
         isPosting: transactions.isPosting,
+        isPending: transactions.isPending,
         status: transactions.status,
         amount: transactions.amount,
         description: transactions.description,

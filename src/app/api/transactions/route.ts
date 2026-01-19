@@ -9,6 +9,7 @@ type TransactionLineInput = {
   walletId?: number | null;
   fundId?: number | null;
   amount: number;
+  isPending: boolean;
 };
 
 function parseOccurredAt(input: unknown): Date {
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
         id: transactions.id,
         occurredAt: transactions.occurredAt,
         description: transactions.description,
+        isPending: transactions.isPending,
         status: transactions.status,
       })
       .from(transactions)
@@ -122,6 +124,7 @@ export async function GET(request: NextRequest) {
               parentId: transactions.parentId,
               occurredAt: transactions.occurredAt,
               description: transactions.description,
+              isPending: transactions.isPending,
               status: transactions.status,
               amount: transactions.amount,
               walletId: transactions.walletId,
@@ -192,6 +195,8 @@ export async function POST(request: NextRequest) {
 
     const occurredAt = parseOccurredAt(body?.occurredAt);
     const description = body?.description ? String(body.description) : null;
+    const eventIsPending =
+      body?.isPending === undefined ? true : Boolean(body.isPending);
 
     const parent = await db
       .insert(transactions)
@@ -202,6 +207,7 @@ export async function POST(request: NextRequest) {
         description,
         status: "posted",
         isPosting: false,
+        isPending: eventIsPending,
         fundId: null,
         walletId: null,
         amount: 0,
@@ -239,6 +245,7 @@ export async function POST(request: NextRequest) {
     if (type === "income") {
       const walletId = Number(body?.walletId);
       const amount = Number(body?.amount);
+      const isPending = eventIsPending;
 
       if (!walletId || Number.isNaN(walletId)) {
         return NextResponse.json(
@@ -310,6 +317,7 @@ export async function POST(request: NextRequest) {
         description: null,
         status: "posted",
         isPosting: true,
+        isPending,
         walletId,
         fundId: null,
         amount,
@@ -328,6 +336,7 @@ export async function POST(request: NextRequest) {
           description: null,
           status: "posted",
           isPosting: true,
+          isPending,
           walletId: null,
           fundId: pull.destFundId,
           amount: allocated,
@@ -343,6 +352,7 @@ export async function POST(request: NextRequest) {
         description: null,
         status: "posted",
         isPosting: true,
+        isPending,
         walletId: null,
         fundId: savingsFundId,
         amount: savingsAllocated,
@@ -368,6 +378,8 @@ export async function POST(request: NextRequest) {
         line.fundId === null || line.fundId === undefined
           ? null
           : Number(line.fundId);
+      const isPending =
+        line.isPending === undefined ? eventIsPending : Boolean(line.isPending);
 
       if (Number.isNaN(amount) || amount === 0) {
         throw new Error("Invalid amount");
@@ -385,7 +397,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Line must include walletId or fundId");
       }
 
-      return { walletId, fundId, amount };
+      return { walletId, fundId, amount, isPending };
     });
 
     const neededWalletIds = Array.from(
@@ -448,6 +460,72 @@ export async function POST(request: NextRequest) {
     const fundBalanceCache = new Map<number, number>();
 
     for (const line of parsedLines) {
+      if (line.fundId) {
+        const fundKind = fundKindById.get(line.fundId);
+
+        if (fundKind === "regular") {
+          const balanceBefore =
+            fundBalanceCache.get(line.fundId) ??
+            (await getFundBalanceAsOf({
+              userId: user.id,
+              fundId: line.fundId,
+              occurredAt,
+            }));
+
+          const balanceAfter = balanceBefore + line.amount;
+
+          await db.insert(transactions).values({
+            userId: user.id,
+            parentId: parent.id,
+            occurredAt,
+            description: null,
+            status: "posted",
+            isPosting: true,
+            isPending: line.isPending,
+            walletId: line.walletId ?? null,
+            fundId: line.fundId,
+            amount: line.amount,
+          });
+
+          if (balanceAfter < 0) {
+            const deficit = -balanceAfter;
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: parent.id,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId: line.fundId,
+              amount: deficit,
+            });
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: parent.id,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId: savingsFundId,
+              amount: -deficit,
+            });
+
+            fundBalanceCache.set(line.fundId, 0);
+          } else {
+            fundBalanceCache.set(line.fundId, balanceAfter);
+          }
+
+          continue;
+        }
+      }
+
+      // Non-regular fund line, or no fund: just insert.
       await db.insert(transactions).values({
         userId: user.id,
         parentId: parent.id,
@@ -455,67 +533,11 @@ export async function POST(request: NextRequest) {
         description: null,
         status: "posted",
         isPosting: true,
+        isPending: line.isPending,
         walletId: line.walletId ?? null,
         fundId: line.fundId ?? null,
         amount: line.amount,
       });
-
-      if (!line.fundId) {
-        continue;
-      }
-
-      const fundKind = fundKindById.get(line.fundId);
-      if (!fundKind) {
-        continue;
-      }
-
-      if (fundKind !== "regular") {
-        continue;
-      }
-
-      const balanceBefore =
-        fundBalanceCache.get(line.fundId) ??
-        (await getFundBalanceAsOf({
-          userId: user.id,
-          fundId: line.fundId,
-          occurredAt,
-        }));
-
-      const balanceAfter = balanceBefore + line.amount;
-
-      if (balanceAfter < 0) {
-        const deficit = -balanceAfter;
-
-        // Bring fund back to 0.
-        await db.insert(transactions).values({
-          userId: user.id,
-          parentId: parent.id,
-          occurredAt,
-          description: null,
-          status: "posted",
-          isPosting: true,
-          walletId: null,
-          fundId: line.fundId,
-          amount: deficit,
-        });
-
-        // Pull deficit from savings.
-        await db.insert(transactions).values({
-          userId: user.id,
-          parentId: parent.id,
-          occurredAt,
-          description: null,
-          status: "posted",
-          isPosting: true,
-          walletId: null,
-          fundId: savingsFundId,
-          amount: -deficit,
-        });
-
-        fundBalanceCache.set(line.fundId, 0);
-      } else {
-        fundBalanceCache.set(line.fundId, balanceAfter);
-      }
     }
 
     return NextResponse.json({ eventId: parent.id });

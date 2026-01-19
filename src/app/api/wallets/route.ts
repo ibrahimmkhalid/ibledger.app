@@ -28,8 +28,12 @@ export async function GET() {
         createdAt: wallets.createdAt,
         updatedAt: wallets.updatedAt,
         balance: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(${wallets.openingAmount}, 0) +
+          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
+        balanceWithPending: sql<number>`
+          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
       })
       .from(wallets)
       .leftJoin(

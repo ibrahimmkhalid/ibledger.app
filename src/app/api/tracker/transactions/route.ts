@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         id: transactions.id,
         parentId: transactions.parentId,
         isPosting: transactions.isPosting,
+        isPending: transactions.isPending,
         status: transactions.status,
         amount: transactions.amount,
         description: transactions.description,
