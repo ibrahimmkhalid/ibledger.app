@@ -309,21 +309,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // 1) wallet deposit (wallet-only)
-      await db.insert(transactions).values({
-        userId: user.id,
-        parentId: parent.id,
-        occurredAt,
-        description: null,
-        status: "posted",
-        isPosting: true,
-        isPending,
-        walletId,
-        fundId: null,
-        amount,
-      });
-
-      // 2) fund allocations (fund-only)
       let allocatedTotal = 0;
       for (const pull of normalizedPulls) {
         const allocated = (amount * pull.percentage) / 100;
@@ -337,7 +322,7 @@ export async function POST(request: NextRequest) {
           status: "posted",
           isPosting: true,
           isPending,
-          walletId: null,
+          walletId,
           fundId: pull.destFundId,
           amount: allocated,
         });
@@ -353,7 +338,7 @@ export async function POST(request: NextRequest) {
         status: "posted",
         isPosting: true,
         isPending,
-        walletId: null,
+        walletId,
         fundId: savingsFundId,
         amount: savingsAllocated,
       });
