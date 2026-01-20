@@ -602,7 +602,7 @@ export function TrackerClient() {
                   <Fragment key={ev.id}>
                     <TableRow>
                       <TableCell>
-                        {new Date(ev.occurredAt).toLocaleDateString()}
+                        {new Date(ev.occurredAt).toDateString()}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
