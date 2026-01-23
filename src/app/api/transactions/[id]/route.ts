@@ -113,89 +113,99 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
 
-    const parent = await db
+    const event = await db
       .select()
       .from(transactions)
       .where(
         and(
           eq(transactions.id, eventId),
           eq(transactions.userId, user.id),
-          eq(transactions.isPosting, false),
+          isNull(transactions.parentId),
           isNull(transactions.deletedAt),
         ),
       )
       .limit(1)
       .then((res) => res[0]);
 
-    if (!parent) {
+    if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json();
 
-    const hasStructuralChanges =
+    const hasRebuildChanges =
       body?.type !== undefined ||
       body?.lines !== undefined ||
       body?.walletId !== undefined ||
-      body?.amount !== undefined ||
+      body?.amount !== undefined;
+
+    const hasMetaChanges =
       body?.occurredAt !== undefined ||
-      body?.description !== undefined;
+      body?.description !== undefined ||
+      body?.isPending !== undefined;
 
-    // Lightweight toggle: only update pending status.
-    if (!hasStructuralChanges && body?.isPending !== undefined) {
-      const nextPending = Boolean(body.isPending);
+    // Metadata-only update: allow editing occurredAt/description/pending without
+    // rebuilding ledger postings.
+    if (!hasRebuildChanges && hasMetaChanges) {
+      const occurredAt =
+        body?.occurredAt === undefined
+          ? event.occurredAt
+          : parseOccurredAt(body.occurredAt);
+
+      const description =
+        body?.description === undefined
+          ? event.description
+          : body.description
+            ? String(body.description)
+            : null;
+
+      const eventIsPending =
+        body?.isPending === undefined
+          ? Boolean(event.isPending)
+          : Boolean(body.isPending);
 
       await db
         .update(transactions)
-        .set({ isPending: nextPending, updatedAt: new Date() })
-        .where(
-          and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
-        );
+        .set({ occurredAt, description, isPending: eventIsPending, updatedAt: new Date() })
+        .where(and(eq(transactions.userId, user.id), eq(transactions.id, eventId)));
 
       await db
         .update(transactions)
-        .set({ isPending: nextPending, updatedAt: new Date() })
-        .where(
-          and(
-            eq(transactions.userId, user.id),
-            eq(transactions.parentId, eventId),
-          ),
-        );
+        .set({ occurredAt, isPending: eventIsPending, updatedAt: new Date() })
+        .where(and(eq(transactions.userId, user.id), eq(transactions.parentId, eventId)));
 
       return NextResponse.json({ eventId });
     }
 
-    const occurredAt = parseOccurredAt(body?.occurredAt ?? parent.occurredAt);
-    const description = body?.description
-      ? String(body.description)
-      : parent.description;
+    const occurredAt = parseOccurredAt(body?.occurredAt ?? event.occurredAt);
+    const description = body?.description ? String(body.description) : event.description;
     const type = body?.type ? String(body.type) : "expense";
     const eventIsPending =
       body?.isPending === undefined
-        ? Boolean(parent.isPending)
+        ? Boolean(event.isPending)
         : Boolean(body.isPending);
 
+    // Rebuild: ensure the event row is a parent event, and recreate postings.
     await db
       .update(transactions)
       .set({
         occurredAt,
         description,
         isPending: eventIsPending,
+        isPosting: false,
+        walletId: null,
+        fundId: null,
+        amount: 0,
         updatedAt: new Date(),
       })
-      .where(eq(transactions.id, eventId));
+      .where(and(eq(transactions.userId, user.id), eq(transactions.id, eventId)));
 
     // Void existing children so balances recompute from ledger.
     await db
       .update(transactions)
       .set({ status: "void", updatedAt: new Date() })
-      .where(
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.parentId, eventId),
-        ),
-      );
+      .where(and(eq(transactions.userId, user.id), eq(transactions.parentId, eventId)));
 
     if (type === "income") {
       const walletId = Number(body?.walletId);
@@ -315,7 +325,7 @@ export async function PATCH(
 
     const lines = Array.isArray(body?.lines) ? body.lines : null;
     if (!lines || lines.length === 0) {
-      return NextResponse.json({ eventId });
+      return NextResponse.json({ error: "Missing lines" }, { status: 400 });
     }
 
     const parsedLines: TransactionLineInput[] = lines.map((l: unknown) => {
@@ -407,6 +417,87 @@ export async function PATCH(
     const fundKindById = new Map<number, string>(
       fundRows.map((f) => [f.id, f.kind]),
     );
+
+    // If this is a single-line event, we can store it as a posting-only event
+    // (no child rows) to reduce writes.
+    if (parsedLines.length === 1) {
+      const line = parsedLines[0];
+      const fundId = line.fundId ?? null;
+
+      if (fundId) {
+        const fundKind = fundKindById.get(fundId);
+
+        if (fundKind === "regular") {
+          const balanceBefore = await getFundBalanceAsOf({
+            userId: user.id,
+            fundId,
+            occurredAt,
+          });
+
+          const balanceAfter = balanceBefore + line.amount;
+
+          if (balanceAfter < 0) {
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: eventId,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: line.walletId ?? null,
+              fundId,
+              amount: line.amount,
+            });
+
+            const deficit = -balanceAfter;
+
+            // Internal fund transfers should not affect wallet balances.
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: eventId,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId,
+              amount: deficit,
+            });
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: eventId,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: null,
+              fundId: savingsFundId,
+              amount: -deficit,
+            });
+
+            return NextResponse.json({ eventId });
+          }
+        }
+      }
+
+      await db
+        .update(transactions)
+        .set({
+          isPosting: true,
+          isPending: line.isPending,
+          walletId: line.walletId ?? null,
+          fundId,
+          amount: line.amount,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(transactions.userId, user.id), eq(transactions.id, eventId)));
+
+      return NextResponse.json({ eventId });
+    }
 
     const fundBalanceCache = new Map<number, number>();
 
@@ -543,7 +634,7 @@ export async function DELETE(
         and(
           eq(transactions.id, eventId),
           eq(transactions.userId, user.id),
-          eq(transactions.isPosting, false),
+          isNull(transactions.parentId),
           isNull(transactions.deletedAt),
         ),
       )

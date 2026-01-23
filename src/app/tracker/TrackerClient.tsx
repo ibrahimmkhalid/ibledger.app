@@ -70,10 +70,13 @@ type TransactionChild = {
 
 type TransactionEvent = {
   id: number;
+  amount: number;
   occurredAt: string;
   description: string | null;
   isPending: boolean;
   status: string;
+  walletName: string | null;
+  fundName: string | null;
   children: TransactionChild[];
 };
 
@@ -140,10 +143,18 @@ function sumFundDelta(children: TransactionChild[]) {
     .reduce((acc, c) => acc + Number(c.amount), 0);
 }
 
-function computeEventDisplayAmount(children: TransactionChild[]) {
+function computeParentEventDisplayAmount(children: TransactionChild[]) {
   const walletDelta = sumWalletDelta(children);
   if (walletDelta !== 0) return walletDelta;
   return sumFundDelta(children);
+}
+
+function computeEventDisplayAmount(event: TransactionEvent) {
+  if (event.children.length === 0) {
+    return event.amount;
+  } else {
+    return computeParentEventDisplayAmount(event.children);
+  }
 }
 
 export function TrackerClient() {
@@ -314,6 +325,7 @@ export function TrackerClient() {
         throw new Error("Select a wallet");
       }
 
+      // createType === "expense" (assumed)
       await apiJson("/api/transactions", {
         method: "POST",
         body: JSON.stringify({
@@ -595,7 +607,7 @@ export function TrackerClient() {
             </TableHeader>
             <TableBody>
               {events.map((ev) => {
-                const net = computeEventDisplayAmount(ev.children);
+                const net = computeEventDisplayAmount(ev);
                 const expanded = Boolean(expandedEventIds[ev.id]);
 
                 return (
@@ -654,18 +666,25 @@ export function TrackerClient() {
                                 <TableHead>Pending</TableHead>
                               </TableRow>
                             </TableHeader>
-                            <TableBody>
-                              {ev.children.map((c) => (
-                                <TableRow key={c.id}>
-                                  <TableCell>{fmt(c.amount)}</TableCell>
-                                  <TableCell>{c.walletName ?? ""}</TableCell>
-                                  <TableCell>{c.fundName ?? ""}</TableCell>
-                                  <TableCell>
-                                    {c.isPending ? "yes" : "no"}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
+                              <TableBody>
+                               {ev.children.length > 0 ? (
+                                 ev.children.map((c) => (
+                                   <TableRow key={c.id}>
+                                     <TableCell>{fmt(c.amount)}</TableCell>
+                                     <TableCell>{c.walletName ?? ""}</TableCell>
+                                     <TableCell>{c.fundName ?? ""}</TableCell>
+                                     <TableCell>{c.isPending ? "yes" : "no"}</TableCell>
+                                   </TableRow>
+                                 ))
+                               ) : (
+                                 <TableRow>
+                                   <TableCell>{fmt(ev.amount)}</TableCell>
+                                   <TableCell>{ev.walletName ?? ""}</TableCell>
+                                   <TableCell>{ev.fundName ?? ""}</TableCell>
+                                   <TableCell>{ev.isPending ? "yes" : "no"}</TableCell>
+                                 </TableRow>
+                               )}
+                             </TableBody>
                           </Table>
                         </TableCell>
                       </TableRow>

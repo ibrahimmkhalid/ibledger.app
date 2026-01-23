@@ -98,14 +98,23 @@ export async function GET(request: NextRequest) {
         id: transactions.id,
         occurredAt: transactions.occurredAt,
         description: transactions.description,
+        amount: transactions.amount,
+        isPosting: transactions.isPosting,
         isPending: transactions.isPending,
         status: transactions.status,
+        walletId: transactions.walletId,
+        walletName: wallets.name,
+        fundId: transactions.fundId,
+        fundName: funds.name,
       })
       .from(transactions)
+      .leftJoin(wallets, eq(wallets.id, transactions.walletId))
+      .leftJoin(funds, eq(funds.id, transactions.fundId))
       .where(
         and(
           eq(transactions.userId, user.id),
-          eq(transactions.isPosting, false),
+          eq(transactions.status, "posted"),
+          isNull(transactions.parentId),
           isNull(transactions.deletedAt),
         ),
       )
@@ -113,10 +122,11 @@ export async function GET(request: NextRequest) {
       .offset(page * pageSize)
       .limit(pageSize);
 
-    const eventIds = events.map((e) => e.id);
+    // when isPosting is false, it means that the event is a parent event
+    const parentEventIds = events.filter((e) => !e.isPosting).map((e) => e.id);
 
     const children =
-      eventIds.length === 0
+      parentEventIds.length === 0
         ? []
         : await db
             .select({
@@ -138,8 +148,9 @@ export async function GET(request: NextRequest) {
             .where(
               and(
                 eq(transactions.userId, user.id),
+                eq(transactions.status, "posted"),
                 eq(transactions.isPosting, true),
-                inArray(transactions.parentId, eventIds),
+                inArray(transactions.parentId, parentEventIds),
                 isNull(transactions.deletedAt),
               ),
             )
@@ -442,6 +453,90 @@ export async function POST(request: NextRequest) {
     );
 
     // Overspend: regular funds should never go negative.
+    // If this is a single-line event, we can store it as a posting-only event
+    // (no child rows) to reduce the number of inserts.
+    if (parsedLines.length === 1) {
+      const line = parsedLines[0];
+      const fundId = line.fundId ?? null;
+
+      if (fundId) {
+        const fundKind = fundKindById.get(fundId);
+
+        if (fundKind === "regular") {
+          const balanceBefore = await getFundBalanceAsOf({
+            userId: user.id,
+            fundId,
+            occurredAt,
+          });
+
+          const balanceAfter = balanceBefore + line.amount;
+
+          if (balanceAfter < 0) {
+            // Overspend: keep the parent as an event row and create postings.
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: parent.id,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: line.walletId ?? null,
+              fundId,
+              amount: line.amount,
+            });
+
+            const deficit = -balanceAfter;
+
+            // Internal fund transfers should not affect wallet balances.
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: parent.id,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: line.walletId ?? null,
+              fundId,
+              amount: deficit,
+            });
+
+            await db.insert(transactions).values({
+              userId: user.id,
+              parentId: parent.id,
+              occurredAt,
+              description: null,
+              status: "posted",
+              isPosting: true,
+              isPending: line.isPending,
+              walletId: line.walletId ?? null,
+              fundId: savingsFundId,
+              amount: -deficit,
+            });
+
+            return NextResponse.json({ eventId: parent.id });
+          }
+        }
+      }
+
+      await db
+        .update(transactions)
+        .set({
+          isPosting: true,
+          isPending: line.isPending,
+          walletId: line.walletId ?? null,
+          fundId,
+          amount: line.amount,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(transactions.userId, user.id), eq(transactions.id, parent.id)),
+        );
+
+      return NextResponse.json({ eventId: parent.id });
+    }
+
     const fundBalanceCache = new Map<number, number>();
 
     for (const line of parsedLines) {
@@ -475,6 +570,7 @@ export async function POST(request: NextRequest) {
           if (balanceAfter < 0) {
             const deficit = -balanceAfter;
 
+            // Internal fund transfers should not affect wallet balances.
             await db.insert(transactions).values({
               userId: user.id,
               parentId: parent.id,
