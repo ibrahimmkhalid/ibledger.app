@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "posting_kind" varchar(32) DEFAULT 'normal' NOT NULL;

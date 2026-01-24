@@ -77,6 +77,9 @@ export const transactions = pgTable(
     isPosting: boolean().default(true).notNull(),
     isPending: boolean().default(true).notNull(),
 
+    // Marker for internal ledger behavior (eg. overdraft).
+    postingKind: varchar({ length: 32 }).default("normal").notNull(),
+
     fundId: integer().references(() => funds.id),
     walletId: integer().references(() => wallets.id),
 
