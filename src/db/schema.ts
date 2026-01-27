@@ -76,6 +76,7 @@ export const transactions = pgTable(
     status: varchar({ length: 32 }).default("posted").notNull(),
     isPosting: boolean().default(true).notNull(),
     isPending: boolean().default(true).notNull(),
+    incomePull: doublePrecision(),
 
     // Marker for internal ledger behavior (eg. overdraft).
     postingKind: varchar({ length: 32 }).default("normal").notNull(),
