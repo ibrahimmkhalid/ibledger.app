@@ -19,8 +19,15 @@ try {
   });
 }
 
-export function fmtAmount(n: number) {
-  return moneyFormatter.format(Number(n));
+export function fmtAmount(
+  n: number,
+  style: "accounting" | "plain" = "accounting",
+) {
+  if (style === "accounting") {
+    return moneyFormatter.format(Number(n));
+  } else if (style === "plain") {
+    return Number(n).toFixed(2).replace(/-/, "");
+  }
 }
 
 export function isoToday() {

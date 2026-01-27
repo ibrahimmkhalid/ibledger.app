@@ -36,14 +36,13 @@ function renderClearedWithPending(cleared: number, withPending: number) {
   const p = Number(withPending);
   const delta = p - c;
 
-  const sign = delta > 0 ? "+" : "";
+  const sign = delta > 0 ? "+" : "-";
   return (
     <>
       <span className="font-semibold">{fmtAmount(c)}</span>
       {delta !== 0 && (
         <span className="text-muted-foreground ml-2">
-          [{sign}
-          {fmtAmount(delta)}]
+          [{sign}${fmtAmount(delta, "plain")}]
         </span>
       )}
     </>
