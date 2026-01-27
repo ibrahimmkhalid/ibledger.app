@@ -211,24 +211,41 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
-    const hasAnyPosting = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(
+    const walletBalanceRow = await db
+      .select({
+        balanceWithPending: sql<number>`
+          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
+      })
+      .from(wallets)
+      .leftJoin(
+        transactions,
         and(
           eq(transactions.userId, user.id),
-          eq(transactions.walletId, walletId),
+          eq(transactions.walletId, wallets.id),
           eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
       )
+      .where(
+        and(
+          eq(wallets.id, walletId),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      )
+      .groupBy(wallets.id, wallets.openingAmount)
       .limit(1)
-      .then((res) => res.length > 0);
+      .then((res) => res[0]);
 
-    if (hasAnyPosting) {
+    const bal = Number(walletBalanceRow?.balanceWithPending ?? 0);
+    if (Math.abs(bal) > 1e-9) {
       return NextResponse.json(
-        { error: "Wallet has transactions and cannot be deleted" },
+        {
+          error:
+            "Wallet has a non-zero balance. Move the money to another wallet, then try again.",
+        },
         { status: 400 },
       );
     }

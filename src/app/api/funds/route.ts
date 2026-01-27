@@ -221,24 +221,41 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const hasAnyPosting = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(
+    const fundBalanceRow = await db
+      .select({
+        balanceWithPending: sql<number>`
+          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+        `.as("balanceWithPending"),
+      })
+      .from(funds)
+      .leftJoin(
+        transactions,
         and(
           eq(transactions.userId, user.id),
-          eq(transactions.fundId, fundId),
+          eq(transactions.fundId, funds.id),
           eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
       )
+      .where(
+        and(
+          eq(funds.id, fundId),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      )
+      .groupBy(funds.id, funds.openingAmount)
       .limit(1)
-      .then((res) => res.length > 0);
+      .then((res) => res[0]);
 
-    if (hasAnyPosting) {
+    const bal = Number(fundBalanceRow?.balanceWithPending ?? 0);
+    if (Math.abs(bal) > 1e-9) {
       return NextResponse.json(
-        { error: "Fund has transactions and cannot be deleted" },
+        {
+          error:
+            "Fund has a non-zero balance. Move the money to another fund, then try again.",
+        },
         { status: 400 },
       );
     }
