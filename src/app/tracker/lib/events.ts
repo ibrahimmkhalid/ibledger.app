@@ -46,10 +46,20 @@ export function computeEventFundName(ev: TransactionEvent) {
 }
 
 export function isIncomeLike(ev: TransactionEvent) {
-  if (ev.children.length < 2) return false;
-  const allPositive = ev.children.every((c) => Number(c.amount) > 0);
+  if (ev.children.length === 0) return false;
+
+  // Income events are the only postings that carry a non-null incomePull.
+  // Internal postings (eg. overdraft repayment) keep incomePull null.
+  const allocations = ev.children.filter(
+    (c) => c.status === "posted" && c.incomePull !== null,
+  );
+  if (allocations.length === 0) return false;
+
+  const allPositive = allocations.every((c) => Number(c.amount) > 0);
   if (!allPositive) return false;
-  const walletIds = new Set(ev.children.map((c) => c.walletId).filter(Boolean));
+
+  const walletIds = new Set(allocations.map((c) => c.walletId).filter(Boolean));
   if (walletIds.size !== 1) return false;
+
   return true;
 }

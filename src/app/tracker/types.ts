@@ -41,6 +41,7 @@ export type TransactionLine = {
   isPending: boolean;
   status: string;
   amount: number;
+  incomePull: number | null;
   walletId: number | null;
   walletName: string | null;
   fundId: number | null;
@@ -55,6 +56,7 @@ export type TransactionEvent = {
   isPosting: boolean;
   isPending: boolean;
   status: string;
+  incomePull: number | null;
   walletId: number | null;
   walletName: string | null;
   fundId: number | null;

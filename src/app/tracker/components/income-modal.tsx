@@ -272,6 +272,7 @@ export function IncomeModal(args: {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fund</TableHead>
+                    <TableHead className="w-[110px]">Pull</TableHead>
                     <TableHead className="w-[140px] text-right">
                       Amount
                     </TableHead>
@@ -282,6 +283,9 @@ export function IncomeModal(args: {
                   {initialEvent.children.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>{c.fundName ?? ""}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {c.incomePull === null ? "" : `${c.incomePull}%`}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {fmtAmount(Number(c.amount))}
                       </TableCell>

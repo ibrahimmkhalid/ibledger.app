@@ -122,6 +122,7 @@ export function TransactionModal(args: {
                 description: initialEvent.description,
                 amount: initialEvent.amount,
                 isPending: initialEvent.isPending,
+                incomePull: initialEvent.incomePull,
               },
             ];
 

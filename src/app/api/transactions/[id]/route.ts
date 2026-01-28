@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { fundFeeds, funds, transactions, wallets } from "@/db/schema";
+import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 type TransactionLineInput = {
@@ -140,10 +140,9 @@ export async function PATCH(
       );
     }
 
-    const { incomeFundId, savingsFundId, fundKindByIdAll } =
-      await ensureSystemFunds({
-        userId: user.id,
-      });
+    const { savingsFundId, fundKindByIdAll } = await ensureSystemFunds({
+      userId: user.id,
+    });
 
     const params = await ctx.params;
     const eventId = Number(params.id);
@@ -238,6 +237,26 @@ export async function PATCH(
         ? Boolean(event.isPending)
         : Boolean(body.isPending);
 
+    const incomeSnapshot =
+      type !== "income"
+        ? null
+        : await db
+            .select({
+              fundId: transactions.fundId,
+              incomePull: transactions.incomePull,
+            })
+            .from(transactions)
+            .where(
+              and(
+                eq(transactions.userId, user.id),
+                eq(transactions.parentId, eventId),
+                eq(transactions.status, "posted"),
+                eq(transactions.isPosting, true),
+                isNull(transactions.deletedAt),
+                isNotNull(transactions.incomePull),
+              ),
+            );
+
     // Rebuild: ensure the event row is a parent event, and recreate postings.
     await db
       .update(transactions)
@@ -305,19 +324,33 @@ export async function PATCH(
         );
       }
 
-      const pulls = await db
-        .select({
-          destFundId: fundFeeds.dest,
-          percentage: fundFeeds.feedPercentage,
-        })
-        .from(fundFeeds)
-        .where(eq(fundFeeds.source, incomeFundId));
+      const snapshot = incomeSnapshot;
+      if (!snapshot || snapshot.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Income is missing pull snapshot (transactions.incomePull). Run your migration script first.",
+          },
+          { status: 400 },
+        );
+      }
 
-      const normalizedPulls = pulls
-        .filter((p) => p.destFundId !== savingsFundId)
-        .map((p) => ({
-          destFundId: p.destFundId,
-          percentage: Number(p.percentage),
+      const savingsSnap = snapshot.find((s) => s.fundId === savingsFundId);
+      if (!savingsSnap || savingsSnap.incomePull === null) {
+        return NextResponse.json(
+          {
+            error:
+              "Income snapshot is missing savings pull. Run your migration script first.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const normalizedPulls = snapshot
+        .filter((s) => s.fundId && s.fundId !== savingsFundId)
+        .map((s) => ({
+          destFundId: s.fundId as number,
+          percentage: Number(s.incomePull),
         }));
 
       const pullSum = normalizedPulls.reduce(
@@ -328,7 +361,7 @@ export async function PATCH(
 
       if (pullSum > 100) {
         return NextResponse.json(
-          { error: "Invalid fund feeds: sum exceeds 100" },
+          { error: "Invalid income snapshot: sum exceeds 100" },
           { status: 400 },
         );
       }
@@ -347,6 +380,7 @@ export async function PATCH(
           status: "posted",
           isPosting: true,
           isPending,
+          incomePull: pull.percentage,
           walletId,
           fundId: pull.destFundId,
           amount: allocated,
@@ -372,6 +406,7 @@ export async function PATCH(
               status: "posted",
               isPosting: true,
               isPending,
+              incomePull: null,
               walletId: null,
               fundId: pull.destFundId,
               amount: -repay,
@@ -386,6 +421,7 @@ export async function PATCH(
               status: "posted",
               isPosting: true,
               isPending,
+              incomePull: null,
               walletId: null,
               fundId: savingsFundId,
               amount: repay,
@@ -406,6 +442,7 @@ export async function PATCH(
         status: "posted",
         isPosting: true,
         isPending,
+        incomePull: Number(savingsSnap.incomePull),
         walletId,
         fundId: savingsFundId,
         amount: savingsAllocated,
