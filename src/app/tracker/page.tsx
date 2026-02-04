@@ -1,9 +1,24 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -54,10 +69,18 @@ export default function TrackerPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const recentPendingOnlyId = useId();
+  const [recentPendingOnly, setRecentPendingOnly] = useState(false);
+
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
+
+  const visibleEvents = useMemo(() => {
+    if (!recentPendingOnly) return events;
+    return events.filter((ev) => ev.isPending);
+  }, [events, recentPendingOnly]);
 
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
@@ -290,7 +313,22 @@ export default function TrackerPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+          <CardTitle>
+            {recentPendingOnly
+              ? "Recent Pending Transactions"
+              : "Recent Transactions"}
+          </CardTitle>
+          <CardAction>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={recentPendingOnlyId}>Pending only</Label>
+              <Switch
+                id={recentPendingOnlyId}
+                size="sm"
+                checked={recentPendingOnly}
+                onCheckedChange={setRecentPendingOnly}
+              />
+            </div>
+          </CardAction>
         </CardHeader>
         <CardContent>
           <Table>
@@ -305,7 +343,7 @@ export default function TrackerPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {events.map((ev) => {
+              {visibleEvents.map((ev) => {
                 const net = computeEventDisplayAmount(ev);
                 const walletName = computeEventWalletName(ev);
                 const fundName = computeEventFundName(ev);

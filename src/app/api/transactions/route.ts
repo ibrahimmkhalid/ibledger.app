@@ -30,8 +30,11 @@ function parseOccurredAt(input: unknown): Date {
 
 export async function GET(request: NextRequest) {
   try {
-    const pageParam = new URL(request.url).searchParams.get("page");
+    const searchParams = new URL(request.url).searchParams;
+    const pageParam = searchParams.get("page");
     const page = pageParam ? Number(pageParam) : 0;
+
+    const pendingOnly = searchParams.get("pendingOnly") === "true";
 
     if (Number.isNaN(page) || page < 0) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
@@ -70,11 +73,18 @@ export async function GET(request: NextRequest) {
       .leftJoin(wallets, eq(wallets.id, transactions.walletId))
       .leftJoin(funds, eq(funds.id, transactions.fundId))
       .where(
-        and(
-          eq(transactions.userId, user.id),
-          isNull(transactions.parentId),
-          isNull(transactions.deletedAt),
-        ),
+        pendingOnly
+          ? and(
+              eq(transactions.userId, user.id),
+              isNull(transactions.parentId),
+              isNull(transactions.deletedAt),
+              eq(transactions.isPending, true),
+            )
+          : and(
+              eq(transactions.userId, user.id),
+              isNull(transactions.parentId),
+              isNull(transactions.deletedAt),
+            ),
       )
       .orderBy(desc(transactions.occurredAt), desc(transactions.id))
       .offset(page * pageSize)

@@ -1,9 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -35,12 +43,20 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const pendingOnlyId = useId();
+  const [pendingOnly, setPendingOnly] = useState(false);
+
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
 
   const [page, setPage] = useState(0);
   const [nextPage, setNextPage] = useState(-1);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
+
+  const visibleEvents = useMemo(() => {
+    if (!pendingOnly) return events;
+    return events.filter((ev) => ev.isPending);
+  }, [events, pendingOnly]);
 
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
@@ -55,35 +71,42 @@ export default function TransactionsPage() {
     [funds],
   );
 
-  const refresh = useCallback(async (next: { page: number }) => {
-    setLoading(true);
-    setError(null);
-    setNotice(null);
+  const refresh = useCallback(
+    async (next: { page: number; pendingOnly: boolean }) => {
+      setLoading(true);
+      setError(null);
+      setNotice(null);
 
-    try {
-      await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+      try {
+        await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
 
-      const [walletsRes, fundsRes, eventsRes] = await Promise.all([
-        apiJson<{ wallets: Wallet[] }>("/api/wallets"),
-        apiJson<{ funds: Fund[] }>("/api/funds"),
-        apiJson<EventsResponse>(`/api/transactions?page=${next.page}`),
-      ]);
+        const [walletsRes, fundsRes, eventsRes] = await Promise.all([
+          apiJson<{ wallets: Wallet[] }>("/api/wallets"),
+          apiJson<{ funds: Fund[] }>("/api/funds"),
+          apiJson<EventsResponse>(
+            `/api/transactions?page=${next.page}${
+              next.pendingOnly ? "&pendingOnly=true" : ""
+            }`,
+          ),
+        ]);
 
-      setWallets(walletsRes.wallets);
-      setFunds(fundsRes.funds);
-      setEvents(eventsRes.events);
-      setNextPage(eventsRes.nextPage);
-      setPage(eventsRes.currentPage);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        setWallets(walletsRes.wallets);
+        setFunds(fundsRes.funds);
+        setEvents(eventsRes.events);
+        setNextPage(eventsRes.nextPage);
+        setPage(eventsRes.currentPage);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    void refresh({ page: 0 });
-  }, [refresh]);
+    void refresh({ page: 0, pendingOnly });
+  }, [refresh, pendingOnly]);
 
   if (loading) {
     return (
@@ -103,7 +126,10 @@ export default function TransactionsPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Transactions</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void refresh({ page })}>
+          <Button
+            variant="outline"
+            onClick={() => void refresh({ page, pendingOnly })}
+          >
             Refresh
           </Button>
           <Button onClick={() => setCreateTransactionOpen(true)}>
@@ -140,7 +166,7 @@ export default function TransactionsPage() {
         funds={displayFunds}
         onSaved={async () => {
           setNotice("Transaction saved");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
         }}
       />
 
@@ -150,7 +176,7 @@ export default function TransactionsPage() {
         wallets={wallets}
         onSaved={async () => {
           setNotice("Income saved");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
         }}
       />
 
@@ -164,12 +190,12 @@ export default function TransactionsPage() {
         initialEvent={detailsEvent}
         onSaved={async () => {
           setNotice("Transaction updated");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
           setDetailsEvent(null);
         }}
         onDeleted={async () => {
           setNotice("Transaction deleted");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
           setDetailsEvent(null);
         }}
       />
@@ -183,19 +209,32 @@ export default function TransactionsPage() {
         initialEvent={detailsEvent}
         onSaved={async () => {
           setNotice("Income updated");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
           setDetailsEvent(null);
         }}
         onDeleted={async () => {
           setNotice("Income deleted");
-          await refresh({ page });
+          await refresh({ page, pendingOnly });
           setDetailsEvent(null);
         }}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>All transactions</CardTitle>
+          <CardTitle>
+            {pendingOnly ? "Pending transactions" : "All transactions"}
+          </CardTitle>
+          <CardAction>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={pendingOnlyId}>Pending only</Label>
+              <Switch
+                id={pendingOnlyId}
+                size="sm"
+                checked={pendingOnly}
+                onCheckedChange={setPendingOnly}
+              />
+            </div>
+          </CardAction>
         </CardHeader>
         <CardContent>
           <Table>
@@ -210,7 +249,7 @@ export default function TransactionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {events.map((ev) => {
+              {visibleEvents.map((ev) => {
                 const net = computeEventDisplayAmount(ev);
                 const walletName = computeEventWalletName(ev);
                 const fundName = computeEventFundName(ev);
@@ -261,7 +300,12 @@ export default function TransactionsPage() {
             <Button
               variant="outline"
               disabled={page <= 0}
-              onClick={() => void refresh({ page: Math.max(0, page - 1) })}
+              onClick={() =>
+                void refresh({
+                  page: Math.max(0, page - 1),
+                  pendingOnly,
+                })
+              }
             >
               Previous
             </Button>
@@ -269,7 +313,7 @@ export default function TransactionsPage() {
             <Button
               variant="outline"
               disabled={nextPage === -1}
-              onClick={() => void refresh({ page: nextPage })}
+              onClick={() => void refresh({ page: nextPage, pendingOnly })}
             >
               Next
             </Button>
