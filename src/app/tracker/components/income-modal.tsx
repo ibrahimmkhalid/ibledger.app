@@ -36,9 +36,7 @@ function parseDateToInputValue(input: string) {
 
 function sumIncomeAmount(ev: TransactionEvent) {
   if (ev.children.length > 0) {
-    return ev.children
-      .filter((c) => c.status === "posted")
-      .reduce((acc, c) => acc + Number(c.amount), 0);
+    return ev.children.reduce((acc, c) => acc + Number(c.amount), 0);
   }
   return Number(ev.amount);
 }

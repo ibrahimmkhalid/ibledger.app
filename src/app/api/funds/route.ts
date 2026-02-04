@@ -20,7 +20,7 @@ export async function GET() {
       );
     }
 
-    const userFunds = await db
+    const userFundsRaw = await db
       .select({
         id: funds.id,
         name: funds.name,
@@ -42,7 +42,6 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.fundId, funds.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
@@ -56,6 +55,44 @@ export async function GET() {
         funds.createdAt,
         funds.updatedAt,
       );
+
+    // Display rule:
+    // - Non-savings funds are visually clamped at 0
+    // - Savings absorbs all deficits from clamped funds (and may go negative)
+    const withRaw = userFundsRaw.map((f) => ({
+      ...f,
+      rawBalance: Number(f.balance),
+      rawBalanceWithPending: Number(f.balanceWithPending),
+    }));
+
+    const deficitCleared = withRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
+
+    const deficitWithPending = withRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce(
+        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
+        0,
+      );
+
+    const userFunds = withRaw.map((f) => {
+      const kind = String(f.kind);
+      const balance =
+        kind === "savings"
+          ? f.rawBalance - deficitCleared
+          : Math.max(0, f.rawBalance);
+      const balanceWithPending =
+        kind === "savings"
+          ? f.rawBalanceWithPending - deficitWithPending
+          : Math.max(0, f.rawBalanceWithPending);
+
+      return {
+        ...f,
+        balance,
+        balanceWithPending,
+      };
+    });
 
     return NextResponse.json({ funds: userFunds });
   } catch (error) {
@@ -233,7 +270,6 @@ export async function DELETE(request: NextRequest) {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.fundId, funds.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),

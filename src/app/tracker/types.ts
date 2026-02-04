@@ -13,6 +13,8 @@ export type TotalsResponse = {
     kind: string;
     balance: number;
     balanceWithPending: number;
+    rawBalance?: number;
+    rawBalanceWithPending?: number;
   }>;
 };
 
@@ -31,6 +33,8 @@ export type Fund = {
   openingAmount: number;
   balance: number;
   balanceWithPending: number;
+  rawBalance?: number;
+  rawBalanceWithPending?: number;
 };
 
 export type TransactionLine = {
@@ -39,7 +43,6 @@ export type TransactionLine = {
   occurredAt: string;
   description: string | null;
   isPending: boolean;
-  status: string;
   amount: number;
   incomePull: number | null;
   walletId: number | null;
@@ -55,7 +58,6 @@ export type TransactionEvent = {
   amount: number;
   isPosting: boolean;
   isPending: boolean;
-  status: string;
   incomePull: number | null;
   walletId: number | null;
   walletName: string | null;

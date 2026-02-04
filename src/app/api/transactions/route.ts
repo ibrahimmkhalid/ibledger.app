@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { fundFeeds, funds, transactions, wallets } from "@/db/schema";
@@ -26,80 +26,6 @@ function parseOccurredAt(input: unknown): Date {
   }
 
   throw new Error("Invalid occurredAt");
-}
-
-async function getFundBalanceAsOf(args: {
-  userId: number;
-  fundId: number;
-  occurredAt: Date;
-}): Promise<number> {
-  const { userId, fundId, occurredAt } = args;
-
-  const row = await db
-    .select({
-      openingAmount: funds.openingAmount,
-      delta: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as("delta"),
-    })
-    .from(funds)
-    .leftJoin(
-      transactions,
-      and(
-        eq(transactions.userId, userId),
-        eq(transactions.fundId, fundId),
-        eq(transactions.status, "posted"),
-        eq(transactions.isPosting, true),
-        isNull(transactions.deletedAt),
-        lte(transactions.occurredAt, occurredAt),
-      ),
-    )
-    .where(
-      and(
-        eq(funds.id, fundId),
-        eq(funds.userId, userId),
-        isNull(funds.deletedAt),
-      ),
-    )
-    .groupBy(funds.id, funds.openingAmount)
-    .limit(1)
-    .then((res) => res[0]);
-
-  if (!row) {
-    throw new Error("Fund not found");
-  }
-
-  return Number(row.openingAmount) + Number(row.delta);
-}
-
-async function getOverdraftDebtAsOf(args: {
-  userId: number;
-  fundId: number;
-  occurredAt: Date;
-}): Promise<number> {
-  const { userId, fundId, occurredAt } = args;
-
-  const row = await db
-    .select({
-      delta: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as("delta"),
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.userId, userId),
-        eq(transactions.fundId, fundId),
-        eq(transactions.status, "posted"),
-        eq(transactions.isPosting, true),
-        isNull(transactions.deletedAt),
-        lte(transactions.occurredAt, occurredAt),
-        inArray(transactions.postingKind, [
-          "overdraft_advance",
-          "overdraft_repayment",
-        ]),
-      ),
-    )
-    .limit(1)
-    .then((res) => res[0]);
-
-  return Math.max(0, Number(row?.delta ?? 0));
 }
 
 export async function GET(request: NextRequest) {
@@ -134,7 +60,6 @@ export async function GET(request: NextRequest) {
         amount: transactions.amount,
         isPosting: transactions.isPosting,
         isPending: transactions.isPending,
-        status: transactions.status,
         incomePull: transactions.incomePull,
         walletId: transactions.walletId,
         walletName: wallets.name,
@@ -147,7 +72,6 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(transactions.userId, user.id),
-          eq(transactions.status, "posted"),
           isNull(transactions.parentId),
           isNull(transactions.deletedAt),
         ),
@@ -169,7 +93,6 @@ export async function GET(request: NextRequest) {
               occurredAt: transactions.occurredAt,
               description: transactions.description,
               isPending: transactions.isPending,
-              status: transactions.status,
               amount: transactions.amount,
               incomePull: transactions.incomePull,
               walletId: transactions.walletId,
@@ -183,7 +106,6 @@ export async function GET(request: NextRequest) {
             .where(
               and(
                 eq(transactions.userId, user.id),
-                eq(transactions.status, "posted"),
                 eq(transactions.isPosting, true),
                 inArray(transactions.parentId, parentEventIds),
                 isNull(transactions.deletedAt),
@@ -251,7 +173,6 @@ export async function POST(request: NextRequest) {
         parentId: null,
         occurredAt,
         description,
-        status: "posted",
         isPosting: false,
         isPending: eventIsPending,
         incomePull: null,
@@ -276,10 +197,6 @@ export async function POST(request: NextRequest) {
       .select({ id: funds.id, kind: funds.kind })
       .from(funds)
       .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
-
-    const fundKindByIdAll = new Map<number, string>(
-      userFunds.map((f) => [f.id, String(f.kind)]),
-    );
 
     const incomeFundId = userFunds.find((f) => f.kind === "income")?.id;
     const savingsFundId = userFunds.find((f) => f.kind === "savings")?.id;
@@ -362,7 +279,6 @@ export async function POST(request: NextRequest) {
 
       let allocatedTotal = 0;
       let savingsPullPct = 100;
-      const overdraftDebtCache = new Map<number, number>();
       for (const pull of normalizedPulls) {
         const allocated = (amount * pull.percentage) / 100;
         allocatedTotal += allocated;
@@ -373,7 +289,6 @@ export async function POST(request: NextRequest) {
           parentId: parent.id,
           occurredAt,
           description: null,
-          status: "posted",
           isPosting: true,
           isPending,
           incomePull: pull.percentage,
@@ -381,52 +296,6 @@ export async function POST(request: NextRequest) {
           fundId: pull.destFundId,
           amount: allocated,
         });
-
-        const destFundKind = fundKindByIdAll.get(pull.destFundId);
-        if (destFundKind === "regular" && allocated > 0) {
-          const debtBefore =
-            overdraftDebtCache.get(pull.destFundId) ??
-            (await getOverdraftDebtAsOf({
-              userId: user.id,
-              fundId: pull.destFundId,
-              occurredAt,
-            }));
-
-          const repay = Math.min(allocated, debtBefore);
-          if (repay > 0) {
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: pull.destFundId,
-              amount: -repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            overdraftDebtCache.set(pull.destFundId, debtBefore - repay);
-          }
-        }
       }
 
       const savingsAllocated = amount - allocatedTotal;
@@ -436,7 +305,6 @@ export async function POST(request: NextRequest) {
         parentId: parent.id,
         occurredAt,
         description: null,
-        status: "posted",
         isPosting: true,
         isPending,
         incomePull: savingsPullPct,
@@ -526,7 +394,7 @@ export async function POST(request: NextRequest) {
       neededFundIds.length === 0
         ? []
         : await db
-            .select({ id: funds.id, kind: funds.kind })
+            .select({ id: funds.id })
             .from(funds)
             .where(
               and(
@@ -543,149 +411,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fundKindById = new Map<number, string>(
-      fundRows.map((f) => [f.id, f.kind]),
-    );
-
-    // Overspend: regular funds should never go negative.
     // If this is a single-line event, we can store it as a posting-only event
     // (no child rows) to reduce the number of inserts.
     if (parsedLines.length === 1) {
       const line = parsedLines[0];
-      const fundId = line.fundId ?? null;
-
-      if (fundId) {
-        const fundKind = fundKindById.get(fundId);
-
-        if (fundKind === "regular" && line.amount > 0) {
-          const debtBefore = await getOverdraftDebtAsOf({
-            userId: user.id,
-            fundId,
-            occurredAt,
-          });
-
-          const repay = Math.min(line.amount, debtBefore);
-          if (repay > 0) {
-            // We need a parent event + postings because this inflow triggers an
-            // internal repayment transfer.
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: line.description ?? null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: line.walletId ?? null,
-              fundId,
-              amount: line.amount,
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId,
-              amount: -repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            return NextResponse.json({ eventId: parent.id });
-          }
-        }
-
-        if (fundKind === "regular") {
-          const balanceBefore = await getFundBalanceAsOf({
-            userId: user.id,
-            fundId,
-            occurredAt,
-          });
-
-          const balanceAfter = balanceBefore + line.amount;
-
-          if (balanceAfter < 0) {
-            // Overspend: keep the parent as an event row and create postings.
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: line.description ?? null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: line.walletId ?? null,
-              fundId,
-              amount: line.amount,
-            });
-
-            const deficit = -balanceAfter;
-
-            // Internal fund transfers should not affect wallet balances.
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId,
-              amount: deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: -deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            return NextResponse.json({ eventId: parent.id });
-          }
-        }
-      }
-
       await db
         .update(transactions)
         .set({
           isPosting: true,
           isPending: line.isPending,
           walletId: line.walletId ?? null,
-          fundId,
+          fundId: line.fundId ?? null,
           amount: line.amount,
           updatedAt: new Date(),
         })
@@ -696,135 +432,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ eventId: parent.id });
     }
 
-    const fundBalanceCache = new Map<number, number>();
-    const overdraftDebtCache = new Map<number, number>();
-
     for (const line of parsedLines) {
-      if (line.fundId) {
-        const fundKind = fundKindById.get(line.fundId);
-
-        if (fundKind === "regular") {
-          // If this line is an inflow to a regular fund, first repay any
-          // outstanding overdraft debt back into savings.
-          if (line.amount > 0) {
-            const debtBefore =
-              overdraftDebtCache.get(line.fundId) ??
-              (await getOverdraftDebtAsOf({
-                userId: user.id,
-                fundId: line.fundId,
-                occurredAt,
-              }));
-
-            const repay = Math.min(line.amount, debtBefore);
-            if (repay > 0) {
-              await db.insert(transactions).values({
-                userId: user.id,
-                parentId: parent.id,
-                occurredAt,
-                description: null,
-                status: "posted",
-                isPosting: true,
-                isPending: line.isPending,
-                incomePull: null,
-                walletId: null,
-                fundId: line.fundId,
-                amount: -repay,
-                postingKind: "overdraft_repayment",
-              });
-
-              await db.insert(transactions).values({
-                userId: user.id,
-                parentId: parent.id,
-                occurredAt,
-                description: null,
-                status: "posted",
-                isPosting: true,
-                isPending: line.isPending,
-                incomePull: null,
-                walletId: null,
-                fundId: savingsFundId,
-                amount: repay,
-                postingKind: "overdraft_repayment",
-              });
-
-              overdraftDebtCache.set(line.fundId, debtBefore - repay);
-            }
-          }
-
-          const balanceBefore =
-            fundBalanceCache.get(line.fundId) ??
-            (await getFundBalanceAsOf({
-              userId: user.id,
-              fundId: line.fundId,
-              occurredAt,
-            }));
-
-          const balanceAfter = balanceBefore + line.amount;
-
-          await db.insert(transactions).values({
-            userId: user.id,
-            parentId: parent.id,
-            occurredAt,
-            description: line.description ?? null,
-            status: "posted",
-            isPosting: true,
-            isPending: line.isPending,
-            incomePull: null,
-            walletId: line.walletId ?? null,
-            fundId: line.fundId,
-            amount: line.amount,
-          });
-
-          if (balanceAfter < 0) {
-            const deficit = -balanceAfter;
-
-            // Internal fund transfers should not affect wallet balances.
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: line.fundId,
-              amount: deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: parent.id,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: -deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            fundBalanceCache.set(line.fundId, 0);
-          } else {
-            fundBalanceCache.set(line.fundId, balanceAfter);
-          }
-
-          continue;
-        }
-      }
-
-      // Non-regular fund line, or no fund: just insert.
       await db.insert(transactions).values({
         userId: user.id,
         parentId: parent.id,
         occurredAt,
         description: line.description ?? null,
-        status: "posted",
         isPosting: true,
         isPending: line.isPending,
         incomePull: null,

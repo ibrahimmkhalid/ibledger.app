@@ -1,6 +1,6 @@
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-serverless";
 
-export const db = drizzle({
-  connection: process.env.DATABASE_URL!,
-  casing: "snake_case",
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+
+export const db = drizzle(pool, { casing: "snake_case" });

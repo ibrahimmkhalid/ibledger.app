@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 type TransactionLineInput = {
-  walletId?: number | null;
-  fundId?: number | null;
-  description?: string | null;
+  transactionId: number | null;
+  walletId: number | null;
+  fundId: number | null;
+  description: string | null;
   amount: number;
   isPending: boolean;
 };
@@ -28,98 +29,12 @@ function parseOccurredAt(input: unknown): Date {
   throw new Error("Invalid occurredAt");
 }
 
-async function getFundBalanceAsOf(args: {
-  userId: number;
-  fundId: number;
-  occurredAt: Date;
-}): Promise<number> {
-  const { userId, fundId, occurredAt } = args;
-
-  const row = await db
-    .select({
-      openingAmount: funds.openingAmount,
-      delta: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as("delta"),
-    })
-    .from(funds)
-    .leftJoin(
-      transactions,
-      and(
-        eq(transactions.userId, userId),
-        eq(transactions.fundId, fundId),
-        eq(transactions.status, "posted"),
-        eq(transactions.isPosting, true),
-        isNull(transactions.deletedAt),
-        lte(transactions.occurredAt, occurredAt),
-      ),
-    )
-    .where(
-      and(
-        eq(funds.id, fundId),
-        eq(funds.userId, userId),
-        isNull(funds.deletedAt),
-      ),
-    )
-    .groupBy(funds.id, funds.openingAmount)
-    .limit(1)
-    .then((res) => res[0]);
-
-  if (!row) {
-    throw new Error("Fund not found");
-  }
-
-  return Number(row.openingAmount) + Number(row.delta);
-}
-
-async function getOverdraftDebtAsOf(args: {
-  userId: number;
-  fundId: number;
-  occurredAt: Date;
-}): Promise<number> {
-  const { userId, fundId, occurredAt } = args;
-
-  const row = await db
-    .select({
-      delta: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as("delta"),
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.userId, userId),
-        eq(transactions.fundId, fundId),
-        eq(transactions.status, "posted"),
-        eq(transactions.isPosting, true),
-        isNull(transactions.deletedAt),
-        lte(transactions.occurredAt, occurredAt),
-        inArray(transactions.postingKind, [
-          "overdraft_advance",
-          "overdraft_repayment",
-        ]),
-      ),
-    )
-    .limit(1)
-    .then((res) => res[0]);
-
-  return Math.max(0, Number(row?.delta ?? 0));
-}
-
-async function ensureSystemFunds(args: { userId: number }) {
-  const userFunds = await db
-    .select({ id: funds.id, kind: funds.kind })
-    .from(funds)
-    .where(and(eq(funds.userId, args.userId), isNull(funds.deletedAt)));
-
-  const fundKindByIdAll = new Map<number, string>(
-    userFunds.map((f) => [f.id, String(f.kind)]),
-  );
-
-  const incomeFundId = userFunds.find((f) => f.kind === "income")?.id;
-  const savingsFundId = userFunds.find((f) => f.kind === "savings")?.id;
-
-  if (!incomeFundId || !savingsFundId) {
-    throw new Error("Missing income/savings fund");
-  }
-
-  return { incomeFundId, savingsFundId, fundKindByIdAll };
+function isIncomeLikeEvent(args: {
+  eventIsPosting: boolean;
+  childIncomePulls: Array<number | null>;
+}) {
+  if (args.eventIsPosting) return false;
+  return args.childIncomePulls.some((p) => p !== null);
 }
 
 export async function PATCH(
@@ -139,10 +54,6 @@ export async function PATCH(
         { status: 400 },
       );
     }
-
-    const { savingsFundId, fundKindByIdAll } = await ensureSystemFunds({
-      userId: user.id,
-    });
 
     const params = await ctx.params;
     const eventId = Number(params.id);
@@ -168,136 +79,74 @@ export async function PATCH(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
+    const childPostings = await db
+      .select({
+        id: transactions.id,
+        occurredAt: transactions.occurredAt,
+        description: transactions.description,
+        isPending: transactions.isPending,
+        amount: transactions.amount,
+        incomePull: transactions.incomePull,
+        walletId: transactions.walletId,
+        fundId: transactions.fundId,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, user.id),
+          eq(transactions.parentId, eventId),
+          eq(transactions.isPosting, true),
+          isNull(transactions.deletedAt),
+        ),
+      );
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json();
 
-    const hasRebuildChanges =
-      body?.type !== undefined ||
-      body?.lines !== undefined ||
-      body?.walletId !== undefined ||
-      body?.amount !== undefined;
+    const occurredAt =
+      body?.occurredAt === undefined
+        ? event.occurredAt
+        : parseOccurredAt(body.occurredAt);
 
-    const hasMetaChanges =
-      body?.occurredAt !== undefined ||
-      body?.description !== undefined ||
-      body?.isPending !== undefined;
+    const description =
+      body?.description === undefined
+        ? event.description
+        : body.description
+          ? String(body.description)
+          : null;
 
-    // Metadata-only update: allow editing occurredAt/description/pending without
-    // rebuilding ledger postings.
-    if (!hasRebuildChanges && hasMetaChanges) {
-      const occurredAt =
-        body?.occurredAt === undefined
-          ? event.occurredAt
-          : parseOccurredAt(body.occurredAt);
-
-      const description =
-        body?.description === undefined
-          ? event.description
-          : body.description
-            ? String(body.description)
-            : null;
-
-      const eventIsPending =
-        body?.isPending === undefined
-          ? Boolean(event.isPending)
-          : Boolean(body.isPending);
-
-      await db
-        .update(transactions)
-        .set({
-          occurredAt,
-          description,
-          isPending: eventIsPending,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
-        );
-
-      await db
-        .update(transactions)
-        .set({ occurredAt, isPending: eventIsPending, updatedAt: new Date() })
-        .where(
-          and(
-            eq(transactions.userId, user.id),
-            eq(transactions.parentId, eventId),
-          ),
-        );
-
-      return NextResponse.json({ eventId });
-    }
-
-    const occurredAt = parseOccurredAt(body?.occurredAt ?? event.occurredAt);
-    const description = body?.description
-      ? String(body.description)
-      : event.description;
-    const type = body?.type ? String(body.type) : "expense";
     const eventIsPending =
       body?.isPending === undefined
         ? Boolean(event.isPending)
         : Boolean(body.isPending);
 
-    const incomeSnapshot =
-      type !== "income"
-        ? null
-        : await db
-            .select({
-              fundId: transactions.fundId,
-              incomePull: transactions.incomePull,
-            })
-            .from(transactions)
-            .where(
-              and(
-                eq(transactions.userId, user.id),
-                eq(transactions.parentId, eventId),
-                eq(transactions.status, "posted"),
-                eq(transactions.isPosting, true),
-                isNull(transactions.deletedAt),
-                isNotNull(transactions.incomePull),
-              ),
-            );
+    const type = body?.type ? String(body.type) : null;
 
-    // Rebuild: ensure the event row is a parent event, and recreate postings.
-    await db
-      .update(transactions)
-      .set({
-        occurredAt,
-        description,
-        isPending: eventIsPending,
-        isPosting: false,
-        walletId: null,
-        fundId: null,
-        amount: 0,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
-      );
+    const incomeLike = isIncomeLikeEvent({
+      eventIsPosting: Boolean(event.isPosting),
+      childIncomePulls: childPostings.map((p) => p.incomePull ?? null),
+    });
 
-    // Void existing children so balances recompute from ledger.
-    await db
-      .update(transactions)
-      .set({ status: "void", updatedAt: new Date() })
-      .where(
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.parentId, eventId),
-        ),
-      );
+    if (type === "income" || incomeLike) {
+      const nextWalletIdRaw = body?.walletId;
+      const nextAmountRaw = body?.amount;
 
-    if (type === "income") {
-      const walletId = Number(body?.walletId);
-      const amount = Number(body?.amount);
-      const isPending = eventIsPending;
+      const nextWalletId =
+        nextWalletIdRaw === null || nextWalletIdRaw === undefined
+          ? null
+          : Number(nextWalletIdRaw);
+      const nextTotal =
+        nextAmountRaw === null || nextAmountRaw === undefined
+          ? null
+          : Number(nextAmountRaw);
 
-      if (!walletId || Number.isNaN(walletId)) {
+      if (!nextWalletId || Number.isNaN(nextWalletId)) {
         return NextResponse.json(
           { error: "Missing walletId" },
           { status: 400 },
         );
       }
-
-      if (!amount || Number.isNaN(amount) || amount <= 0) {
+      if (!nextTotal || Number.isNaN(nextTotal) || nextTotal <= 0) {
         return NextResponse.json(
           { error: "Income amount must be > 0" },
           { status: 400 },
@@ -309,14 +158,13 @@ export async function PATCH(
         .from(wallets)
         .where(
           and(
-            eq(wallets.id, walletId),
+            eq(wallets.id, nextWalletId),
             eq(wallets.userId, user.id),
             isNull(wallets.deletedAt),
           ),
         )
         .limit(1)
         .then((res) => res[0]);
-
       if (!ownedWallet) {
         return NextResponse.json(
           { error: "Wallet not found" },
@@ -324,175 +172,214 @@ export async function PATCH(
         );
       }
 
-      const snapshot = incomeSnapshot;
-      if (!snapshot || snapshot.length === 0) {
-        return NextResponse.json(
-          {
-            error:
-              "Income is missing pull snapshot (transactions.incomePull). Run your migration script first.",
-          },
-          { status: 400 },
-        );
-      }
+      await db.transaction(async (tx) => {
+        await tx
+          .update(transactions)
+          .set({
+            occurredAt,
+            description,
+            isPending: eventIsPending,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
+          );
 
-      const savingsSnap = snapshot.find((s) => s.fundId === savingsFundId);
-      if (!savingsSnap || savingsSnap.incomePull === null) {
-        return NextResponse.json(
-          {
-            error:
-              "Income snapshot is missing savings pull. Run your migration script first.",
-          },
-          { status: 400 },
-        );
-      }
+        await tx
+          .update(transactions)
+          .set({ occurredAt, isPending: eventIsPending, updatedAt: new Date() })
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.parentId, eventId),
+              isNull(transactions.deletedAt),
+            ),
+          );
 
-      const normalizedPulls = snapshot
-        .filter((s) => s.fundId && s.fundId !== savingsFundId)
-        .map((s) => ({
-          destFundId: s.fundId as number,
-          percentage: Number(s.incomePull),
-        }));
+        const allocationPostings = childPostings
+          .filter((p) => p.incomePull !== null)
+          .sort((a, b) => a.id - b.id);
 
-      const pullSum = normalizedPulls.reduce(
-        (acc: number, p: { destFundId: number; percentage: number }) =>
-          acc + p.percentage,
-        0,
-      );
-
-      if (pullSum > 100) {
-        return NextResponse.json(
-          { error: "Invalid income snapshot: sum exceeds 100" },
-          { status: 400 },
-        );
-      }
-
-      let allocatedTotal = 0;
-      const overdraftDebtCache = new Map<number, number>();
-      for (const pull of normalizedPulls) {
-        const allocated = (amount * pull.percentage) / 100;
-        allocatedTotal += allocated;
-
-        await db.insert(transactions).values({
-          userId: user.id,
-          parentId: eventId,
-          occurredAt,
-          description: null,
-          status: "posted",
-          isPosting: true,
-          isPending,
-          incomePull: pull.percentage,
-          walletId,
-          fundId: pull.destFundId,
-          amount: allocated,
-        });
-
-        const destFundKind = fundKindByIdAll.get(pull.destFundId);
-        if (destFundKind === "regular" && allocated > 0) {
-          const debtBefore =
-            overdraftDebtCache.get(pull.destFundId) ??
-            (await getOverdraftDebtAsOf({
-              userId: user.id,
-              fundId: pull.destFundId,
-              occurredAt,
-            }));
-
-          const repay = Math.min(allocated, debtBefore);
-          if (repay > 0) {
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: pull.destFundId,
-              amount: -repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending,
-              incomePull: null,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            overdraftDebtCache.set(pull.destFundId, debtBefore - repay);
-          }
+        if (allocationPostings.length === 0) {
+          return;
         }
-      }
 
-      const savingsAllocated = amount - allocatedTotal;
-      await db.insert(transactions).values({
-        userId: user.id,
-        parentId: eventId,
-        occurredAt,
-        description: null,
-        status: "posted",
-        isPosting: true,
-        isPending,
-        incomePull: Number(savingsSnap.incomePull),
-        walletId,
-        fundId: savingsFundId,
-        amount: savingsAllocated,
+        let running = 0;
+        for (let i = 0; i < allocationPostings.length; i++) {
+          const p = allocationPostings[i];
+          const pct = Number(p.incomePull ?? 0);
+          const nextAmount =
+            i === allocationPostings.length - 1
+              ? nextTotal - running
+              : (nextTotal * pct) / 100;
+
+          if (i !== allocationPostings.length - 1) {
+            running += nextAmount;
+          }
+
+          await tx
+            .update(transactions)
+            .set({
+              walletId: nextWalletId,
+              amount: nextAmount,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(eq(transactions.userId, user.id), eq(transactions.id, p.id)),
+            );
+        }
       });
 
       return NextResponse.json({ eventId });
     }
 
-    const lines = Array.isArray(body?.lines) ? body.lines : null;
-    if (!lines || lines.length === 0) {
+    const linesRaw = Array.isArray(body?.lines) ? body.lines : null;
+    const parsedLines: TransactionLineInput[] | null = linesRaw
+      ? linesRaw.map((l: unknown) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const line: any = l;
+          const amount = Number(line.amount);
+          const transactionIdRaw = line.transactionId;
+          const transactionId =
+            transactionIdRaw === null || transactionIdRaw === undefined
+              ? null
+              : Number(transactionIdRaw);
+
+          const walletId =
+            line.walletId === null || line.walletId === undefined
+              ? null
+              : Number(line.walletId);
+          const fundId =
+            line.fundId === null || line.fundId === undefined
+              ? null
+              : Number(line.fundId);
+
+          const isPending =
+            line.isPending === undefined
+              ? eventIsPending
+              : Boolean(line.isPending);
+
+          const lineDesc =
+            line.description === undefined || line.description === null
+              ? null
+              : String(line.description);
+
+          if (Number.isNaN(amount) || amount === 0) {
+            throw new Error("Invalid amount");
+          }
+          if (transactionId !== null && Number.isNaN(transactionId)) {
+            throw new Error("Invalid transactionId");
+          }
+          if (walletId !== null && Number.isNaN(walletId)) {
+            throw new Error("Invalid walletId");
+          }
+          if (fundId !== null && Number.isNaN(fundId)) {
+            throw new Error("Invalid fundId");
+          }
+          if (walletId === null && fundId === null) {
+            throw new Error("Line must include walletId or fundId");
+          }
+
+          return {
+            transactionId,
+            walletId,
+            fundId,
+            description: lineDesc,
+            amount,
+            isPending,
+          };
+        })
+      : null;
+
+    // Metadata-only update.
+    if (!parsedLines) {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(transactions)
+          .set({
+            occurredAt,
+            description,
+            isPending: eventIsPending,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
+          );
+
+        if (!event.isPosting) {
+          await tx
+            .update(transactions)
+            .set({
+              occurredAt,
+              isPending: eventIsPending,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(transactions.userId, user.id),
+                eq(transactions.parentId, eventId),
+                isNull(transactions.deletedAt),
+              ),
+            );
+        }
+      });
+
+      return NextResponse.json({ eventId });
+    }
+
+    if (parsedLines.length === 0) {
       return NextResponse.json({ error: "Missing lines" }, { status: 400 });
     }
 
-    const parsedLines: TransactionLineInput[] = lines.map((l: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const line: any = l;
-      const amount = Number(line.amount);
-      const walletId =
-        line.walletId === null || line.walletId === undefined
-          ? null
-          : Number(line.walletId);
-      const fundId =
-        line.fundId === null || line.fundId === undefined
-          ? null
-          : Number(line.fundId);
-      const isPending =
-        line.isPending === undefined ? eventIsPending : Boolean(line.isPending);
-      const description =
-        line.description === undefined || line.description === null
-          ? null
-          : String(line.description);
+    const existingShape = event.isPosting ? "posting_only" : "parent_children";
+    const existingChildIds = childPostings.map((p) => p.id);
+    const existingChildIdSet = new Set(existingChildIds);
 
-      if (Number.isNaN(amount) || amount === 0) {
-        throw new Error("Invalid amount");
+    const desiredShape =
+      parsedLines.length === 1 ? "posting_only" : "parent_children";
+
+    const seenIds = new Set<number>();
+    for (const line of parsedLines) {
+      if (line.transactionId === null) continue;
+      if (seenIds.has(line.transactionId)) {
+        return NextResponse.json(
+          { error: "Duplicate transactionId in lines" },
+          { status: 400 },
+        );
       }
+      seenIds.add(line.transactionId);
+    }
 
-      if (walletId !== null && Number.isNaN(walletId)) {
-        throw new Error("Invalid walletId");
+    if (existingShape === "posting_only") {
+      for (const line of parsedLines) {
+        if (line.transactionId !== null && line.transactionId !== eventId) {
+          return NextResponse.json(
+            { error: "Invalid transactionId for this event" },
+            { status: 400 },
+          );
+        }
       }
+    }
 
-      if (fundId !== null && Number.isNaN(fundId)) {
-        throw new Error("Invalid fundId");
+    if (existingShape === "parent_children") {
+      for (const line of parsedLines) {
+        if (line.transactionId === eventId) {
+          return NextResponse.json(
+            { error: "transactionId cannot reference the parent event" },
+            { status: 400 },
+          );
+        }
+        if (
+          line.transactionId !== null &&
+          !existingChildIdSet.has(line.transactionId)
+        ) {
+          return NextResponse.json(
+            { error: "Invalid transactionId for this event" },
+            { status: 400 },
+          );
+        }
       }
-
-      if (walletId === null && fundId === null) {
-        throw new Error("Line must include walletId or fundId");
-      }
-
-      return { walletId, fundId, description, amount, isPending };
-    });
+    }
 
     const neededWalletIds = Array.from(
       new Set(
@@ -525,297 +412,156 @@ export async function PATCH(
       }
     }
 
-    const fundRows =
-      neededFundIds.length === 0
-        ? []
-        : await db
-            .select({ id: funds.id, kind: funds.kind })
-            .from(funds)
-            .where(
-              and(
-                eq(funds.userId, user.id),
-                inArray(funds.id, neededFundIds),
-                isNull(funds.deletedAt),
-              ),
-            );
+    if (neededFundIds.length > 0) {
+      const ownedFunds = await db
+        .select({ id: funds.id })
+        .from(funds)
+        .where(
+          and(
+            eq(funds.userId, user.id),
+            inArray(funds.id, neededFundIds),
+            isNull(funds.deletedAt),
+          ),
+        );
 
-    if (fundRows.length !== neededFundIds.length) {
-      return NextResponse.json(
-        { error: "One or more funds not found" },
-        { status: 400 },
-      );
+      if (ownedFunds.length !== neededFundIds.length) {
+        return NextResponse.json(
+          { error: "One or more funds not found" },
+          { status: 400 },
+        );
+      }
     }
 
-    const fundKindById = new Map<number, string>(
-      fundRows.map((f) => [f.id, f.kind]),
-    );
+    await db.transaction(async (tx) => {
+      if (desiredShape === "posting_only") {
+        const line = parsedLines[0];
 
-    // If this is a single-line event, we can store it as a posting-only event
-    // (no child rows) to reduce writes.
-    if (parsedLines.length === 1) {
-      const line = parsedLines[0];
-      const fundId = line.fundId ?? null;
-
-      if (fundId) {
-        const fundKind = fundKindById.get(fundId);
-
-        if (fundKind === "regular" && line.amount > 0) {
-          const debtBefore = await getOverdraftDebtAsOf({
-            userId: user.id,
-            fundId,
-            occurredAt,
-          });
-
-          const repay = Math.min(line.amount, debtBefore);
-          if (repay > 0) {
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: line.description ?? null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: line.walletId ?? null,
-              fundId,
-              amount: line.amount,
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId,
-              amount: -repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: repay,
-              postingKind: "overdraft_repayment",
-            });
-
-            return NextResponse.json({ eventId });
-          }
+        if (
+          existingShape === "parent_children" &&
+          existingChildIds.length > 0
+        ) {
+          await tx
+            .update(transactions)
+            .set({ deletedAt: new Date(), updatedAt: new Date() })
+            .where(
+              and(
+                eq(transactions.userId, user.id),
+                inArray(transactions.id, existingChildIds),
+              ),
+            );
         }
 
-        if (fundKind === "regular") {
-          const balanceBefore = await getFundBalanceAsOf({
-            userId: user.id,
-            fundId,
+        await tx
+          .update(transactions)
+          .set({
             occurredAt,
-          });
+            description,
+            isPosting: true,
+            isPending: line.isPending,
+            incomePull: null,
+            walletId: line.walletId,
+            fundId: line.fundId,
+            amount: line.amount,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
+          );
 
-          const balanceAfter = balanceBefore + line.amount;
-
-          if (balanceAfter < 0) {
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: line.description ?? null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: line.walletId ?? null,
-              fundId,
-              amount: line.amount,
-            });
-
-            const deficit = -balanceAfter;
-
-            // Internal fund transfers should not affect wallet balances.
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId,
-              amount: deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: -deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            return NextResponse.json({ eventId });
-          }
-        }
+        return;
       }
 
-      await db
+      // parent_children
+      await tx
         .update(transactions)
         .set({
-          isPosting: true,
-          isPending: line.isPending,
-          walletId: line.walletId ?? null,
-          fundId,
-          amount: line.amount,
+          occurredAt,
+          description,
+          isPosting: false,
+          isPending: eventIsPending,
+          incomePull: null,
+          walletId: null,
+          fundId: null,
+          amount: 0,
           updatedAt: new Date(),
         })
         .where(
           and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
         );
 
-      return NextResponse.json({ eventId });
-    }
-
-    const fundBalanceCache = new Map<number, number>();
-    const overdraftDebtCache = new Map<number, number>();
-
-    for (const line of parsedLines) {
-      if (line.fundId) {
-        const fundKind = fundKindById.get(line.fundId);
-
-        if (fundKind === "regular") {
-          if (line.amount > 0) {
-            const debtBefore =
-              overdraftDebtCache.get(line.fundId) ??
-              (await getOverdraftDebtAsOf({
-                userId: user.id,
-                fundId: line.fundId,
-                occurredAt,
-              }));
-
-            const repay = Math.min(line.amount, debtBefore);
-            if (repay > 0) {
-              await db.insert(transactions).values({
-                userId: user.id,
-                parentId: eventId,
-                occurredAt,
-                description: null,
-                status: "posted",
-                isPosting: true,
-                isPending: line.isPending,
-                walletId: null,
-                fundId: line.fundId,
-                amount: -repay,
-                postingKind: "overdraft_repayment",
-              });
-
-              await db.insert(transactions).values({
-                userId: user.id,
-                parentId: eventId,
-                occurredAt,
-                description: null,
-                status: "posted",
-                isPosting: true,
-                isPending: line.isPending,
-                walletId: null,
-                fundId: savingsFundId,
-                amount: repay,
-                postingKind: "overdraft_repayment",
-              });
-
-              overdraftDebtCache.set(line.fundId, debtBefore - repay);
-            }
-          }
-
-          const balanceBefore =
-            fundBalanceCache.get(line.fundId) ??
-            (await getFundBalanceAsOf({
-              userId: user.id,
-              fundId: line.fundId,
-              occurredAt,
-            }));
-
-          const balanceAfter = balanceBefore + line.amount;
-
-          await db.insert(transactions).values({
+      if (existingShape === "posting_only") {
+        // Convert posting-only parent into parent+children by inserting new postings.
+        for (const line of parsedLines) {
+          await tx.insert(transactions).values({
             userId: user.id,
             parentId: eventId,
             occurredAt,
-            description: line.description ?? null,
-            status: "posted",
+            description: line.description,
             isPosting: true,
             isPending: line.isPending,
-            walletId: line.walletId ?? null,
+            incomePull: null,
+            walletId: line.walletId,
             fundId: line.fundId,
             amount: line.amount,
           });
-
-          if (balanceAfter < 0) {
-            const deficit = -balanceAfter;
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId: line.fundId,
-              amount: deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            await db.insert(transactions).values({
-              userId: user.id,
-              parentId: eventId,
-              occurredAt,
-              description: null,
-              status: "posted",
-              isPosting: true,
-              isPending: line.isPending,
-              walletId: null,
-              fundId: savingsFundId,
-              amount: -deficit,
-              postingKind: "overdraft_advance",
-            });
-
-            fundBalanceCache.set(line.fundId, 0);
-          } else {
-            fundBalanceCache.set(line.fundId, balanceAfter);
-          }
-
-          continue;
         }
+        return;
       }
 
-      await db.insert(transactions).values({
-        userId: user.id,
-        parentId: eventId,
-        occurredAt,
-        description: line.description ?? null,
-        status: "posted",
-        isPosting: true,
-        isPending: line.isPending,
-        walletId: line.walletId ?? null,
-        fundId: line.fundId ?? null,
-        amount: line.amount,
-      });
-    }
+      const updateIds = new Set<number>();
+      for (const line of parsedLines) {
+        if (line.transactionId === null) continue;
+        updateIds.add(line.transactionId);
+        await tx
+          .update(transactions)
+          .set({
+            occurredAt,
+            description: line.description,
+            isPosting: true,
+            isPending: line.isPending,
+            incomePull: null,
+            walletId: line.walletId,
+            fundId: line.fundId,
+            amount: line.amount,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.id, line.transactionId),
+            ),
+          );
+      }
+
+      for (const line of parsedLines) {
+        if (line.transactionId !== null) continue;
+        await tx.insert(transactions).values({
+          userId: user.id,
+          parentId: eventId,
+          occurredAt,
+          description: line.description,
+          isPosting: true,
+          isPending: line.isPending,
+          incomePull: null,
+          walletId: line.walletId,
+          fundId: line.fundId,
+          amount: line.amount,
+        });
+      }
+
+      const toSoftDelete = existingChildIds.filter((id) => !updateIds.has(id));
+      if (toSoftDelete.length > 0) {
+        await tx
+          .update(transactions)
+          .set({ deletedAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              inArray(transactions.id, toSoftDelete),
+            ),
+          );
+      }
+    });
 
     return NextResponse.json({ eventId });
   } catch (error) {
@@ -883,14 +629,14 @@ export async function DELETE(
 
     await db
       .update(transactions)
-      .set({ status: "void", updatedAt: new Date() })
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(
         and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
       );
 
     await db
       .update(transactions)
-      .set({ status: "void", updatedAt: new Date() })
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
           eq(transactions.userId, user.id),

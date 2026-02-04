@@ -29,6 +29,7 @@ type Direction = "outflow" | "inflow";
 
 type LineDraft = {
   key: string;
+  transactionId: number | null;
   walletId: string;
   fundId: string;
   description: string;
@@ -53,6 +54,7 @@ function makeKey() {
 function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
   return {
     key: makeKey(),
+    transactionId: args?.transactionId ?? null,
     walletId: args?.walletId ?? "",
     fundId: args?.fundId ?? "",
     description: args?.description ?? "",
@@ -132,6 +134,7 @@ export function TransactionModal(args: {
           const direction: Direction = n < 0 ? "outflow" : "inflow";
           const abs = Math.abs(n);
           return defaultLineDraft({
+            transactionId: l.id,
             walletId: l.walletId ? String(l.walletId) : "",
             fundId: l.fundId ? String(l.fundId) : "",
             description: l.description ?? "",
@@ -172,6 +175,7 @@ export function TransactionModal(args: {
 
       const walletId = l.walletId ? Number(l.walletId) : null;
       const fundId = l.fundId ? Number(l.fundId) : null;
+      const transactionId = l.transactionId ? Number(l.transactionId) : null;
 
       if (walletId === null && fundId === null) {
         throw new Error("Each line must include a wallet or a fund");
@@ -182,6 +186,7 @@ export function TransactionModal(args: {
       const description = l.description.trim() ? l.description.trim() : null;
 
       return {
+        transactionId,
         walletId,
         fundId,
         description,

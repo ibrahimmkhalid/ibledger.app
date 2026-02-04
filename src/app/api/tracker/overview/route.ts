@@ -20,7 +20,7 @@ export async function GET() {
       );
     }
 
-    const fundsInfo = await db
+    const fundsInfoRaw = await db
       .select({
         id: funds.id,
         name: funds.name,
@@ -39,13 +39,47 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.fundId, funds.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
       )
       .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
       .groupBy(funds.id, funds.name, funds.kind, funds.openingAmount);
+
+    const fundsWithRaw = fundsInfoRaw.map((f) => ({
+      ...f,
+      rawBalance: Number(f.balance),
+      rawBalanceWithPending: Number(f.balanceWithPending),
+    }));
+
+    const deficitCleared = fundsWithRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
+
+    const deficitWithPending = fundsWithRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce(
+        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
+        0,
+      );
+
+    const fundsInfo = fundsWithRaw.map((f) => {
+      const kind = String(f.kind);
+      const balance =
+        kind === "savings"
+          ? f.rawBalance - deficitCleared
+          : Math.max(0, f.rawBalance);
+      const balanceWithPending =
+        kind === "savings"
+          ? f.rawBalanceWithPending - deficitWithPending
+          : Math.max(0, f.rawBalanceWithPending);
+
+      return {
+        ...f,
+        balance,
+        balanceWithPending,
+      };
+    });
 
     const walletsInfo = await db
       .select({
@@ -65,7 +99,6 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.walletId, wallets.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
@@ -79,7 +112,6 @@ export async function GET() {
         parentId: transactions.parentId,
         isPosting: transactions.isPosting,
         isPending: transactions.isPending,
-        status: transactions.status,
         amount: transactions.amount,
         description: transactions.description,
         occurredAt: transactions.occurredAt,

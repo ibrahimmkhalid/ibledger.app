@@ -2,13 +2,13 @@ import type { TransactionEvent } from "@/app/tracker/types";
 
 export function sumWalletDelta(children: TransactionEvent["children"]) {
   return children
-    .filter((c) => c.status === "posted" && c.walletId)
+    .filter((c) => c.walletId)
     .reduce((acc, c) => acc + Number(c.amount), 0);
 }
 
 export function sumFundDelta(children: TransactionEvent["children"]) {
   return children
-    .filter((c) => c.status === "posted" && c.fundId)
+    .filter((c) => c.fundId)
     .reduce((acc, c) => acc + Number(c.amount), 0);
 }
 
@@ -50,9 +50,7 @@ export function isIncomeLike(ev: TransactionEvent) {
 
   // Income events are the only postings that carry a non-null incomePull.
   // Internal postings (eg. overdraft repayment) keep incomePull null.
-  const allocations = ev.children.filter(
-    (c) => c.status === "posted" && c.incomePull !== null,
-  );
+  const allocations = ev.children.filter((c) => c.incomePull !== null);
   if (allocations.length === 0) return false;
 
   const allPositive = allocations.every((c) => Number(c.amount) > 0);

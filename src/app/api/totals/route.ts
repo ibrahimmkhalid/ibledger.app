@@ -38,7 +38,6 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.walletId, wallets.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
@@ -65,13 +64,47 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.fundId, funds.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
       )
       .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
       .groupBy(funds.id, funds.name, funds.kind, funds.openingAmount);
+
+    const fundTotalsWithRaw = fundTotals.map((f) => ({
+      ...f,
+      rawBalance: Number(f.balance),
+      rawBalanceWithPending: Number(f.balanceWithPending),
+    }));
+
+    const deficitCleared = fundTotalsWithRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
+
+    const deficitWithPending = fundTotalsWithRaw
+      .filter((f) => String(f.kind) !== "savings")
+      .reduce(
+        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
+        0,
+      );
+
+    const fundTotalsDisplay = fundTotalsWithRaw.map((f) => {
+      const kind = String(f.kind);
+      const balance =
+        kind === "savings"
+          ? f.rawBalance - deficitCleared
+          : Math.max(0, f.rawBalance);
+      const balanceWithPending =
+        kind === "savings"
+          ? f.rawBalanceWithPending - deficitWithPending
+          : Math.max(0, f.rawBalanceWithPending);
+
+      return {
+        ...f,
+        balance,
+        balanceWithPending,
+      };
+    });
 
     const grandTotal = walletTotals.reduce(
       (acc: number, w: { balance: number }) => acc + Number(w.balance),
@@ -88,7 +121,7 @@ export async function GET() {
       grandTotal,
       grandTotalWithPending,
       wallets: walletTotals,
-      funds: fundTotals,
+      funds: fundTotalsDisplay,
     });
   } catch (error) {
     console.error("API: Error computing totals", error);

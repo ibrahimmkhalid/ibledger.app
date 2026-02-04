@@ -41,7 +41,6 @@ export async function GET() {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.walletId, wallets.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
@@ -223,7 +222,6 @@ export async function DELETE(request: NextRequest) {
         and(
           eq(transactions.userId, user.id),
           eq(transactions.walletId, wallets.id),
-          eq(transactions.status, "posted"),
           eq(transactions.isPosting, true),
           isNull(transactions.deletedAt),
         ),
