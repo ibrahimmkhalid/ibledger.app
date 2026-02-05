@@ -6,6 +6,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -77,10 +78,21 @@ export default function TrackerPage() {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
 
-  const visibleEvents = useMemo(() => {
-    if (!recentPendingOnly) return events;
-    return events.filter((ev) => ev.isPending);
-  }, [events, recentPendingOnly]);
+  const recentPendingOnlyRef = useRef(recentPendingOnly);
+  useEffect(() => {
+    recentPendingOnlyRef.current = recentPendingOnly;
+  }, [recentPendingOnly]);
+
+  const refreshRecentEvents = useCallback(async (pendingOnly: boolean) => {
+    try {
+      const eventsRes = await apiJson<EventsResponse>(
+        `/api/transactions?page=0${pendingOnly ? "&pendingOnly=true" : ""}`,
+      );
+      setEvents(eventsRes.events);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    }
+  }, []);
 
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
@@ -103,11 +115,15 @@ export default function TrackerPage() {
     try {
       await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
 
+      const pendingOnly = recentPendingOnlyRef.current;
+
       const [walletsRes, fundsRes, totalsRes, eventsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
         apiJson<{ funds: Fund[] }>("/api/funds"),
         apiJson<TotalsResponse>("/api/totals"),
-        apiJson<EventsResponse>("/api/transactions?page=0"),
+        apiJson<EventsResponse>(
+          `/api/transactions?page=0${pendingOnly ? "&pendingOnly=true" : ""}`,
+        ),
       ]);
 
       setWallets(walletsRes.wallets);
@@ -325,7 +341,10 @@ export default function TrackerPage() {
                 id={recentPendingOnlyId}
                 size="sm"
                 checked={recentPendingOnly}
-                onCheckedChange={setRecentPendingOnly}
+                onCheckedChange={(checked) => {
+                  setRecentPendingOnly(checked);
+                  void refreshRecentEvents(checked);
+                }}
               />
             </div>
           </CardAction>
@@ -343,7 +362,7 @@ export default function TrackerPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibleEvents.map((ev) => {
+              {events.map((ev) => {
                 const net = computeEventDisplayAmount(ev);
                 const walletName = computeEventWalletName(ev);
                 const fundName = computeEventFundName(ev);
