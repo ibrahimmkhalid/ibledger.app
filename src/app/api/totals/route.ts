@@ -49,7 +49,8 @@ export async function GET() {
       .select({
         id: funds.id,
         name: funds.name,
-        kind: funds.kind,
+        isSavings: funds.isSavings,
+        pullPercentage: funds.pullPercentage,
         balance: sql<number>`
           COALESCE(${funds.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
@@ -69,7 +70,13 @@ export async function GET() {
         ),
       )
       .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-      .groupBy(funds.id, funds.name, funds.kind, funds.openingAmount);
+      .groupBy(
+        funds.id,
+        funds.name,
+        funds.isSavings,
+        funds.pullPercentage,
+        funds.openingAmount,
+      );
 
     const fundTotalsWithRaw = fundTotals.map((f) => ({
       ...f,
@@ -78,26 +85,23 @@ export async function GET() {
     }));
 
     const deficitCleared = fundTotalsWithRaw
-      .filter((f) => String(f.kind) !== "savings")
+      .filter((f) => !Boolean(f.isSavings))
       .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
 
     const deficitWithPending = fundTotalsWithRaw
-      .filter((f) => String(f.kind) !== "savings")
+      .filter((f) => !Boolean(f.isSavings))
       .reduce(
         (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
         0,
       );
 
     const fundTotalsDisplay = fundTotalsWithRaw.map((f) => {
-      const kind = String(f.kind);
-      const balance =
-        kind === "savings"
-          ? f.rawBalance - deficitCleared
-          : Math.max(0, f.rawBalance);
-      const balanceWithPending =
-        kind === "savings"
-          ? f.rawBalanceWithPending - deficitWithPending
-          : Math.max(0, f.rawBalanceWithPending);
+      const balance = f.isSavings
+        ? f.rawBalance - deficitCleared
+        : Math.max(0, f.rawBalance);
+      const balanceWithPending = f.isSavings
+        ? f.rawBalanceWithPending - deficitWithPending
+        : Math.max(0, f.rawBalanceWithPending);
 
       return {
         ...f,

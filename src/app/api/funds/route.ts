@@ -24,7 +24,8 @@ export async function GET() {
       .select({
         id: funds.id,
         name: funds.name,
-        kind: funds.kind,
+        isSavings: funds.isSavings,
+        pullPercentage: funds.pullPercentage,
         openingAmount: funds.openingAmount,
         createdAt: funds.createdAt,
         updatedAt: funds.updatedAt,
@@ -50,7 +51,8 @@ export async function GET() {
       .groupBy(
         funds.id,
         funds.name,
-        funds.kind,
+        funds.isSavings,
+        funds.pullPercentage,
         funds.openingAmount,
         funds.createdAt,
         funds.updatedAt,
@@ -66,26 +68,23 @@ export async function GET() {
     }));
 
     const deficitCleared = withRaw
-      .filter((f) => String(f.kind) !== "savings")
+      .filter((f) => !Boolean(f.isSavings))
       .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
 
     const deficitWithPending = withRaw
-      .filter((f) => String(f.kind) !== "savings")
+      .filter((f) => !Boolean(f.isSavings))
       .reduce(
         (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
         0,
       );
 
     const userFunds = withRaw.map((f) => {
-      const kind = String(f.kind);
-      const balance =
-        kind === "savings"
-          ? f.rawBalance - deficitCleared
-          : Math.max(0, f.rawBalance);
-      const balanceWithPending =
-        kind === "savings"
-          ? f.rawBalanceWithPending - deficitWithPending
-          : Math.max(0, f.rawBalanceWithPending);
+      const balance = f.isSavings
+        ? f.rawBalance - deficitCleared
+        : Math.max(0, f.rawBalance);
+      const balanceWithPending = f.isSavings
+        ? f.rawBalanceWithPending - deficitWithPending
+        : Math.max(0, f.rawBalanceWithPending);
 
       return {
         ...f,
@@ -126,13 +125,27 @@ export async function POST(request: NextRequest) {
     }
 
     const openingAmount = Number(data.openingAmount ?? 0);
+    const pullPercentage =
+      data.pullPercentage === undefined ? 0 : Number(data.pullPercentage);
+
+    if (
+      Number.isNaN(pullPercentage) ||
+      pullPercentage < 0 ||
+      pullPercentage > 100
+    ) {
+      return NextResponse.json(
+        { error: "Invalid pullPercentage" },
+        { status: 400 },
+      );
+    }
 
     const newFund = await db
       .insert(funds)
       .values({
         userId: user.id,
         name: String(data.name),
-        kind: "regular",
+        isSavings: false,
+        pullPercentage,
         openingAmount,
       })
       .returning();
@@ -192,11 +205,28 @@ export async function PATCH(request: NextRequest) {
         ? Number(data.openingAmount)
         : selectedFund.openingAmount;
 
+    const nextPullPercentage =
+      data?.pullPercentage !== undefined
+        ? Number(data.pullPercentage)
+        : Number(selectedFund.pullPercentage ?? 0);
+
+    if (
+      Number.isNaN(nextPullPercentage) ||
+      nextPullPercentage < 0 ||
+      nextPullPercentage > 100
+    ) {
+      return NextResponse.json(
+        { error: "Invalid pullPercentage" },
+        { status: 400 },
+      );
+    }
+
     const updatedFund = await db
       .update(funds)
       .set({
         name: nextName,
         openingAmount: nextOpeningAmount,
+        pullPercentage: selectedFund.isSavings ? 0 : nextPullPercentage,
         updatedAt: new Date(),
       })
       .where(eq(funds.id, fundId))
@@ -251,9 +281,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Fund not found" }, { status: 404 });
     }
 
-    if (selectedFund.kind === "income" || selectedFund.kind === "savings") {
+    if (selectedFund.isSavings) {
       return NextResponse.json(
-        { error: "Cannot delete income or savings fund" },
+        { error: "Cannot delete savings fund" },
         { status: 400 },
       );
     }

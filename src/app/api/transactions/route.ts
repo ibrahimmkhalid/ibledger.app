@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { fundFeeds, funds, transactions, wallets } from "@/db/schema";
+import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
 type TransactionLineInput = {
@@ -176,51 +176,30 @@ export async function POST(request: NextRequest) {
     const eventIsPending =
       body?.isPending === undefined ? true : Boolean(body.isPending);
 
-    const parent = await db
-      .insert(transactions)
-      .values({
-        userId: user.id,
-        parentId: null,
-        occurredAt,
-        description,
-        isPosting: false,
-        isPending: eventIsPending,
-        incomePull: null,
-        fundId: null,
-        walletId: null,
-        amount: 0,
-      })
-      .returning()
-      .then((res) => res[0]);
-
-    if (!parent) {
-      return NextResponse.json(
-        { error: "Failed to create event" },
-        { status: 500 },
-      );
-    }
-
     const type = body?.type ? String(body.type) : "expense";
 
-    // Ensure we can find required system funds
-    const userFunds = await db
-      .select({ id: funds.id, kind: funds.kind })
-      .from(funds)
-      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
-
-    const incomeFundId = userFunds.find((f) => f.kind === "income")?.id;
-    const savingsFundId = userFunds.find((f) => f.kind === "savings")?.id;
-
-    if (!incomeFundId || !savingsFundId) {
-      return NextResponse.json(
-        {
-          error: "Missing income/savings fund. Call POST /api/bootstrap first.",
-        },
-        { status: 400 },
-      );
-    }
-
     if (type === "income") {
+      // Ensure we can find the required system savings fund.
+      const userFunds = await db
+        .select({
+          id: funds.id,
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+        })
+        .from(funds)
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+
+      const savingsFundId = userFunds.find((f) => Boolean(f.isSavings))?.id;
+
+      if (!savingsFundId) {
+        return NextResponse.json(
+          {
+            error: "Missing savings fund. Call POST /api/bootstrap first.",
+          },
+          { status: 400 },
+        );
+      }
+
       const walletId = Number(body?.walletId);
       const amount = Number(body?.amount);
       const isPending = eventIsPending;
@@ -259,20 +238,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const pulls = await db
-        .select({
-          destFundId: fundFeeds.dest,
-          percentage: fundFeeds.feedPercentage,
-        })
-        .from(fundFeeds)
-        .where(eq(fundFeeds.source, incomeFundId));
-
-      const normalizedPulls = pulls
-        .filter((p) => p.destFundId !== savingsFundId)
-        .map((p) => ({
-          destFundId: p.destFundId,
-          percentage: Number(p.percentage),
-        }));
+      const normalizedPulls = userFunds
+        .filter((f) => !f.isSavings)
+        .map((f) => ({
+          destFundId: f.id,
+          percentage: Number(f.pullPercentage ?? 0),
+        }))
+        .filter((p) => p.percentage > 0);
 
       const pullSum = normalizedPulls.reduce(
         (acc: number, p: { destFundId: number; percentage: number }) =>
@@ -282,19 +254,42 @@ export async function POST(request: NextRequest) {
 
       if (pullSum > 100) {
         return NextResponse.json(
-          { error: "Invalid fund feeds: sum exceeds 100" },
+          { error: "Invalid fund pulls: sum exceeds 100" },
           { status: 400 },
         );
       }
 
+      const parent = await db
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          parentId: null,
+          occurredAt,
+          description,
+          isPosting: false,
+          isPending: eventIsPending,
+          incomePull: null,
+          fundId: null,
+          walletId: null,
+          amount: 0,
+        })
+        .returning()
+        .then((res) => res[0]);
+
+      if (!parent) {
+        return NextResponse.json(
+          { error: "Failed to create event" },
+          { status: 500 },
+        );
+      }
+
       let allocatedTotal = 0;
-      let savingsPullPct = 100;
+      const postingRows: Array<typeof transactions.$inferInsert> = [];
+
       for (const pull of normalizedPulls) {
         const allocated = (amount * pull.percentage) / 100;
         allocatedTotal += allocated;
-        savingsPullPct -= pull.percentage;
-
-        await db.insert(transactions).values({
+        postingRows.push({
           userId: user.id,
           parentId: parent.id,
           occurredAt,
@@ -308,9 +303,9 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      const savingsPullPct = 100 - pullSum;
       const savingsAllocated = amount - allocatedTotal;
-
-      await db.insert(transactions).values({
+      postingRows.push({
         userId: user.id,
         parentId: parent.id,
         occurredAt,
@@ -322,6 +317,8 @@ export async function POST(request: NextRequest) {
         fundId: savingsFundId,
         amount: savingsAllocated,
       });
+
+      await db.insert(transactions).values(postingRows);
 
       return NextResponse.json({ eventId: parent.id });
     }
@@ -421,29 +418,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If this is a single-line event, we can store it as a posting-only event
-    // (no child rows) to reduce the number of inserts.
+    // If this is a single-line event, store it as a posting-only event
+    // (no child rows) to reduce inserts.
     if (parsedLines.length === 1) {
       const line = parsedLines[0];
-      await db
-        .update(transactions)
-        .set({
+      const posting = await db
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          parentId: null,
+          occurredAt,
+          description,
           isPosting: true,
           isPending: line.isPending,
+          incomePull: null,
           walletId: line.walletId ?? null,
           fundId: line.fundId ?? null,
           amount: line.amount,
-          updatedAt: new Date(),
         })
-        .where(
-          and(eq(transactions.userId, user.id), eq(transactions.id, parent.id)),
-        );
+        .returning()
+        .then((res) => res[0]);
 
-      return NextResponse.json({ eventId: parent.id });
+      if (!posting) {
+        return NextResponse.json(
+          { error: "Failed to create event" },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ eventId: posting.id });
     }
 
-    for (const line of parsedLines) {
-      await db.insert(transactions).values({
+    const parent = await db
+      .insert(transactions)
+      .values({
+        userId: user.id,
+        parentId: null,
+        occurredAt,
+        description,
+        isPosting: false,
+        isPending: eventIsPending,
+        incomePull: null,
+        fundId: null,
+        walletId: null,
+        amount: 0,
+      })
+      .returning()
+      .then((res) => res[0]);
+
+    if (!parent) {
+      return NextResponse.json(
+        { error: "Failed to create event" },
+        { status: 500 },
+      );
+    }
+
+    await db.insert(transactions).values(
+      parsedLines.map((line) => ({
         userId: user.id,
         parentId: parent.id,
         occurredAt,
@@ -454,8 +485,8 @@ export async function POST(request: NextRequest) {
         walletId: line.walletId ?? null,
         fundId: line.fundId ?? null,
         amount: line.amount,
-      });
-    }
+      })),
+    );
 
     return NextResponse.json({ eventId: parent.id });
   } catch (error) {

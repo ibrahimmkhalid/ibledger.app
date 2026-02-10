@@ -77,44 +77,18 @@ export async function POST() {
       );
     }
 
-    const incomeFund = await db
-      .select()
-      .from(funds)
-      .where(
-        and(
-          eq(funds.userId, dbUser.id),
-          eq(funds.kind, "income"),
-          isNull(funds.deletedAt),
-        ),
-      )
-      .limit(1)
-      .then((res) => res[0]);
-
     const savingsFund = await db
       .select()
       .from(funds)
       .where(
         and(
           eq(funds.userId, dbUser.id),
-          eq(funds.kind, "savings"),
+          eq(funds.isSavings, true),
           isNull(funds.deletedAt),
         ),
       )
       .limit(1)
       .then((res) => res[0]);
-
-    const ensuredIncome =
-      incomeFund ??
-      (await db
-        .insert(funds)
-        .values({
-          userId: dbUser.id,
-          name: "Income",
-          kind: "income",
-          openingAmount: 0,
-        })
-        .returning()
-        .then((res) => res[0]));
 
     const ensuredSavings =
       savingsFund ??
@@ -123,7 +97,8 @@ export async function POST() {
         .values({
           userId: dbUser.id,
           name: "Savings",
-          kind: "savings",
+          isSavings: true,
+          pullPercentage: 0,
           openingAmount: 0,
         })
         .returning()
@@ -131,10 +106,7 @@ export async function POST() {
 
     return NextResponse.json({
       user: dbUser,
-      funds: {
-        incomeFundId: ensuredIncome.id,
-        savingsFundId: ensuredSavings.id,
-      },
+      funds: { savingsFundId: ensuredSavings.id },
     });
   } catch (error) {
     console.error("API: Error bootstrapping user", error);
