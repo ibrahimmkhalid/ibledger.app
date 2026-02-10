@@ -22,7 +22,11 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount, isoToday } from "@/app/tracker/lib/format";
+import {
+  fmtAmount,
+  isoToday,
+  toDateInputValue,
+} from "@/app/tracker/lib/format";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
 type Direction = "outflow" | "inflow";
@@ -37,15 +41,6 @@ type LineDraft = {
   amount: string; // absolute
   isPending: boolean;
 };
-
-function parseDateToInputValue(input: string) {
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return isoToday();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function makeKey() {
   return String(Math.random()).slice(2);
@@ -88,10 +83,7 @@ export function TransactionModal(args: {
     [wallets],
   );
 
-  const fundOptions = useMemo(
-    () => funds.filter((f) => f.kind !== "income"),
-    [funds],
-  );
+  const fundOptions = useMemo(() => funds, [funds]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +102,7 @@ export function TransactionModal(args: {
     }
 
     if (initialEvent) {
-      setOccurredAt(parseDateToInputValue(initialEvent.occurredAt));
+      setOccurredAt(toDateInputValue(initialEvent.occurredAt));
       setDescription(initialEvent.description ?? "Transaction");
 
       const eventLines =
@@ -150,8 +142,8 @@ export function TransactionModal(args: {
 
     const defaultWalletId = wallets[0]?.id;
     const preferredFundId =
-      fundOptions.find((f) => f.kind === "regular")?.id ??
-      fundOptions.find((f) => f.kind === "savings")?.id;
+      fundOptions.find((f) => !f.isSavings)?.id ??
+      fundOptions.find((f) => f.isSavings)?.id;
 
     setOccurredAt(isoToday());
     setDescription("Transaction");

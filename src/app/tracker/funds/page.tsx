@@ -28,6 +28,7 @@ import type { Fund } from "@/app/tracker/types";
 type FundFormState = {
   name: string;
   openingAmount: string;
+  pullPercentage: string;
 };
 
 function FundModal(args: {
@@ -35,19 +36,32 @@ function FundModal(args: {
   onOpenChange: (open: boolean) => void;
   title: string;
   initial?: FundFormState;
+  disablePullPercentage?: boolean;
   busy: boolean;
   onSave: (data: FundFormState) => void | Promise<void>;
 }) {
-  const { open, onOpenChange, title, initial, busy, onSave } = args;
+  const {
+    open,
+    onOpenChange,
+    title,
+    initial,
+    disablePullPercentage,
+    busy,
+    onSave,
+  } = args;
   const [name, setName] = useState(initial?.name ?? "");
   const [openingAmount, setOpeningAmount] = useState(
     initial?.openingAmount ?? "0",
+  );
+  const [pullPercentage, setPullPercentage] = useState(
+    initial?.pullPercentage ?? "0",
   );
 
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
     setOpeningAmount(initial?.openingAmount ?? "0");
+    setPullPercentage(initial?.pullPercentage ?? "0");
   }, [open, initial]);
 
   return (
@@ -70,12 +84,21 @@ function FundModal(args: {
               onChange={(e) => setOpeningAmount(e.target.value)}
             />
           </div>
+          <div className="flex flex-col gap-2">
+            <div className="text-muted-foreground text-xs">Pull percentage</div>
+            <Input
+              inputMode="decimal"
+              value={pullPercentage}
+              onChange={(e) => setPullPercentage(e.target.value)}
+              disabled={Boolean(disablePullPercentage)}
+            />
+          </div>
         </div>
 
         <DialogFooter>
           <Button
             type="button"
-            onClick={() => void onSave({ name, openingAmount })}
+            onClick={() => void onSave({ name, openingAmount, pullPercentage })}
             disabled={busy}
           >
             Save
@@ -96,10 +119,7 @@ export default function FundsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editFund, setEditFund] = useState<Fund | null>(null);
 
-  const displayFunds = useMemo(
-    () => funds.filter((f) => f.kind !== "income"),
-    [funds],
-  );
+  const displayFunds = useMemo(() => funds, [funds]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -125,13 +145,25 @@ export default function FundsPage() {
     setError(null);
     try {
       const openingAmount = Number(data.openingAmount);
+      const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
       if (Number.isNaN(openingAmount))
         throw new Error("Invalid opening amount");
+      if (
+        Number.isNaN(pullPercentage) ||
+        pullPercentage < 0 ||
+        pullPercentage > 100
+      ) {
+        throw new Error("Invalid pull percentage");
+      }
 
       await apiJson("/api/funds", {
         method: "POST",
-        body: JSON.stringify({ name: data.name, openingAmount }),
+        body: JSON.stringify({
+          name: data.name,
+          openingAmount,
+          pullPercentage,
+        }),
       });
       setCreateOpen(false);
       setNotice("Fund created");
@@ -148,13 +180,26 @@ export default function FundsPage() {
     setError(null);
     try {
       const openingAmount = Number(data.openingAmount);
+      const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
       if (Number.isNaN(openingAmount))
         throw new Error("Invalid opening amount");
+      if (
+        Number.isNaN(pullPercentage) ||
+        pullPercentage < 0 ||
+        pullPercentage > 100
+      ) {
+        throw new Error("Invalid pull percentage");
+      }
 
       await apiJson("/api/funds", {
         method: "PATCH",
-        body: JSON.stringify({ id: fund.id, name: data.name, openingAmount }),
+        body: JSON.stringify({
+          id: fund.id,
+          name: data.name,
+          openingAmount,
+          pullPercentage,
+        }),
       });
       setEditFund(null);
       setNotice("Fund updated");
@@ -250,9 +295,11 @@ export default function FundsPage() {
             ? {
                 name: editFund.name,
                 openingAmount: String(editFund.openingAmount),
+                pullPercentage: String(editFund.pullPercentage ?? 0),
               }
             : undefined
         }
+        disablePullPercentage={Boolean(editFund?.isSavings)}
         busy={busy}
         onSave={(data) => {
           if (!editFund) return;
@@ -269,7 +316,8 @@ export default function FundsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[120px]">Kind</TableHead>
+                <TableHead className="w-[110px]">Savings</TableHead>
+                <TableHead className="w-[130px] text-right">Pull %</TableHead>
                 <TableHead className="w-[140px] text-right">Balance</TableHead>
                 <TableHead className="w-[160px] text-right">
                   With pending
@@ -281,7 +329,10 @@ export default function FundsPage() {
               {displayFunds.map((f) => (
                 <TableRow key={f.id}>
                   <TableCell className="font-medium">{f.name}</TableCell>
-                  <TableCell>{f.kind}</TableCell>
+                  <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {f.isSavings ? "—" : `${Number(f.pullPercentage ?? 0)}%`}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {fmtAmount(f.balance)}
                   </TableCell>
@@ -296,7 +347,7 @@ export default function FundsPage() {
                     >
                       Edit
                     </Button>
-                    {f.kind === "savings" ? null : (
+                    {f.isSavings ? null : (
                       <Button
                         variant="destructive"
                         onClick={() => void deleteFund(f)}

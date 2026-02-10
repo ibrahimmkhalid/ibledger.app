@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -46,6 +38,8 @@ import type {
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faClone, faSquare, faTag } from "@fortawesome/free-solid-svg-icons";
 
 function renderClearedWithPending(cleared: number, withPending: number) {
   const c = Number(cleared);
@@ -66,33 +60,16 @@ function renderClearedWithPending(cleared: number, withPending: number) {
 }
 
 export default function TrackerPage() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const recentPendingOnlyId = useId();
-  const [recentPendingOnly, setRecentPendingOnly] = useState(false);
 
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
-
-  const recentPendingOnlyRef = useRef(recentPendingOnly);
-  useEffect(() => {
-    recentPendingOnlyRef.current = recentPendingOnly;
-  }, [recentPendingOnly]);
-
-  const refreshRecentEvents = useCallback(async (pendingOnly: boolean) => {
-    try {
-      const eventsRes = await apiJson<EventsResponse>(
-        `/api/transactions?page=0${pendingOnly ? "&pendingOnly=true" : ""}`,
-      );
-      setEvents(eventsRes.events);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    }
-  }, []);
 
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
@@ -102,10 +79,7 @@ export default function TrackerPage() {
 
   const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
 
-  const displayFunds = useMemo(
-    () => funds.filter((f) => f.kind !== "income"),
-    [funds],
-  );
+  const displayFunds = useMemo(() => funds, [funds]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -115,15 +89,11 @@ export default function TrackerPage() {
     try {
       await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
 
-      const pendingOnly = recentPendingOnlyRef.current;
-
       const [walletsRes, fundsRes, totalsRes, eventsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
         apiJson<{ funds: Fund[] }>("/api/funds"),
         apiJson<TotalsResponse>("/api/totals"),
-        apiJson<EventsResponse>(
-          `/api/transactions?page=0${pendingOnly ? "&pendingOnly=true" : ""}`,
-        ),
+        apiJson<EventsResponse>(`/api/transactions?page=0`),
       ]);
 
       setWallets(walletsRes.wallets);
@@ -329,24 +299,14 @@ export default function TrackerPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            {recentPendingOnly
-              ? "Recent Pending Transactions"
-              : "Recent Transactions"}
-          </CardTitle>
+          <CardTitle>Recent Transactions</CardTitle>
           <CardAction>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={recentPendingOnlyId}>Pending only</Label>
-              <Switch
-                id={recentPendingOnlyId}
-                size="sm"
-                checked={recentPendingOnly}
-                onCheckedChange={(checked) => {
-                  setRecentPendingOnly(checked);
-                  void refreshRecentEvents(checked);
-                }}
-              />
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/tracker/transactions")}
+            >
+              View all
+            </Button>
           </CardAction>
         </CardHeader>
         <CardContent>
@@ -362,7 +322,7 @@ export default function TrackerPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {events.map((ev) => {
+              {events.slice(0, 10).map((ev) => {
                 const net = computeEventDisplayAmount(ev);
                 const walletName = computeEventWalletName(ev);
                 const fundName = computeEventFundName(ev);
@@ -374,19 +334,25 @@ export default function TrackerPage() {
                       <TableCell>{fmtDateShort(ev.occurredAt)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          {isIncomeLike(ev) ? (
+                            <FontAwesomeIcon
+                              icon={faTag}
+                              className="text-muted-foreground size-3.5 opacity-65"
+                            />
+                          ) : !ev.isPosting ? (
+                            <FontAwesomeIcon
+                              icon={faSquare}
+                              className="text-muted-foreground size-3.5 opacity-65"
+                            />
+                          ) : (
+                            <FontAwesomeIcon
+                              icon={faClone}
+                              className="text-muted-foreground size-3.5 opacity-65"
+                            />
+                          )}
                           <span className="font-medium">
                             {ev.description ?? "(no description)"}
                           </span>
-                          {!ev.isPosting && (
-                            <span className="text-muted-foreground text-xs">
-                              Parent
-                            </span>
-                          )}
-                          {isIncomeLike(ev) && (
-                            <span className="text-muted-foreground text-xs">
-                              Income
-                            </span>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">

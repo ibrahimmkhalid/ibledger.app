@@ -22,17 +22,12 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount, isoToday } from "@/app/tracker/lib/format";
+import {
+  fmtAmount,
+  isoToday,
+  toDateInputValue,
+} from "@/app/tracker/lib/format";
 import type { TransactionEvent, Wallet } from "@/app/tracker/types";
-
-function parseDateToInputValue(input: string) {
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return isoToday();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function sumIncomeAmount(ev: TransactionEvent) {
   if (ev.children.length > 0) {
@@ -76,7 +71,7 @@ export function IncomeModal(args: {
     }
 
     if (initialEvent) {
-      setOccurredAt(parseDateToInputValue(initialEvent.occurredAt));
+      setOccurredAt(toDateInputValue(initialEvent.occurredAt));
       setDescription(initialEvent.description ?? "Income");
       setIsPending(Boolean(initialEvent.isPending));
 

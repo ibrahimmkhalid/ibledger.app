@@ -38,11 +38,23 @@ export function isoToday() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Use UTC components so ISO timestamps (and date-only strings) don't shift
+// backwards/forwards based on the viewer's local timezone.
+export function toDateInputValue(input: string | Date) {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return isoToday();
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function fmtDateShort(input: string | Date) {
   const d = input instanceof Date ? input : new Date(input);
   return d.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "2-digit",
+    timeZone: "UTC",
   });
 }

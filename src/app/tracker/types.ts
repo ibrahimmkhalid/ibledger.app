@@ -10,7 +10,8 @@ export type TotalsResponse = {
   funds: Array<{
     id: number;
     name: string;
-    kind: string;
+    isSavings: boolean;
+    pullPercentage: number;
     balance: number;
     balanceWithPending: number;
     rawBalance?: number;
@@ -29,7 +30,8 @@ export type Wallet = {
 export type Fund = {
   id: number;
   name: string;
-  kind: string;
+  isSavings: boolean;
+  pullPercentage: number;
   openingAmount: number;
   balance: number;
   balanceWithPending: number;

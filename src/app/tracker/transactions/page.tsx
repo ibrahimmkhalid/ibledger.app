@@ -37,6 +37,8 @@ import type {
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faClone, faSquare, faTag } from "@fortawesome/free-solid-svg-icons";
 
 export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
@@ -53,10 +55,7 @@ export default function TransactionsPage() {
   const [nextPage, setNextPage] = useState(-1);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
 
-  const visibleEvents = useMemo(() => {
-    if (!pendingOnly) return events;
-    return events.filter((ev) => ev.isPending);
-  }, [events, pendingOnly]);
+  const visibleEvents = useMemo(() => events, [events]);
 
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
@@ -66,10 +65,7 @@ export default function TransactionsPage() {
 
   const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
 
-  const displayFunds = useMemo(
-    () => funds.filter((f) => f.kind !== "income"),
-    [funds],
-  );
+  const displayFunds = useMemo(() => funds, [funds]);
 
   const refresh = useCallback(
     async (next: { page: number; pendingOnly: boolean }) => {
@@ -103,6 +99,21 @@ export default function TransactionsPage() {
     },
     [],
   );
+
+  const clearAllPending = useCallback(async () => {
+    const ok = window.confirm(
+      "Mark ALL transactions as no longer pending? This will affect totals immediately.",
+    );
+    if (!ok) return;
+
+    try {
+      await apiJson("/api/transactions/clear-pending", { method: "POST" });
+      setNotice("All pending transactions cleared");
+      setPendingOnly(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to clear pending");
+    }
+  }, [setNotice, setError, setPendingOnly]);
 
   useEffect(() => {
     void refresh({ page: 0, pendingOnly });
@@ -225,7 +236,7 @@ export default function TransactionsPage() {
             {pendingOnly ? "Pending transactions" : "All transactions"}
           </CardTitle>
           <CardAction>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Label htmlFor={pendingOnlyId}>Pending only</Label>
               <Switch
                 id={pendingOnlyId}
@@ -233,6 +244,15 @@ export default function TransactionsPage() {
                 checked={pendingOnly}
                 onCheckedChange={setPendingOnly}
               />
+
+              {pendingOnly && (
+                <Button
+                  variant="outline"
+                  onClick={() => void clearAllPending()}
+                >
+                  Mark all cleared
+                </Button>
+              )}
             </div>
           </CardAction>
         </CardHeader>
@@ -260,19 +280,25 @@ export default function TransactionsPage() {
                     <TableCell>{fmtDateShort(ev.occurredAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        {isIncomeLike(ev) ? (
+                          <FontAwesomeIcon
+                            icon={faTag}
+                            className="text-muted-foreground size-3.5 opacity-65"
+                          />
+                        ) : !ev.isPosting ? (
+                          <FontAwesomeIcon
+                            icon={faSquare}
+                            className="text-muted-foreground size-3.5 opacity-65"
+                          />
+                        ) : (
+                          <FontAwesomeIcon
+                            icon={faClone}
+                            className="text-muted-foreground size-3.5 opacity-65"
+                          />
+                        )}
                         <span className="font-medium">
                           {ev.description ?? "(no description)"}
                         </span>
-                        {!ev.isPosting && (
-                          <span className="text-muted-foreground text-xs">
-                            Parent
-                          </span>
-                        )}
-                        {isIncomeLike(ev) && (
-                          <span className="text-muted-foreground text-xs">
-                            Income
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
