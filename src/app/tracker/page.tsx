@@ -341,12 +341,12 @@ export default function TrackerPage() {
                             />
                           ) : !ev.isPosting ? (
                             <FontAwesomeIcon
-                              icon={faSquare}
+                              icon={faClone}
                               className="text-muted-foreground size-3.5 opacity-65"
                             />
                           ) : (
                             <FontAwesomeIcon
-                              icon={faClone}
+                              icon={faSquare}
                               className="text-muted-foreground size-3.5 opacity-65"
                             />
                           )}
