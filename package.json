@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export": "tsx scripts/export-user-data.ts",
+    "import": "tsx scripts/import-user-data.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
