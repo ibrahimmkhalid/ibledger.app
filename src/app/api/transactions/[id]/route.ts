@@ -172,6 +172,28 @@ export async function PATCH(
         );
       }
 
+      const savingsFundId = await db
+        .select({ id: funds.id })
+        .from(funds)
+        .where(
+          and(
+            eq(funds.userId, user.id),
+            eq(funds.isSavings, true),
+            isNull(funds.deletedAt),
+          ),
+        )
+        .limit(1)
+        .then((res) => res[0]?.id ?? null);
+
+      if (!savingsFundId) {
+        return NextResponse.json(
+          {
+            error: "Missing savings fund. Call POST /api/bootstrap first.",
+          },
+          { status: 400 },
+        );
+      }
+
       await db.transaction(async (tx) => {
         await tx
           .update(transactions)
@@ -204,18 +226,25 @@ export async function PATCH(
           return;
         }
 
-        let running = 0;
-        for (let i = 0; i < allocationPostings.length; i++) {
-          const p = allocationPostings[i];
-          const pct = Number(p.incomePull ?? 0);
-          const nextAmount =
-            i === allocationPostings.length - 1
-              ? nextTotal - running
-              : (nextTotal * pct) / 100;
+        const savingsPosting = allocationPostings.find(
+          (p) => p.fundId === savingsFundId,
+        );
 
-          if (i !== allocationPostings.length - 1) {
-            running += nextAmount;
-          }
+        if (!savingsPosting) {
+          throw new Error(
+            "Missing savings allocation posting for this income event",
+          );
+        }
+
+        const nonSavingsPostings = allocationPostings.filter(
+          (p) => p.id !== savingsPosting.id,
+        );
+
+        let nonSavingsAllocated = 0;
+        for (const p of nonSavingsPostings) {
+          const pct = Number(p.incomePull ?? 0);
+          const nextAmount = (nextTotal * pct) / 100;
+          nonSavingsAllocated += nextAmount;
 
           await tx
             .update(transactions)
@@ -228,6 +257,22 @@ export async function PATCH(
               and(eq(transactions.userId, user.id), eq(transactions.id, p.id)),
             );
         }
+
+        const savingsAmount = nextTotal - nonSavingsAllocated;
+
+        await tx
+          .update(transactions)
+          .set({
+            walletId: nextWalletId,
+            amount: savingsAmount,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.id, savingsPosting.id),
+            ),
+          );
       });
 
       return NextResponse.json({ eventId });
@@ -276,8 +321,8 @@ export async function PATCH(
           if (fundId !== null && Number.isNaN(fundId)) {
             throw new Error("Invalid fundId");
           }
-          if (walletId === null && fundId === null) {
-            throw new Error("Line must include walletId or fundId");
+          if (walletId === null || fundId === null) {
+            throw new Error("Line must include walletId and fundId");
           }
 
           return {
