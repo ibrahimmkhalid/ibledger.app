@@ -359,8 +359,8 @@ export async function POST(request: NextRequest) {
         throw new Error("Invalid fundId");
       }
 
-      if (walletId === null && fundId === null) {
-        throw new Error("Line must include walletId or fundId");
+      if (walletId === null || fundId === null) {
+        throw new Error("Line must include walletId and fundId");
       }
 
       return { walletId, fundId, description, amount, isPending };
