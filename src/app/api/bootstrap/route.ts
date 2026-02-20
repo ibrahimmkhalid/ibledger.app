@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { funds, users } from "@/db/schema";
+import { funds, users, wallets } from "@/db/schema";
 import { currentUser } from "@/lib/auth";
 
 export async function POST() {
@@ -77,6 +77,12 @@ export async function POST() {
       );
     }
 
+    if (existing) {
+      return NextResponse.json({
+        user: dbUser,
+      });
+    }
+
     const savingsFund = await db
       .select()
       .from(funds)
@@ -103,6 +109,23 @@ export async function POST() {
         })
         .returning()
         .then((res) => res[0]));
+
+    const allWallets = await db
+      .select()
+      .from(wallets)
+      .where(and(eq(wallets.userId, dbUser.id), isNull(wallets.deletedAt)));
+
+    if (allWallets.length === 0) {
+      await db
+        .insert(wallets)
+        .values({
+          userId: dbUser.id,
+          name: "Bank",
+          openingAmount: 0,
+        })
+        .returning()
+        .then((res) => res[0]);
+    }
 
     return NextResponse.json({
       user: dbUser,

@@ -193,6 +193,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing wallet id" }, { status: 400 });
     }
 
+    const numWallets = await db
+      .select()
+      .from(wallets)
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+      .then((res) => res.length);
+    if (numWallets <= 1) {
+      return NextResponse.json(
+        { error: "Cannot delete last wallet" },
+        { status: 400 },
+      );
+    }
+
     const selectedWallet = await db
       .select()
       .from(wallets)

@@ -293,7 +293,7 @@ export default function WalletsPage() {
                     <Button
                       variant="destructive"
                       onClick={() => void deleteWallet(w)}
-                      disabled={busy}
+                      disabled={busy || wallets.length <= 1}
                     >
                       Delete
                     </Button>
