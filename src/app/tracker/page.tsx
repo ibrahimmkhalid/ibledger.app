@@ -22,15 +22,11 @@ import {
 } from "@/components/ui/table";
 
 import { IncomeModal } from "@/app/tracker/components/income-modal";
+import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { TransactionModal } from "@/app/tracker/components/transaction-modal";
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
-import {
-  computeEventDisplayAmount,
-  computeEventFundName,
-  computeEventWalletName,
-  isIncomeLike,
-} from "@/app/tracker/lib/events";
+import { fmtAmount } from "@/app/tracker/lib/format";
+import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
   EventsResponse,
   Fund,
@@ -38,8 +34,6 @@ import type {
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClone, faSquare, faTag } from "@fortawesome/free-solid-svg-icons";
 
 function renderClearedWithPending(cleared: number, withPending: number) {
   const c = Number(cleared);
@@ -126,9 +120,9 @@ export default function TrackerPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Overview</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => void refresh()}>
             Refresh
           </Button>
@@ -310,72 +304,16 @@ export default function TrackerPage() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[130px]">Date</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-[140px] text-right">Amount</TableHead>
-                <TableHead className="w-[140px]">Wallet</TableHead>
-                <TableHead className="w-[140px]">Fund</TableHead>
-                <TableHead className="w-[120px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {events.slice(0, 10).map((ev) => {
-                const net = computeEventDisplayAmount(ev);
-                const walletName = computeEventWalletName(ev);
-                const fundName = computeEventFundName(ev);
-                const rowClassName = ev.isPending ? "italic" : "";
-
-                return (
-                  <Fragment key={ev.id}>
-                    <TableRow className={rowClassName}>
-                      <TableCell>{fmtDateShort(ev.occurredAt)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {isIncomeLike(ev) ? (
-                            <FontAwesomeIcon
-                              icon={faTag}
-                              className="text-muted-foreground size-3.5 opacity-65"
-                            />
-                          ) : !ev.isPosting ? (
-                            <FontAwesomeIcon
-                              icon={faClone}
-                              className="text-muted-foreground size-3.5 opacity-65"
-                            />
-                          ) : (
-                            <FontAwesomeIcon
-                              icon={faSquare}
-                              className="text-muted-foreground size-3.5 opacity-65"
-                            />
-                          )}
-                          <span className="font-medium">
-                            {ev.description ?? "(no description)"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        <span className={net < 0 ? "text-destructive" : ""}>
-                          {fmtAmount(net)}
-                        </span>
-                      </TableCell>
-                      <TableCell>{walletName ?? ""}</TableCell>
-                      <TableCell>{fundName ?? ""}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          onClick={() => setDetailsEvent(ev)}
-                        >
-                          Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  </Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="flex flex-col gap-1.5">
+            {events.slice(0, 10).map((ev) => (
+              <Fragment key={ev.id}>
+                <TransactionEventCard
+                  event={ev}
+                  onClick={() => setDetailsEvent(ev)}
+                />
+              </Fragment>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

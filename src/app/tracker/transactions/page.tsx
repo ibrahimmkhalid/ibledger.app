@@ -12,33 +12,18 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 import { IncomeModal } from "@/app/tracker/components/income-modal";
+import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { TransactionModal } from "@/app/tracker/components/transaction-modal";
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
-import {
-  computeEventDisplayAmount,
-  computeEventFundName,
-  computeEventWalletName,
-  isIncomeLike,
-} from "@/app/tracker/lib/events";
+import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
   EventsResponse,
   Fund,
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClone, faSquare, faTag } from "@fortawesome/free-solid-svg-icons";
 
 export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
@@ -134,9 +119,9 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Transactions</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => void refresh({ page, pendingOnly })}
@@ -257,70 +242,15 @@ export default function TransactionsPage() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[130px]">Date</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-[140px] text-right">Amount</TableHead>
-                <TableHead className="w-[140px]">Wallet</TableHead>
-                <TableHead className="w-[140px]">Fund</TableHead>
-                <TableHead className="w-[120px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleEvents.map((ev) => {
-                const net = computeEventDisplayAmount(ev);
-                const walletName = computeEventWalletName(ev);
-                const fundName = computeEventFundName(ev);
-                const rowClassName = ev.isPending ? "italic" : "";
-
-                return (
-                  <TableRow key={ev.id} className={rowClassName}>
-                    <TableCell>{fmtDateShort(ev.occurredAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {isIncomeLike(ev) ? (
-                          <FontAwesomeIcon
-                            icon={faTag}
-                            className="text-muted-foreground size-3.5 opacity-65"
-                          />
-                        ) : !ev.isPosting ? (
-                          <FontAwesomeIcon
-                            icon={faClone}
-                            className="text-muted-foreground size-3.5 opacity-65"
-                          />
-                        ) : (
-                          <FontAwesomeIcon
-                            icon={faSquare}
-                            className="text-muted-foreground size-3.5 opacity-65"
-                          />
-                        )}
-                        <span className="font-medium">
-                          {ev.description ?? "(no description)"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <span className={net < 0 ? "text-destructive" : ""}>
-                        {fmtAmount(net)}
-                      </span>
-                    </TableCell>
-                    <TableCell>{walletName ?? ""}</TableCell>
-                    <TableCell>{fundName ?? ""}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        onClick={() => setDetailsEvent(ev)}
-                      >
-                        Details
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="flex flex-col gap-1.5">
+            {visibleEvents.map((ev) => (
+              <TransactionEventCard
+                key={ev.id}
+                event={ev}
+                onClick={() => setDetailsEvent(ev)}
+              />
+            ))}
+          </div>
 
           <div className="mt-4 flex items-center justify-between">
             <Button

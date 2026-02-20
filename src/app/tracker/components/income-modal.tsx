@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +36,10 @@ import {
   toDateInputValue,
 } from "@/app/tracker/lib/format";
 import type { TransactionEvent, Wallet } from "@/app/tracker/types";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import { XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function sumIncomeAmount(ev: TransactionEvent) {
   if (ev.children.length > 0) {
@@ -61,6 +73,8 @@ export function IncomeModal(args: {
   const [walletId, setWalletId] = useState<string>("");
   const [amount, setAmount] = useState<string>("10");
   const [isPending, setIsPending] = useState(true);
+
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) {
@@ -178,6 +192,190 @@ export function IncomeModal(args: {
   }
 
   const title = initialEvent ? "Income" : "Add income";
+
+  if (isMobile) {
+    const disabled = Boolean(initialEvent) && !editing;
+
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[92vh]">
+          <div className="flex max-h-[92vh] flex-col">
+            <DrawerHeader className="p-3 pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <DrawerTitle>{title}</DrawerTitle>
+                <DrawerClose
+                  className={cn(
+                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                  )}
+                >
+                  <XIcon />
+                  <span className="sr-only">Close</span>
+                </DrawerClose>
+              </div>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto px-3 pb-3">
+              {error && <div className="text-destructive text-sm">{error}</div>}
+
+              <div className="mt-3 grid gap-3">
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">Date</div>
+                  <Input
+                    type="date"
+                    value={occurredAt}
+                    onChange={(e) => setOccurredAt(e.target.value)}
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">
+                    Description
+                  </div>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Description"
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3">
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">Wallet</div>
+                  <select
+                    className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
+                    value={walletId}
+                    onChange={(e) => setWalletId(e.target.value)}
+                    disabled={disabled}
+                  >
+                    <option value="" disabled>
+                      Select
+                    </option>
+                    {walletOptions.map((w) => (
+                      <option key={w.id} value={String(w.id)}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">Amount</div>
+                  <Input
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between rounded-md border px-3 py-2">
+                <div className="flex flex-col">
+                  <div className="text-sm font-medium">Pending</div>
+                  <div className="text-muted-foreground text-xs">
+                    Controls whether this income counts in cleared totals
+                  </div>
+                </div>
+                <Switch
+                  checked={isPending}
+                  onCheckedChange={setIsPending}
+                  disabled={disabled}
+                />
+              </div>
+
+              {initialEvent && !editing && (
+                <div className="mt-4 rounded-md border p-3">
+                  <div className="text-sm font-medium">Breakdown</div>
+                  <div className="text-muted-foreground text-xs">
+                    Auto-allocated by pulls
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {initialEvent.children.map((c) => (
+                      <div key={c.id} className="rounded-md border px-2 py-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">
+                              {c.fundName ?? "(fund)"}
+                            </div>
+                            <div className="text-muted-foreground mt-1 text-[11px]">
+                              {c.incomePull === null
+                                ? ""
+                                : `Pull ${c.incomePull}%`}
+                              {c.isPending
+                                ? c.incomePull === null
+                                  ? "Pending"
+                                  : " · Pending"
+                                : ""}
+                            </div>
+                          </div>
+                          <div className="text-right text-sm tabular-nums">
+                            {fmtAmount(Number(c.amount))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DrawerFooter className="border-t p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {initialEvent && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={deleteEvent}
+                      disabled={busy}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {initialEvent && !editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditing(true)}
+                      disabled={busy}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  {initialEvent && editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditing(false)}
+                      disabled={busy}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+
+                  {!initialEvent && (
+                    <Button type="button" onClick={saveCreate} disabled={busy}>
+                      Save
+                    </Button>
+                  )}
+                  {initialEvent && editing && (
+                    <Button type="button" onClick={saveEdit} disabled={busy}>
+                      Save changes
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </DrawerFooter>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

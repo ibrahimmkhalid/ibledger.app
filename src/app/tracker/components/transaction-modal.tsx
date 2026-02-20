@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +36,10 @@ import {
   toDateInputValue,
 } from "@/app/tracker/lib/format";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
+
+import { useIsMobile } from "@/hooks/use-mobile";
+import { XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Direction = "outflow" | "inflow";
 
@@ -92,6 +104,8 @@ export function TransactionModal(args: {
   const [occurredAt, setOccurredAt] = useState(isoToday());
   const [description, setDescription] = useState("Transaction");
   const [lines, setLines] = useState<LineDraft[]>([]);
+
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) {
@@ -270,6 +284,333 @@ export function TransactionModal(args: {
   }
 
   const title = initialEvent ? "Transaction" : "Add transaction";
+
+  if (isMobile) {
+    const disabled = Boolean(initialEvent) && !editing;
+
+    const breakdown =
+      initialEvent && initialEvent.children.length > 0
+        ? initialEvent.children
+        : initialEvent
+          ? [
+              {
+                id: initialEvent.id,
+                walletName: initialEvent.walletName,
+                fundName: initialEvent.fundName,
+                description: initialEvent.description,
+                amount: initialEvent.amount,
+                isPending: initialEvent.isPending,
+              },
+            ]
+          : [];
+
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[92vh]">
+          <div className="flex max-h-[92vh] flex-col">
+            <DrawerHeader className="p-3 pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <DrawerTitle>{title}</DrawerTitle>
+                <DrawerClose
+                  className={cn(
+                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                  )}
+                >
+                  <XIcon />
+                  <span className="sr-only">Close</span>
+                </DrawerClose>
+              </div>
+            </DrawerHeader>
+
+            <div className="flex-1 overflow-y-auto px-3 pb-3">
+              {error && <div className="text-destructive text-sm">{error}</div>}
+
+              <div className="mt-3 grid gap-3">
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">Date</div>
+                  <Input
+                    type="date"
+                    value={occurredAt}
+                    onChange={(e) => setOccurredAt(e.target.value)}
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="text-muted-foreground text-xs">
+                    Description
+                  </div>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Description"
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              {initialEvent && !editing ? (
+                <div className="mt-4 rounded-md border p-3">
+                  <div className="text-sm font-medium">Breakdown</div>
+                  <div className="text-muted-foreground text-xs">
+                    {initialEvent.children.length > 0
+                      ? `${initialEvent.children.length} lines`
+                      : "Single line"}
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {breakdown.map((c) => {
+                      const n = Number(c.amount);
+                      const dir: Direction = n < 0 ? "outflow" : "inflow";
+                      const wallet = c.walletName ?? "";
+                      const fund = c.fundName ?? "";
+                      const titleLine =
+                        wallet && fund
+                          ? `${wallet} · ${fund}`
+                          : wallet || fund || "(unassigned)";
+                      return (
+                        <div key={c.id} className="rounded-md border px-2 py-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">
+                                {titleLine}
+                              </div>
+                              <div className="text-muted-foreground truncate text-xs">
+                                {c.description ?? ""}
+                              </div>
+                              <div className="text-muted-foreground mt-1 text-[11px] capitalize">
+                                {dir}
+                                {c.isPending ? " - pending" : ""}
+                              </div>
+                            </div>
+                            <div className="text-right text-sm tabular-nums">
+                              <span className={n < 0 ? "text-destructive" : ""}>
+                                {fmtAmount(Math.abs(n))}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium">Lines</div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setLines((prev) => [...prev, defaultLineDraft()])
+                      }
+                      disabled={busy}
+                    >
+                      Add line
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    {lines.map((l) => (
+                      <div key={l.key} className="rounded-md border p-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
+                            value={l.walletId}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key
+                                    ? { ...x, walletId: e.target.value }
+                                    : x,
+                                ),
+                              )
+                            }
+                            disabled={busy}
+                          >
+                            <option value="">—</option>
+                            {walletOptions.map((w) => (
+                              <option key={w.id} value={String(w.id)}>
+                                {w.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <select
+                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
+                            value={l.fundId}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key
+                                    ? { ...x, fundId: e.target.value }
+                                    : x,
+                                ),
+                              )
+                            }
+                            disabled={busy}
+                          >
+                            <option value="">—</option>
+                            {fundOptions.map((f) => (
+                              <option key={f.id} value={String(f.id)}>
+                                {f.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="mt-2">
+                          <Input
+                            value={l.description}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key
+                                    ? { ...x, description: e.target.value }
+                                    : x,
+                                ),
+                              )
+                            }
+                            placeholder="Description (optional)"
+                            disabled={busy}
+                          />
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <select
+                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
+                            value={l.direction}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key
+                                    ? {
+                                        ...x,
+                                        direction: e.target.value as Direction,
+                                      }
+                                    : x,
+                                ),
+                              )
+                            }
+                            disabled={busy}
+                          >
+                            <option value="outflow">Outflow</option>
+                            <option value="inflow">Inflow</option>
+                          </select>
+
+                          <Input
+                            inputMode="decimal"
+                            value={l.amount}
+                            onChange={(e) =>
+                              setLines((prev) =>
+                                prev.map((x) =>
+                                  x.key === l.key
+                                    ? { ...x, amount: e.target.value }
+                                    : x,
+                                ),
+                              )
+                            }
+                            placeholder="10"
+                            className="text-right tabular-nums"
+                            disabled={busy}
+                          />
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="text-muted-foreground text-xs">
+                              Pending
+                            </div>
+                            <Switch
+                              checked={l.isPending}
+                              onCheckedChange={(checked) =>
+                                setLines((prev) =>
+                                  prev.map((x) =>
+                                    x.key === l.key
+                                      ? { ...x, isPending: checked }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              disabled={busy}
+                            />
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setLines((prev) =>
+                                prev.filter((x) => x.key !== l.key),
+                              )
+                            }
+                            disabled={busy}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DrawerFooter className="border-t p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {initialEvent && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={deleteEvent}
+                      disabled={busy}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {initialEvent && !editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditing(true)}
+                      disabled={busy}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  {initialEvent && editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditing(false)}
+                      disabled={busy}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+
+                  {!initialEvent && (
+                    <Button type="button" onClick={saveCreate} disabled={busy}>
+                      Save
+                    </Button>
+                  )}
+                  {initialEvent && editing && (
+                    <Button type="button" onClick={saveEdit} disabled={busy}>
+                      Save changes
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </DrawerFooter>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
