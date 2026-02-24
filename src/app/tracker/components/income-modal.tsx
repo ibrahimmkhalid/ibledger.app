@@ -69,9 +69,9 @@ export function IncomeModal(args: {
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
-  const [description, setDescription] = useState("Income");
+  const [description, setDescription] = useState("");
   const [walletId, setWalletId] = useState<string>("");
-  const [amount, setAmount] = useState<string>("10");
+  const [amount, setAmount] = useState<string>("");
   const [isPending, setIsPending] = useState(true);
 
   const isMobile = useIsMobile();
@@ -86,7 +86,7 @@ export function IncomeModal(args: {
 
     if (initialEvent) {
       setOccurredAt(toDateInputValue(initialEvent.occurredAt));
-      setDescription(initialEvent.description ?? "Income");
+      setDescription(initialEvent.description ?? "");
       setIsPending(Boolean(initialEvent.isPending));
 
       const inferredWalletId =
@@ -100,9 +100,8 @@ export function IncomeModal(args: {
 
     const defaultWalletId = wallets[0]?.id;
     setOccurredAt(isoToday());
-    setDescription("Income");
     setWalletId(defaultWalletId ? String(defaultWalletId) : "");
-    setAmount("10");
+    setAmount("");
     setIsPending(true);
   }, [open, initialEvent, wallets]);
 
@@ -267,6 +266,7 @@ export function IncomeModal(args: {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     disabled={disabled}
+                    placeholder="0.00"
                   />
                 </div>
               </div>
@@ -434,6 +434,7 @@ export function IncomeModal(args: {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               disabled={Boolean(initialEvent) && !editing}
+              placeholder="0.00"
             />
           </div>
         </div>

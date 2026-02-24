@@ -66,7 +66,7 @@ function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
     fundId: args?.fundId ?? "",
     description: args?.description ?? "",
     direction: args?.direction ?? "outflow",
-    amount: args?.amount ?? "10",
+    amount: args?.amount ?? "",
     isPending: args?.isPending ?? true,
   };
 }
@@ -102,7 +102,7 @@ export function TransactionModal(args: {
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
-  const [description, setDescription] = useState("Transaction");
+  const [description, setDescription] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([]);
 
   const isMobile = useIsMobile();
@@ -117,7 +117,7 @@ export function TransactionModal(args: {
 
     if (initialEvent) {
       setOccurredAt(toDateInputValue(initialEvent.occurredAt));
-      setDescription(initialEvent.description ?? "Transaction");
+      setDescription(initialEvent.description ?? "");
 
       const eventLines =
         initialEvent.children.length > 0
@@ -160,13 +160,12 @@ export function TransactionModal(args: {
       fundOptions.find((f) => f.isSavings)?.id;
 
     setOccurredAt(isoToday());
-    setDescription("Transaction");
     setLines([
       defaultLineDraft({
         walletId: defaultWalletId ? String(defaultWalletId) : "",
         fundId: preferredFundId ? String(preferredFundId) : "",
         direction: "outflow",
-        amount: "10",
+        amount: "",
         isPending: true,
       }),
     ]);
@@ -509,7 +508,7 @@ export function TransactionModal(args: {
                                 ),
                               )
                             }
-                            placeholder="10"
+                            placeholder="0.00"
                             className="text-right tabular-nums"
                             disabled={busy}
                           />
@@ -746,7 +745,6 @@ export function TransactionModal(args: {
                           )
                         }
                       >
-                        <option value="">—</option>
                         {walletOptions.map((w) => (
                           <option key={w.id} value={String(w.id)}>
                             {w.name}
@@ -768,7 +766,6 @@ export function TransactionModal(args: {
                           )
                         }
                       >
-                        <option value="">—</option>
                         {fundOptions.map((f) => (
                           <option key={f.id} value={String(f.id)}>
                             {f.name}
@@ -825,7 +822,7 @@ export function TransactionModal(args: {
                             ),
                           )
                         }
-                        placeholder="10"
+                        placeholder="0.00"
                         className="text-right tabular-nums"
                       />
                     </TableCell>
