@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,7 +25,7 @@ import {
 
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import type { Fund } from "@/app/tracker/types";
+import type { BootstrapResponse, Fund } from "@/app/tracker/types";
 
 type FundFormState = {
   name: string;
@@ -110,6 +112,7 @@ function FundModal(args: {
 }
 
 export default function FundsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +129,14 @@ export default function FundsPage() {
     setError(null);
     setNotice(null);
     try {
-      await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
+        method: "POST",
+        body: "{}",
+      });
+      if (boot.onboarding?.required) {
+        router.replace(boot.onboarding.redirectTo);
+        return;
+      }
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setFunds(res.funds);
     } catch (e) {
@@ -134,7 +144,7 @@ export default function FundsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refresh();

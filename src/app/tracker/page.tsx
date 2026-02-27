@@ -28,6 +28,7 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
+  BootstrapResponse,
   EventsResponse,
   Fund,
   TotalsResponse,
@@ -81,7 +82,15 @@ export default function TrackerPage() {
     setNotice(null);
 
     try {
-      await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
+        method: "POST",
+        body: "{}",
+      });
+
+      if (boot.onboarding?.required) {
+        router.replace(boot.onboarding.redirectTo);
+        return;
+      }
 
       const [walletsRes, fundsRes, totalsRes, eventsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -99,7 +108,7 @@ export default function TrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refresh();

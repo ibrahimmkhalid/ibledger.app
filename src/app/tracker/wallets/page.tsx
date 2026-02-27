@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,7 +25,7 @@ import {
 
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import type { Wallet } from "@/app/tracker/types";
+import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
 
 type WalletFormState = {
   name: string;
@@ -87,6 +89,7 @@ function WalletModal(args: {
 }
 
 export default function WalletsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +105,14 @@ export default function WalletsPage() {
     setError(null);
     setNotice(null);
     try {
-      await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
+        method: "POST",
+        body: "{}",
+      });
+      if (boot.onboarding?.required) {
+        router.replace(boot.onboarding.redirectTo);
+        return;
+      }
       const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
       setWallets(res.wallets);
     } catch (e) {
@@ -110,7 +120,7 @@ export default function WalletsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refresh();

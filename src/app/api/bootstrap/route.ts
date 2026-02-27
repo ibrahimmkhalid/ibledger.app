@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { funds, users, wallets } from "@/db/schema";
+import { funds, transactions, users, wallets } from "@/db/schema";
 import { currentUser } from "@/lib/auth";
 
 export async function POST() {
@@ -79,13 +79,40 @@ export async function POST() {
       );
     }
 
-    if (existing) {
+    if (dbUser.onboarded) {
       return NextResponse.json({
         user: dbUser,
+        funds: {},
+        onboarding: {
+          required: false,
+        },
+        isNewUser: false,
       });
     }
 
-    const savingsFund = await db
+    const hasTransactions = await db
+      .select()
+      .from(transactions)
+      .where(
+        and(eq(transactions.userId, dbUser.id), isNull(transactions.deletedAt)),
+      );
+
+    if (hasTransactions.length > 0) {
+      await db
+        .update(users)
+        .set({ onboarded: true })
+        .where(and(eq(users.id, dbUser.id)));
+      return NextResponse.json({
+        user: dbUser,
+        funds: {},
+        onboarding: {
+          required: false,
+        },
+        isNewUser: false,
+      });
+    }
+
+    let savingsFund = await db
       .select()
       .from(funds)
       .where(
@@ -98,9 +125,8 @@ export async function POST() {
       .limit(1)
       .then((res) => res[0]);
 
-    const ensuredSavings =
-      savingsFund ??
-      (await db
+    if (!savingsFund) {
+      savingsFund = await db
         .insert(funds)
         .values({
           userId: dbUser.id,
@@ -110,28 +136,30 @@ export async function POST() {
           openingAmount: 0,
         })
         .returning()
-        .then((res) => res[0]));
+        .then((res) => res[0]);
+    }
 
-    const allWallets = await db
+    const hasWallets = await db
       .select()
       .from(wallets)
       .where(and(eq(wallets.userId, dbUser.id), isNull(wallets.deletedAt)));
 
-    if (allWallets.length === 0) {
-      await db
-        .insert(wallets)
-        .values({
-          userId: dbUser.id,
-          name: "Bank",
-          openingAmount: 0,
-        })
-        .returning()
-        .then((res) => res[0]);
+    if (hasWallets.length === 0) {
+      await db.insert(wallets).values({
+        userId: dbUser.id,
+        name: "Bank",
+        openingAmount: 0,
+      });
     }
 
     return NextResponse.json({
       user: dbUser,
-      funds: { savingsFundId: ensuredSavings.id },
+      funds: { savingsFundId: savingsFund.id },
+      onboarding: {
+        required: true,
+        redirectTo: "/tracker/onboarding",
+      },
+      isNewUser: !existing,
     });
   } catch (error) {
     console.error("API: Error bootstrapping user", error);
