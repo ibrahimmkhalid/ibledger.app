@@ -27,7 +27,9 @@ export async function POST() {
 
     const usernameCandidate =
       (authUser.username as string | undefined) ??
-      (authUser.fullName as string | undefined) ??
+      (authUser.fullName as string | undefined)
+        ?.replaceAll(" ", "_")
+        .toLowerCase() ??
       email;
 
     const existingByClerkId = await db
