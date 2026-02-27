@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   clerkId: varchar({ length: 255 }).unique(),
   username: varchar({ length: 255 }).notNull().unique(),
   email: varchar({ length: 255 }).notNull().unique(),
+  onboarded: boolean().default(false),
   ...timestamps,
 });
 
