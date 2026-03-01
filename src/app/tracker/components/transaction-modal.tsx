@@ -171,6 +171,21 @@ export function TransactionModal(args: {
     ]);
   }, [open, initialEvent, wallets, fundOptions]);
 
+  function addLine() {
+    setLines((prev) => {
+      const last = prev[prev.length - 1];
+      return [
+        ...prev,
+        defaultLineDraft({
+          walletId: last?.walletId ?? "",
+          fundId: last?.fundId ?? "",
+          direction: last?.direction ?? "outflow",
+          isPending: last?.isPending ?? true,
+        }),
+      ];
+    });
+  }
+
   function parseLinesForApi() {
     const parsed = lines.map((l) => {
       const abs = Number(l.amount);
@@ -182,8 +197,8 @@ export function TransactionModal(args: {
       const fundId = l.fundId ? Number(l.fundId) : null;
       const transactionId = l.transactionId ? Number(l.transactionId) : null;
 
-      if (walletId === null && fundId === null) {
-        throw new Error("Each line must include a wallet or a fund");
+      if (walletId === null || fundId === null) {
+        throw new Error("Each line must include a wallet and a fund.");
       }
 
       const signedAmount = l.direction === "outflow" ? -abs : abs;
@@ -399,9 +414,7 @@ export function TransactionModal(args: {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setLines((prev) => [...prev, defaultLineDraft()])
-                      }
+                      onClick={addLine}
                       disabled={busy}
                     >
                       Add line
@@ -707,9 +720,7 @@ export function TransactionModal(args: {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() =>
-                  setLines((prev) => [...prev, defaultLineDraft()])
-                }
+                onClick={addLine}
                 disabled={busy}
               >
                 Add line

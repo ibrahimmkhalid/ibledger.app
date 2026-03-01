@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,6 +21,7 @@ import { TransactionModal } from "@/app/tracker/components/transaction-modal";
 import { apiJson } from "@/app/tracker/lib/api";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
+  BootstrapResponse,
   EventsResponse,
   Fund,
   TransactionEvent,
@@ -26,6 +29,7 @@ import type {
 } from "@/app/tracker/types";
 
 export default function TransactionsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -59,7 +63,14 @@ export default function TransactionsPage() {
       setNotice(null);
 
       try {
-        await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+        const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
+          method: "POST",
+          body: "{}",
+        });
+        if (boot.onboarding?.required) {
+          router.replace(boot.onboarding.redirectTo);
+          return;
+        }
 
         const [walletsRes, fundsRes, eventsRes] = await Promise.all([
           apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -82,7 +93,7 @@ export default function TransactionsPage() {
         setLoading(false);
       }
     },
-    [],
+    [router],
   );
 
   const clearAllPending = useCallback(async () => {

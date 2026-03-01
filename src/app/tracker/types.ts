@@ -73,3 +73,14 @@ export type EventsResponse = {
   currentPage: number;
   nextPage: number;
 };
+
+export type BootstrapResponse = {
+  onboarding?: {
+    required: boolean;
+    redirectTo: string;
+  };
+  isNewUser?: boolean;
+  funds?: {
+    savingsFundId: number;
+  };
+};

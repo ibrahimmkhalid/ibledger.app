@@ -28,12 +28,23 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
+  BootstrapResponse,
   EventsResponse,
   Fund,
   TotalsResponse,
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
+
+function overspentBadge(args: { raw: number; label?: string }) {
+  const raw = Number(args.raw);
+  if (!Number.isFinite(raw) || raw >= 0) return null;
+  return (
+    <span className="bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
+      Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
+    </span>
+  );
+}
 
 function renderClearedWithPending(cleared: number, withPending: number) {
   const c = Number(cleared);
@@ -81,7 +92,15 @@ export default function TrackerPage() {
     setNotice(null);
 
     try {
-      await apiJson("/api/bootstrap", { method: "POST", body: "{}" });
+      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
+        method: "POST",
+        body: "{}",
+      });
+
+      if (boot.onboarding?.required) {
+        router.replace(boot.onboarding.redirectTo);
+        return;
+      }
 
       const [walletsRes, fundsRes, totalsRes, eventsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -99,7 +118,7 @@ export default function TrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refresh();
@@ -276,7 +295,21 @@ export default function TrackerPage() {
               <TableBody>
                 {displayFunds.map((f) => (
                   <TableRow key={f.id}>
-                    <TableCell>{f.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{f.name}</span>
+                        {!f.isSavings &&
+                          (overspentBadge({
+                            raw: Number(f.rawBalance ?? f.balance),
+                          }) ||
+                            overspentBadge({
+                              raw: Number(
+                                f.rawBalanceWithPending ?? f.balanceWithPending,
+                              ),
+                              label: "pending",
+                            }))}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {renderClearedWithPending(
                         f.balance,
