@@ -2,6 +2,7 @@ import { type Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/utils/auth-provider";
 import { ThemeProvider } from "@/components/utils/theme-provider";
+import { AppShell } from "@/components/layout/app-shell";
 
 export const metadata: Metadata = {
   title: "Ibrahim's Ledger App",
@@ -12,7 +13,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentYear = new Date().getFullYear();
   const isDevTesting = process.env.DEV_TESTING === "true";
 
   return (
@@ -26,11 +26,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <div>
-              <header></header>
-              <div>
-                <main>{children}</main>
-              </div>
-              <footer>{currentYear}</footer>
+              <AppShell devTesting={isDevTesting}>{children}</AppShell>
             </div>
           </ThemeProvider>
         </body>

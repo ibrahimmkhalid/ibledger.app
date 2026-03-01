@@ -36,6 +36,16 @@ import type {
   Wallet,
 } from "@/app/tracker/types";
 
+function overspentBadge(args: { raw: number; label?: string }) {
+  const raw = Number(args.raw);
+  if (!Number.isFinite(raw) || raw >= 0) return null;
+  return (
+    <span className="bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
+      Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
+    </span>
+  );
+}
+
 function renderClearedWithPending(cleared: number, withPending: number) {
   const c = Number(cleared);
   const p = Number(withPending);
@@ -285,7 +295,21 @@ export default function TrackerPage() {
               <TableBody>
                 {displayFunds.map((f) => (
                   <TableRow key={f.id}>
-                    <TableCell>{f.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{f.name}</span>
+                        {!f.isSavings &&
+                          (overspentBadge({
+                            raw: Number(f.rawBalance ?? f.balance),
+                          }) ||
+                            overspentBadge({
+                              raw: Number(
+                                f.rawBalanceWithPending ?? f.balanceWithPending,
+                              ),
+                              label: "pending",
+                            }))}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {renderClearedWithPending(
                         f.balance,

@@ -27,6 +27,16 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import type { BootstrapResponse, Fund } from "@/app/tracker/types";
 
+function overspentBadge(args: { raw: number; label?: string }) {
+  const raw = Number(args.raw);
+  if (!Number.isFinite(raw) || raw >= 0) return null;
+  return (
+    <span className="bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
+      Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
+    </span>
+  );
+}
+
 type FundFormState = {
   name: string;
   openingAmount: string;
@@ -338,7 +348,21 @@ export default function FundsPage() {
             <TableBody>
               {displayFunds.map((f) => (
                 <TableRow key={f.id}>
-                  <TableCell className="font-medium">{f.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{f.name}</span>
+                      {!f.isSavings &&
+                        (overspentBadge({
+                          raw: Number(f.rawBalance ?? f.balance),
+                        }) ||
+                          overspentBadge({
+                            raw: Number(
+                              f.rawBalanceWithPending ?? f.balanceWithPending,
+                            ),
+                            label: "pending",
+                          }))}
+                    </div>
+                  </TableCell>
                   <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {f.isSavings ? "—" : `${Number(f.pullPercentage ?? 0)}%`}
@@ -357,15 +381,32 @@ export default function FundsPage() {
                     >
                       Edit
                     </Button>
-                    {f.isSavings ? null : (
-                      <Button
-                        variant="destructive"
-                        onClick={() => void deleteFund(f)}
-                        disabled={busy}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                    {f.isSavings
+                      ? null
+                      : (() => {
+                          const rawWithPending = Number(
+                            f.rawBalanceWithPending ?? f.balanceWithPending,
+                          );
+                          const deleteBlocked =
+                            Number.isFinite(rawWithPending) &&
+                            Math.abs(rawWithPending) > 1e-9;
+
+                          const title = deleteBlocked
+                            ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
+                            : undefined;
+
+                          return (
+                            <span title={title}>
+                              <Button
+                                variant="destructive"
+                                onClick={() => void deleteFund(f)}
+                                disabled={busy || deleteBlocked}
+                              >
+                                Delete
+                              </Button>
+                            </span>
+                          );
+                        })()}
                   </TableCell>
                 </TableRow>
               ))}

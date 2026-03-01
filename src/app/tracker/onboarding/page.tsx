@@ -686,15 +686,32 @@ export default function OnboardingPage() {
                       >
                         Edit
                       </Button>
-                      {f.isSavings ? null : (
-                        <Button
-                          variant="destructive"
-                          onClick={() => void deleteFund(f)}
-                          disabled={busy}
-                        >
-                          Delete
-                        </Button>
-                      )}
+                      {f.isSavings
+                        ? null
+                        : (() => {
+                            const rawWithPending = Number(
+                              f.rawBalanceWithPending ?? f.balanceWithPending,
+                            );
+                            const deleteBlocked =
+                              Number.isFinite(rawWithPending) &&
+                              Math.abs(rawWithPending) > 1e-9;
+
+                            const title = deleteBlocked
+                              ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
+                              : undefined;
+
+                            return (
+                              <span title={title}>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => void deleteFund(f)}
+                                  disabled={busy || deleteBlocked}
+                                >
+                                  Delete
+                                </Button>
+                              </span>
+                            );
+                          })()}
                     </TableCell>
                   </TableRow>
                 ))
