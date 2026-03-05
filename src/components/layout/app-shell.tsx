@@ -134,7 +134,7 @@ export function AppShell(args: {
                   pathname,
                 })}
               >
-                Txns
+                Transactions
               </Link>
               <Link
                 href="/tracker/funds"
