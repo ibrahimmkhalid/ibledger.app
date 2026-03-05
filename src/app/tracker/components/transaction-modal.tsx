@@ -58,6 +58,18 @@ function makeKey() {
   return String(Math.random()).slice(2);
 }
 
+function formatCentsToDisplay(cents: number | string): string {
+  const n = typeof cents === "string" ? Number(cents) || 0 : cents;
+  if (!n && n !== 0) return "$0.00";
+  return `$${(n / 100).toFixed(2)}`;
+}
+
+function parseInputAsCents(value: string): string {
+  const cleaned = value.replace(/[^0-9]/g, "");
+  if (!cleaned) return "";
+  return String(Number(cleaned));
+}
+
 function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
   return {
     key: makeKey(),
@@ -145,7 +157,7 @@ export function TransactionModal(args: {
             fundId: l.fundId ? String(l.fundId) : "",
             description: l.description ?? "",
             direction,
-            amount: abs ? String(abs) : "",
+            amount: abs ? String(Math.round(abs * 100)) : "",
             isPending: Boolean(l.isPending),
           });
         }),
@@ -188,7 +200,7 @@ export function TransactionModal(args: {
 
   function parseLinesForApi() {
     const parsed = lines.map((l) => {
-      const abs = Number(l.amount);
+      const abs = Number(l.amount) / 100;
       if (Number.isNaN(abs) || abs <= 0) {
         throw new Error("Each line must have an amount > 0");
       }
@@ -510,18 +522,23 @@ export function TransactionModal(args: {
                           </select>
 
                           <Input
-                            inputMode="decimal"
-                            value={l.amount}
+                            inputMode="numeric"
+                            value={formatCentsToDisplay(l.amount)}
                             onChange={(e) =>
                               setLines((prev) =>
                                 prev.map((x) =>
                                   x.key === l.key
-                                    ? { ...x, amount: e.target.value }
+                                    ? {
+                                        ...x,
+                                        amount: parseInputAsCents(
+                                          e.target.value,
+                                        ),
+                                      }
                                     : x,
                                 ),
                               )
                             }
-                            placeholder="0.00"
+                            placeholder="$0.00"
                             className="text-right tabular-nums"
                             disabled={busy}
                           />
@@ -822,18 +839,21 @@ export function TransactionModal(args: {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       <Input
-                        inputMode="decimal"
-                        value={l.amount}
+                        inputMode="numeric"
+                        value={formatCentsToDisplay(l.amount)}
                         onChange={(e) =>
                           setLines((prev) =>
                             prev.map((x) =>
                               x.key === l.key
-                                ? { ...x, amount: e.target.value }
+                                ? {
+                                    ...x,
+                                    amount: parseInputAsCents(e.target.value),
+                                  }
                                 : x,
                             ),
                           )
                         }
-                        placeholder="0.00"
+                        placeholder="$0.00"
                         className="text-right tabular-nums"
                       />
                     </TableCell>

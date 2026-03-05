@@ -41,6 +41,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function formatCentsToDisplay(cents: number | string): string {
+  const n = typeof cents === "string" ? Number(cents) || 0 : cents;
+  if (!n && n !== 0) return "$0.00";
+  return `$${(n / 100).toFixed(2)}`;
+}
+
+function parseInputAsCents(value: string): string {
+  const cleaned = value.replace(/[^0-9]/g, "");
+  if (!cleaned) return "";
+  return String(Number(cleaned));
+}
+
 function sumIncomeAmount(ev: TransactionEvent) {
   if (ev.children.length > 0) {
     return ev.children.reduce((acc, c) => acc + Number(c.amount), 0);
@@ -94,7 +106,7 @@ export function IncomeModal(args: {
         initialEvent.walletId;
 
       setWalletId(inferredWalletId ? String(inferredWalletId) : "");
-      setAmount(String(sumIncomeAmount(initialEvent) || 0));
+      setAmount(String(Math.round(sumIncomeAmount(initialEvent) * 100)));
       return;
     }
 
@@ -111,7 +123,7 @@ export function IncomeModal(args: {
 
     try {
       const wid = Number(walletId);
-      const amt = Number(amount);
+      const amt = Number(amount) / 100;
       if (!wid || Number.isNaN(wid)) throw new Error("Select a wallet");
       if (!amt || Number.isNaN(amt) || amt <= 0) {
         throw new Error("Amount must be > 0");
@@ -146,7 +158,7 @@ export function IncomeModal(args: {
 
     try {
       const wid = Number(walletId);
-      const amt = Number(amount);
+      const amt = Number(amount) / 100;
       if (!wid || Number.isNaN(wid)) throw new Error("Select a wallet");
       if (!amt || Number.isNaN(amt) || amt <= 0) {
         throw new Error("Amount must be > 0");
@@ -262,11 +274,13 @@ export function IncomeModal(args: {
                 <div className="flex flex-col gap-2">
                   <div className="text-muted-foreground text-xs">Amount</div>
                   <Input
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    inputMode="numeric"
+                    value={formatCentsToDisplay(amount)}
+                    onChange={(e) =>
+                      setAmount(parseInputAsCents(e.target.value))
+                    }
                     disabled={disabled}
-                    placeholder="0.00"
+                    placeholder="$0.00"
                   />
                 </div>
               </div>
@@ -430,11 +444,11 @@ export function IncomeModal(args: {
           <div className="flex flex-col gap-2">
             <div className="text-muted-foreground text-xs">Amount</div>
             <Input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              inputMode="numeric"
+              value={formatCentsToDisplay(amount)}
+              onChange={(e) => setAmount(parseInputAsCents(e.target.value))}
               disabled={Boolean(initialEvent) && !editing}
-              placeholder="0.00"
+              placeholder="$0.00"
             />
           </div>
         </div>
