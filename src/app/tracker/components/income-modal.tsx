@@ -19,6 +19,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -116,6 +123,11 @@ export function IncomeModal(args: {
     setAmount("");
     setIsPending(true);
   }, [open, initialEvent, wallets]);
+
+  function getWalletNameById(id: string) {
+    const wallet = wallets.find((w) => w.id === Number(id));
+    return wallet?.name ?? "";
+  }
 
   async function saveCreate() {
     setError(null);
@@ -254,21 +266,22 @@ export function IncomeModal(args: {
               <div className="mt-3 grid gap-3">
                 <div className="flex flex-col gap-2">
                   <div className="text-muted-foreground text-xs">Wallet</div>
-                  <select
-                    className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                    value={walletId}
-                    onChange={(e) => setWalletId(e.target.value)}
+                  <Select
+                    value={getWalletNameById(walletId) || ""}
+                    onValueChange={(value) => setWalletId(value || "")}
                     disabled={disabled}
                   >
-                    <option value="" disabled>
-                      Select
-                    </option>
-                    {walletOptions.map((w) => (
-                      <option key={w.id} value={String(w.id)}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {walletOptions.map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -424,21 +437,22 @@ export function IncomeModal(args: {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-2">
             <div className="text-muted-foreground text-xs">Wallet</div>
-            <select
-              className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-              value={walletId}
-              onChange={(e) => setWalletId(e.target.value)}
+            <Select
+              value={getWalletNameById(walletId) || ""}
+              onValueChange={(value) => setWalletId(value || "")}
               disabled={Boolean(initialEvent) && !editing}
             >
-              <option value="" disabled>
-                Select
-              </option>
-              {walletOptions.map((w) => (
-                <option key={w.id} value={String(w.id)}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {walletOptions.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-2">

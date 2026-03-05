@@ -19,6 +19,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -182,6 +189,16 @@ export function TransactionModal(args: {
       }),
     ]);
   }, [open, initialEvent, wallets, fundOptions]);
+
+  function getWalletNameById(id: string) {
+    const wallet = wallets.find((w) => w.id === Number(id));
+    return wallet?.name ?? "";
+  }
+
+  function getFundNameById(id: string) {
+    const fund = funds.find((f) => f.id === Number(id));
+    return fund?.name ?? "";
+  }
 
   function addLine() {
     setLines((prev) => {
@@ -437,49 +454,55 @@ export function TransactionModal(args: {
                     {lines.map((l) => (
                       <div key={l.key} className="rounded-md border p-2">
                         <div className="grid grid-cols-2 gap-2">
-                          <select
-                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                            value={l.walletId}
-                            onChange={(e) =>
+                          <Select
+                            value={getWalletNameById(l.walletId) || ""}
+                            onValueChange={(value) =>
                               setLines((prev) =>
                                 prev.map((x) =>
                                   x.key === l.key
-                                    ? { ...x, walletId: e.target.value }
+                                    ? { ...x, walletId: value || "" }
                                     : x,
                                 ),
                               )
                             }
                             disabled={busy}
                           >
-                            <option value="">—</option>
-                            {walletOptions.map((w) => (
-                              <option key={w.id} value={String(w.id)}>
-                                {w.name}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger>
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {walletOptions.map((w) => (
+                                <SelectItem key={w.id} value={String(w.id)}>
+                                  {w.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
 
-                          <select
-                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                            value={l.fundId}
-                            onChange={(e) =>
+                          <Select
+                            value={getFundNameById(l.fundId) || ""}
+                            onValueChange={(value) =>
                               setLines((prev) =>
                                 prev.map((x) =>
                                   x.key === l.key
-                                    ? { ...x, fundId: e.target.value }
+                                    ? { ...x, fundId: value || "" }
                                     : x,
                                 ),
                               )
                             }
                             disabled={busy}
                           >
-                            <option value="">—</option>
-                            {fundOptions.map((f) => (
-                              <option key={f.id} value={String(f.id)}>
-                                {f.name}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger>
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {fundOptions.map((f) => (
+                                <SelectItem key={f.id} value={String(f.id)}>
+                                  {f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <div className="mt-2">
@@ -500,16 +523,21 @@ export function TransactionModal(args: {
                         </div>
 
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                          <select
-                            className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                            value={l.direction}
-                            onChange={(e) =>
+                          <Select
+                            value={
+                              l.direction === "outflow"
+                                ? "Outflow"
+                                : l.direction === "inflow"
+                                  ? "Inflow"
+                                  : ""
+                            }
+                            onValueChange={(value) =>
                               setLines((prev) =>
                                 prev.map((x) =>
                                   x.key === l.key
                                     ? {
                                         ...x,
-                                        direction: e.target.value as Direction,
+                                        direction: value as Direction,
                                       }
                                     : x,
                                 ),
@@ -517,9 +545,14 @@ export function TransactionModal(args: {
                             }
                             disabled={busy}
                           >
-                            <option value="outflow">Outflow</option>
-                            <option value="inflow">Inflow</option>
-                          </select>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="outflow">Outflow</SelectItem>
+                              <SelectItem value="inflow">Inflow</SelectItem>
+                            </SelectContent>
+                          </Select>
 
                           <Input
                             inputMode="numeric"
@@ -760,46 +793,54 @@ export function TransactionModal(args: {
                 {lines.map((l) => (
                   <TableRow key={l.key}>
                     <TableCell>
-                      <select
-                        className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                        value={l.walletId}
-                        onChange={(e) =>
+                      <Select
+                        value={getWalletNameById(l.walletId) || ""}
+                        onValueChange={(value) =>
                           setLines((prev) =>
                             prev.map((x) =>
                               x.key === l.key
-                                ? { ...x, walletId: e.target.value }
+                                ? { ...x, walletId: value || "" }
                                 : x,
                             ),
                           )
                         }
                       >
-                        {walletOptions.map((w) => (
-                          <option key={w.id} value={String(w.id)}>
-                            {w.name}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {walletOptions.map((w) => (
+                            <SelectItem key={w.id} value={String(w.id)}>
+                              {w.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
-                      <select
-                        className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                        value={l.fundId}
-                        onChange={(e) =>
+                      <Select
+                        value={getFundNameById(l.fundId) || ""}
+                        onValueChange={(value) =>
                           setLines((prev) =>
                             prev.map((x) =>
                               x.key === l.key
-                                ? { ...x, fundId: e.target.value }
+                                ? { ...x, fundId: value || "" }
                                 : x,
                             ),
                           )
                         }
                       >
-                        {fundOptions.map((f) => (
-                          <option key={f.id} value={String(f.id)}>
-                            {f.name}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fundOptions.map((f) => (
+                            <SelectItem key={f.id} value={String(f.id)}>
+                              {f.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <Input
@@ -817,25 +858,35 @@ export function TransactionModal(args: {
                       />
                     </TableCell>
                     <TableCell>
-                      <select
-                        className="bg-input/20 dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border px-2 py-1 text-sm outline-none"
-                        value={l.direction}
-                        onChange={(e) =>
+                      <Select
+                        value={
+                          l.direction === "outflow"
+                            ? "Outflow"
+                            : l.direction === "inflow"
+                              ? "Inflow"
+                              : ""
+                        }
+                        onValueChange={(value) =>
                           setLines((prev) =>
                             prev.map((x) =>
                               x.key === l.key
                                 ? {
                                     ...x,
-                                    direction: e.target.value as Direction,
+                                    direction: value as Direction,
                                   }
                                 : x,
                             ),
                           )
                         }
                       >
-                        <option value="outflow">Outflow</option>
-                        <option value="inflow">Inflow</option>
-                      </select>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="outflow">Outflow</SelectItem>
+                          <SelectItem value="inflow">Inflow</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       <Input
