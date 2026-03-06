@@ -467,7 +467,7 @@ export function TransactionModal(args: {
                             }
                             disabled={busy}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full min-w-0">
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
@@ -492,7 +492,7 @@ export function TransactionModal(args: {
                             }
                             disabled={busy}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full min-w-0">
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
@@ -524,13 +524,7 @@ export function TransactionModal(args: {
 
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <Select
-                            value={
-                              l.direction === "outflow"
-                                ? "Outflow"
-                                : l.direction === "inflow"
-                                  ? "Inflow"
-                                  : ""
-                            }
+                            value={l.direction}
                             onValueChange={(value) =>
                               setLines((prev) =>
                                 prev.map((x) =>
@@ -545,7 +539,7 @@ export function TransactionModal(args: {
                             }
                             disabled={busy}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full min-w-0 capitalize">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -805,7 +799,7 @@ export function TransactionModal(args: {
                           )
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full min-w-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -830,7 +824,7 @@ export function TransactionModal(args: {
                           )
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full min-w-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -859,13 +853,7 @@ export function TransactionModal(args: {
                     </TableCell>
                     <TableCell>
                       <Select
-                        value={
-                          l.direction === "outflow"
-                            ? "Outflow"
-                            : l.direction === "inflow"
-                              ? "Inflow"
-                              : ""
-                        }
+                        value={l.direction}
                         onValueChange={(value) =>
                           setLines((prev) =>
                             prev.map((x) =>
@@ -879,7 +867,7 @@ export function TransactionModal(args: {
                           )
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full min-w-0 capitalize">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

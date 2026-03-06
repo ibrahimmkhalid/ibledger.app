@@ -442,7 +442,7 @@ export function IncomeModal(args: {
               onValueChange={(value) => setWalletId(value || "")}
               disabled={Boolean(initialEvent) && !editing}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full min-w-0">
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
