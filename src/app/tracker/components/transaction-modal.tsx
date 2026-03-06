@@ -45,7 +45,7 @@ import {
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { XIcon } from "lucide-react";
+import { TrashIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Direction = "outflow" | "inflow";
@@ -602,7 +602,7 @@ export function TransactionModal(args: {
                             }
                             disabled={busy}
                           >
-                            Remove
+                            <TrashIcon className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -710,14 +710,14 @@ export function TransactionModal(args: {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Wallet</TableHead>
-                    <TableHead>Fund</TableHead>
+                    <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
+                    <TableHead className="w-2/12 min-w-0">Fund</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="w-[140px] text-right">
+                    <TableHead className="w-1/12 min-w-0">Direction</TableHead>
+                    <TableHead className="w-2/12 min-w-0 text-right">
                       Amount
                     </TableHead>
-                    <TableHead className="w-[110px]">Pending</TableHead>
+                    <TableHead className="w-1/24 min-w-0">Pending</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -774,13 +774,13 @@ export function TransactionModal(args: {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Wallet</TableHead>
-                  <TableHead>Fund</TableHead>
+                  <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
+                  <TableHead className="w-2/12 min-w-0">Fund</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead className="w-[150px]">Direction</TableHead>
-                  <TableHead className="w-[140px] text-right">Amount</TableHead>
-                  <TableHead className="w-[120px]">Pending</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
+                  <TableHead className="w-1/12 min-w-0">Direction</TableHead>
+                  <TableHead className="w-2/12 min-w-0">Amount</TableHead>
+                  <TableHead className="w-1/24 min-w-0">Pending</TableHead>
+                  <TableHead className="w-1/24 min-w-0"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -923,7 +923,7 @@ export function TransactionModal(args: {
                         }
                         disabled={busy}
                       >
-                        Remove
+                        <TrashIcon className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
