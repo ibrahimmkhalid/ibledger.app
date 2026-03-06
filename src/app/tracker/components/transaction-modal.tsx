@@ -48,7 +48,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { TrashIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Direction = "outflow" | "inflow";
+type Direction = "out" | "in";
 
 type LineDraft = {
   key: string;
@@ -84,7 +84,7 @@ function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
     walletId: args?.walletId ?? "",
     fundId: args?.fundId ?? "",
     description: args?.description ?? "",
-    direction: args?.direction ?? "outflow",
+    direction: args?.direction ?? "out",
     amount: args?.amount ?? "",
     isPending: args?.isPending ?? true,
   };
@@ -156,7 +156,7 @@ export function TransactionModal(args: {
       setLines(
         eventLines.map((l) => {
           const n = Number(l.amount);
-          const direction: Direction = n < 0 ? "outflow" : "inflow";
+          const direction: Direction = n < 0 ? "out" : "in";
           const abs = Math.abs(n);
           return defaultLineDraft({
             transactionId: l.id,
@@ -183,7 +183,7 @@ export function TransactionModal(args: {
       defaultLineDraft({
         walletId: defaultWalletId ? String(defaultWalletId) : "",
         fundId: preferredFundId ? String(preferredFundId) : "",
-        direction: "outflow",
+        direction: "out",
         amount: "",
         isPending: true,
       }),
@@ -208,7 +208,7 @@ export function TransactionModal(args: {
         defaultLineDraft({
           walletId: last?.walletId ?? "",
           fundId: last?.fundId ?? "",
-          direction: last?.direction ?? "outflow",
+          direction: last?.direction ?? "out",
           isPending: last?.isPending ?? true,
         }),
       ];
@@ -230,7 +230,7 @@ export function TransactionModal(args: {
         throw new Error("Each line must include a wallet and a fund.");
       }
 
-      const signedAmount = l.direction === "outflow" ? -abs : abs;
+      const signedAmount = l.direction === "out" ? -abs : abs;
 
       const description = l.description.trim() ? l.description.trim() : null;
 
@@ -402,7 +402,7 @@ export function TransactionModal(args: {
                   <div className="mt-3 flex flex-col gap-2">
                     {breakdown.map((c) => {
                       const n = Number(c.amount);
-                      const dir: Direction = n < 0 ? "outflow" : "inflow";
+                      const dir: Direction = n < 0 ? "out" : "in";
                       const wallet = c.walletName ?? "";
                       const fund = c.fundName ?? "";
                       const titleLine =
@@ -543,8 +543,8 @@ export function TransactionModal(args: {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="outflow">Outflow</SelectItem>
-                              <SelectItem value="inflow">Inflow</SelectItem>
+                              <SelectItem value="out">Out</SelectItem>
+                              <SelectItem value="in">In</SelectItem>
                             </SelectContent>
                           </Select>
 
@@ -735,7 +735,7 @@ export function TransactionModal(args: {
                       ]
                   ).map((c) => {
                     const n = Number(c.amount);
-                    const dir: Direction = n < 0 ? "outflow" : "inflow";
+                    const dir: Direction = n < 0 ? "out" : "in";
                     return (
                       <TableRow key={c.id}>
                         <TableCell>{c.walletName ?? ""}</TableCell>
@@ -871,8 +871,8 @@ export function TransactionModal(args: {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="outflow">Outflow</SelectItem>
-                          <SelectItem value="inflow">Inflow</SelectItem>
+                          <SelectItem value="out">Out</SelectItem>
+                          <SelectItem value="in">In</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
