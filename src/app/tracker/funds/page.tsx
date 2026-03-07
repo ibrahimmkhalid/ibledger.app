@@ -365,7 +365,7 @@ export default function FundsPage() {
                   </TableCell>
                   <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {f.isSavings ? "—" : `${Number(f.pullPercentage ?? 0)}%`}
+                    {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {fmtAmount(f.balance)}

@@ -468,7 +468,7 @@ export function TransactionModal(args: {
                             disabled={busy}
                           >
                             <SelectTrigger className="w-full min-w-0">
-                              <SelectValue placeholder="—" />
+                              <SelectValue placeholder="-" />
                             </SelectTrigger>
                             <SelectContent>
                               {walletOptions.map((w) => (
@@ -493,7 +493,7 @@ export function TransactionModal(args: {
                             disabled={busy}
                           >
                             <SelectTrigger className="w-full min-w-0">
-                              <SelectValue placeholder="—" />
+                              <SelectValue placeholder="-" />
                             </SelectTrigger>
                             <SelectContent>
                               {fundOptions.map((f) => (
@@ -540,7 +540,7 @@ export function TransactionModal(args: {
                             disabled={busy}
                           >
                             <SelectTrigger className="w-full min-w-0 capitalize">
-                              <SelectValue placeholder="—" />
+                              <SelectValue placeholder="-" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="out">Out</SelectItem>
@@ -800,7 +800,7 @@ export function TransactionModal(args: {
                         }
                       >
                         <SelectTrigger className="w-full min-w-0">
-                          <SelectValue placeholder="—" />
+                          <SelectValue placeholder="-" />
                         </SelectTrigger>
                         <SelectContent>
                           {walletOptions.map((w) => (
@@ -825,7 +825,7 @@ export function TransactionModal(args: {
                         }
                       >
                         <SelectTrigger className="w-full min-w-0">
-                          <SelectValue placeholder="—" />
+                          <SelectValue placeholder="-" />
                         </SelectTrigger>
                         <SelectContent>
                           {fundOptions.map((f) => (
@@ -868,7 +868,7 @@ export function TransactionModal(args: {
                         }
                       >
                         <SelectTrigger className="w-full min-w-0 capitalize">
-                          <SelectValue placeholder="—" />
+                          <SelectValue placeholder="-" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="out">Out</SelectItem>

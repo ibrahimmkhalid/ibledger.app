@@ -245,7 +245,7 @@ export default function TrackerPage() {
               )}
             </div>
           ) : (
-            <div className="text-muted-foreground">—</div>
+            <div className="text-muted-foreground">-</div>
           )}
         </CardContent>
       </Card>
