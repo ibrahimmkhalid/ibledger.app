@@ -350,7 +350,7 @@ export function TransactionModal(args: {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[92vh]">
-          <div className="flex max-h-[92vh] flex-col">
+          <div className="flex max-h-[92vh] flex-col overflow-y-auto">
             <DrawerHeader className="p-3 pb-2">
               <div className="flex items-start justify-between gap-2">
                 <DrawerTitle>{title}</DrawerTitle>
