@@ -2,22 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -36,7 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
+import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { apiJson } from "@/app/tracker/lib/api";
+import {
+  formatCentsToDisplay,
+  parseInputAsCents,
+} from "@/app/tracker/lib/cents";
 import {
   fmtAmount,
   isoToday,
@@ -44,9 +35,7 @@ import {
 } from "@/app/tracker/lib/format";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
-import { useIsMobile } from "@/hooks/use-mobile";
-import { TrashIcon, XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { TrashIcon } from "lucide-react";
 
 type Direction = "out" | "in";
 
@@ -63,18 +52,6 @@ type LineDraft = {
 
 function makeKey() {
   return String(Math.random()).slice(2);
-}
-
-function formatCentsToDisplay(cents: number | string): string {
-  const n = typeof cents === "string" ? Number(cents) || 0 : cents;
-  if (!n && n !== 0) return "$0.00";
-  return `$${(n / 100).toFixed(2)}`;
-}
-
-function parseInputAsCents(value: string): string {
-  const cleaned = value.replace(/[^0-9]/g, "");
-  if (!cleaned) return "";
-  return String(Number(cleaned));
 }
 
 function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
@@ -123,8 +100,6 @@ export function TransactionModal(args: {
   const [occurredAt, setOccurredAt] = useState(isoToday());
   const [description, setDescription] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([]);
-
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) {
@@ -190,14 +165,14 @@ export function TransactionModal(args: {
     ]);
   }, [open, initialEvent, wallets, fundOptions]);
 
-  function getWalletNameById(id: string) {
-    const wallet = wallets.find((w) => w.id === Number(id));
-    return wallet?.name ?? "";
+  function patchLine(key: string, patch: Partial<LineDraft>) {
+    setLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
   }
 
-  function getFundNameById(id: string) {
-    const fund = funds.find((f) => f.id === Number(id));
-    return fund?.name ?? "";
+  function removeLine(key: string) {
+    setLines((prev) => prev.filter((l) => l.key !== key));
   }
 
   function addLine() {
@@ -256,10 +231,8 @@ export function TransactionModal(args: {
   async function saveCreate() {
     setError(null);
     setBusy(true);
-
     try {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
-
       await apiJson("/api/transactions", {
         method: "POST",
         body: JSON.stringify({
@@ -270,7 +243,6 @@ export function TransactionModal(args: {
           lines: parsedLines,
         }),
       });
-
       await onSaved?.();
       onOpenChange(false);
     } catch (e) {
@@ -285,10 +257,8 @@ export function TransactionModal(args: {
 
     setError(null);
     setBusy(true);
-
     try {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
-
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -299,7 +269,6 @@ export function TransactionModal(args: {
           lines: parsedLines,
         }),
       });
-
       await onSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -313,7 +282,6 @@ export function TransactionModal(args: {
 
     setError(null);
     setBusy(true);
-
     try {
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "DELETE",
@@ -328,658 +296,454 @@ export function TransactionModal(args: {
 
   const title = initialEvent ? "Transaction" : "Add transaction";
 
-  if (isMobile) {
-    const disabled = Boolean(initialEvent) && !editing;
+  const readOnly = Boolean(initialEvent) && !editing;
 
-    const breakdown =
-      initialEvent && initialEvent.children.length > 0
-        ? initialEvent.children
-        : initialEvent
-          ? [
-              {
-                id: initialEvent.id,
-                walletName: initialEvent.walletName,
-                fundName: initialEvent.fundName,
-                description: initialEvent.description,
-                amount: initialEvent.amount,
-                isPending: initialEvent.isPending,
-              },
-            ]
-          : [];
+  const breakdown =
+    initialEvent && initialEvent.children.length > 0
+      ? initialEvent.children
+      : initialEvent
+        ? [
+            {
+              id: initialEvent.id,
+              walletName: initialEvent.walletName,
+              fundName: initialEvent.fundName,
+              description: initialEvent.description,
+              amount: initialEvent.amount,
+              isPending: initialEvent.isPending,
+            },
+          ]
+        : [];
+
+  function renderBreakdown(isMobile: boolean) {
+    if (!initialEvent || editing) return null;
+
+    const subtitle =
+      initialEvent.children.length > 0
+        ? `${initialEvent.children.length} lines`
+        : "Single line";
+
+    if (isMobile) {
+      return (
+        <div className="mt-4 rounded-md border p-3">
+          <div className="text-sm font-medium">Breakdown</div>
+          <div className="text-muted-foreground text-xs">{subtitle}</div>
+          <div className="mt-3 flex flex-col gap-2">
+            {breakdown.map((c) => {
+              const n = Number(c.amount);
+              const dir: Direction = n < 0 ? "out" : "in";
+              const wallet = c.walletName ?? "";
+              const fund = c.fundName ?? "";
+              const titleLine =
+                wallet && fund
+                  ? `${wallet} · ${fund}`
+                  : wallet || fund || "(unassigned)";
+              return (
+                <div key={c.id} className="rounded-md border px-2 py-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {titleLine}
+                      </div>
+                      <div className="text-muted-foreground truncate text-xs">
+                        {c.description ?? ""}
+                      </div>
+                      <div className="text-muted-foreground mt-1 text-[11px] capitalize">
+                        {dir}
+                        {c.isPending ? " - pending" : ""}
+                      </div>
+                    </div>
+                    <div className="text-right text-sm tabular-nums">
+                      <span className={n < 0 ? "text-destructive" : ""}>
+                        {fmtAmount(Math.abs(n))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="data-[vaul-drawer-direction=bottom]:max-h-[92vh]">
-          <div className="flex max-h-[92vh] flex-col overflow-y-auto">
-            <DrawerHeader className="p-3 pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <DrawerTitle>{title}</DrawerTitle>
-                <DrawerClose
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                  )}
-                >
-                  <XIcon />
-                  <span className="sr-only">Close</span>
-                </DrawerClose>
-              </div>
-            </DrawerHeader>
+      <div className="rounded-md border p-3">
+        <div className="text-sm font-medium">Breakdown</div>
+        <div className="text-muted-foreground text-xs">{subtitle}</div>
+        <div className="mt-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
+                <TableHead className="w-2/12 min-w-0">Fund</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="w-1/12 min-w-0">Direction</TableHead>
+                <TableHead className="w-2/12 min-w-0 text-right">
+                  Amount
+                </TableHead>
+                <TableHead className="w-1/24 min-w-0">Pending</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {breakdown.map((c) => {
+                const n = Number(c.amount);
+                const dir: Direction = n < 0 ? "out" : "in";
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.walletName ?? ""}</TableCell>
+                    <TableCell>{c.fundName ?? ""}</TableCell>
+                    <TableCell>{c.description ?? ""}</TableCell>
+                    <TableCell className="capitalize">{dir}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span className={n < 0 ? "text-destructive" : ""}>
+                        {fmtAmount(Math.abs(n))}
+                      </span>
+                    </TableCell>
+                    <TableCell>{Boolean(c.isPending) ? "yes" : "no"}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="flex-1 overflow-y-auto px-3 pb-3">
-              {error && <div className="text-destructive text-sm">{error}</div>}
+  function renderLinesEditor(isMobile: boolean) {
+    if (initialEvent && !editing) return null;
 
-              <div className="mt-3 grid gap-3">
-                <div className="flex flex-col gap-2">
-                  <div className="text-muted-foreground text-xs">Date</div>
-                  <Input
-                    type="date"
-                    value={occurredAt}
-                    onChange={(e) => setOccurredAt(e.target.value)}
-                    disabled={disabled}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="text-muted-foreground text-xs">
-                    Description
-                  </div>
-                  <Input
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Description"
-                    disabled={disabled}
-                  />
-                </div>
-              </div>
-
-              {initialEvent && !editing ? (
-                <div className="mt-4 rounded-md border p-3">
-                  <div className="text-sm font-medium">Breakdown</div>
-                  <div className="text-muted-foreground text-xs">
-                    {initialEvent.children.length > 0
-                      ? `${initialEvent.children.length} lines`
-                      : "Single line"}
-                  </div>
-                  <div className="mt-3 flex flex-col gap-2">
-                    {breakdown.map((c) => {
-                      const n = Number(c.amount);
-                      const dir: Direction = n < 0 ? "out" : "in";
-                      const wallet = c.walletName ?? "";
-                      const fund = c.fundName ?? "";
-                      const titleLine =
-                        wallet && fund
-                          ? `${wallet} · ${fund}`
-                          : wallet || fund || "(unassigned)";
-                      return (
-                        <div key={c.id} className="rounded-md border px-2 py-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">
-                                {titleLine}
-                              </div>
-                              <div className="text-muted-foreground truncate text-xs">
-                                {c.description ?? ""}
-                              </div>
-                              <div className="text-muted-foreground mt-1 text-[11px] capitalize">
-                                {dir}
-                                {c.isPending ? " - pending" : ""}
-                              </div>
-                            </div>
-                            <div className="text-right text-sm tabular-nums">
-                              <span className={n < 0 ? "text-destructive" : ""}>
-                                {fmtAmount(Math.abs(n))}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium">Lines</div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addLine}
-                      disabled={busy}
-                    >
-                      Add line
-                    </Button>
-                  </div>
-
-                  <div className="mt-3 flex flex-col gap-2">
-                    {lines.map((l) => (
-                      <div key={l.key} className="rounded-md border p-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <Select
-                            value={getWalletNameById(l.walletId) || ""}
-                            onValueChange={(value) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key
-                                    ? { ...x, walletId: value || "" }
-                                    : x,
-                                ),
-                              )
-                            }
-                            disabled={busy}
-                          >
-                            <SelectTrigger className="w-full min-w-0">
-                              <SelectValue placeholder="-" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {walletOptions.map((w) => (
-                                <SelectItem key={w.id} value={String(w.id)}>
-                                  {w.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-
-                          <Select
-                            value={getFundNameById(l.fundId) || ""}
-                            onValueChange={(value) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key
-                                    ? { ...x, fundId: value || "" }
-                                    : x,
-                                ),
-                              )
-                            }
-                            disabled={busy}
-                          >
-                            <SelectTrigger className="w-full min-w-0">
-                              <SelectValue placeholder="-" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {fundOptions.map((f) => (
-                                <SelectItem key={f.id} value={String(f.id)}>
-                                  {f.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="mt-2">
-                          <Input
-                            value={l.description}
-                            onChange={(e) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key
-                                    ? { ...x, description: e.target.value }
-                                    : x,
-                                ),
-                              )
-                            }
-                            placeholder="Description (optional)"
-                            disabled={busy}
-                          />
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <Select
-                            value={l.direction}
-                            onValueChange={(value) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key
-                                    ? {
-                                        ...x,
-                                        direction: value as Direction,
-                                      }
-                                    : x,
-                                ),
-                              )
-                            }
-                            disabled={busy}
-                          >
-                            <SelectTrigger className="w-full min-w-0 capitalize">
-                              <SelectValue placeholder="-" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="out">Out</SelectItem>
-                              <SelectItem value="in">In</SelectItem>
-                            </SelectContent>
-                          </Select>
-
-                          <Input
-                            inputMode="numeric"
-                            value={formatCentsToDisplay(l.amount)}
-                            onChange={(e) =>
-                              setLines((prev) =>
-                                prev.map((x) =>
-                                  x.key === l.key
-                                    ? {
-                                        ...x,
-                                        amount: parseInputAsCents(
-                                          e.target.value,
-                                        ),
-                                      }
-                                    : x,
-                                ),
-                              )
-                            }
-                            placeholder="$0.00"
-                            className="text-right tabular-nums"
-                            disabled={busy}
-                          />
-                        </div>
-
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <div className="text-muted-foreground text-xs">
-                              Pending
-                            </div>
-                            <Switch
-                              checked={l.isPending}
-                              onCheckedChange={(checked) =>
-                                setLines((prev) =>
-                                  prev.map((x) =>
-                                    x.key === l.key
-                                      ? { ...x, isPending: checked }
-                                      : x,
-                                  ),
-                                )
-                              }
-                              disabled={busy}
-                            />
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setLines((prev) =>
-                                prev.filter((x) => x.key !== l.key),
-                              )
-                            }
-                            disabled={busy}
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DrawerFooter className="border-t p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  {initialEvent && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={deleteEvent}
-                      disabled={busy}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {initialEvent && !editing && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setEditing(true)}
-                      disabled={busy}
-                    >
-                      Edit
-                    </Button>
-                  )}
-                  {initialEvent && editing && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setEditing(false)}
-                      disabled={busy}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-
-                  {!initialEvent && (
-                    <Button type="button" onClick={saveCreate} disabled={busy}>
-                      Save
-                    </Button>
-                  )}
-                  {initialEvent && editing && (
-                    <Button type="button" onClick={saveEdit} disabled={busy}>
-                      Save changes
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </DrawerFooter>
+    if (isMobile) {
+      return (
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">Lines</div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addLine}
+              disabled={busy}
+            >
+              Add line
+            </Button>
           </div>
-        </DrawerContent>
-      </Drawer>
+
+          <div className="mt-3 flex flex-col gap-2">
+            {lines.map((l) => (
+              <div key={l.key} className="rounded-md border p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={l.walletId}
+                    onValueChange={(value) =>
+                      patchLine(l.key, {
+                        walletId: value == null ? "" : String(value),
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {walletOptions.map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={l.fundId}
+                    onValueChange={(value) =>
+                      patchLine(l.key, {
+                        fundId: value == null ? "" : String(value),
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fundOptions.map((f) => (
+                        <SelectItem key={f.id} value={String(f.id)}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="mt-2">
+                  <Input
+                    value={l.description}
+                    onChange={(e) =>
+                      patchLine(l.key, { description: e.target.value })
+                    }
+                    placeholder="Description (optional)"
+                    disabled={busy}
+                  />
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Select
+                    value={l.direction}
+                    onValueChange={(value) => {
+                      const dir: Direction = value === "in" ? "in" : "out";
+                      patchLine(l.key, { direction: dir });
+                    }}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0 capitalize">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="out">Out</SelectItem>
+                      <SelectItem value="in">In</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    inputMode="numeric"
+                    value={formatCentsToDisplay(l.amount)}
+                    onChange={(e) =>
+                      patchLine(l.key, {
+                        amount: parseInputAsCents(e.target.value),
+                      })
+                    }
+                    placeholder="$0.00"
+                    className="text-right tabular-nums"
+                    disabled={busy}
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="text-muted-foreground text-xs">Pending</div>
+                    <Switch
+                      checked={l.isPending}
+                      onCheckedChange={(checked) =>
+                        patchLine(l.key, { isPending: checked })
+                      }
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeLine(l.key)}
+                    disabled={busy}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm font-medium">Lines</div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addLine}
+            disabled={busy}
+          >
+            Add line
+          </Button>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
+              <TableHead className="w-2/12 min-w-0">Fund</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="w-1/12 min-w-0">Direction</TableHead>
+              <TableHead className="w-2/12 min-w-0">Amount</TableHead>
+              <TableHead className="w-1/24 min-w-0">Pending</TableHead>
+              <TableHead className="w-1/24 min-w-0"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lines.map((l) => (
+              <TableRow key={l.key}>
+                <TableCell>
+                  <Select
+                    value={l.walletId}
+                    onValueChange={(value) =>
+                      patchLine(l.key, {
+                        walletId: value == null ? "" : String(value),
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {walletOptions.map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={l.fundId}
+                    onValueChange={(value) =>
+                      patchLine(l.key, {
+                        fundId: value == null ? "" : String(value),
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fundOptions.map((f) => (
+                        <SelectItem key={f.id} value={String(f.id)}>
+                          {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={l.description}
+                    onChange={(e) =>
+                      patchLine(l.key, { description: e.target.value })
+                    }
+                    placeholder="(optional)"
+                    disabled={busy}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={l.direction}
+                    onValueChange={(value) => {
+                      const dir: Direction = value === "in" ? "in" : "out";
+                      patchLine(l.key, { direction: dir });
+                    }}
+                    disabled={busy}
+                  >
+                    <SelectTrigger className="w-full min-w-0 capitalize">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="out">Out</SelectItem>
+                      <SelectItem value="in">In</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <Input
+                    inputMode="numeric"
+                    value={formatCentsToDisplay(l.amount)}
+                    onChange={(e) =>
+                      patchLine(l.key, {
+                        amount: parseInputAsCents(e.target.value),
+                      })
+                    }
+                    placeholder="$0.00"
+                    className="text-right tabular-nums"
+                    disabled={busy}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center justify-center">
+                    <Switch
+                      checked={l.isPending}
+                      onCheckedChange={(checked) =>
+                        patchLine(l.key, { isPending: checked })
+                      }
+                      disabled={busy}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => removeLine(l.key)}
+                    disabled={busy}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl sm:min-w-[56rem]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      desktopContentClassName="sm:max-w-5xl sm:min-w-[56rem]"
+      desktopFooterClassName="flex items-center justify-between gap-2"
+      renderBody={({ isMobile }) => (
+        <>
+          {error && <div className="text-destructive text-sm">{error}</div>}
 
-        {error && <div className="text-destructive text-sm">{error}</div>}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Date</div>
-            <Input
-              type="date"
-              value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
-              disabled={Boolean(initialEvent) && !editing}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Description</div>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description"
-              disabled={Boolean(initialEvent) && !editing}
-            />
-          </div>
-        </div>
-
-        {initialEvent && !editing ? (
-          <div className="rounded-md border p-3">
-            <div className="text-sm font-medium">Breakdown</div>
-            <div className="text-muted-foreground text-xs">
-              {initialEvent.children.length > 0
-                ? `${initialEvent.children.length} lines`
-                : "Single line"}
+          <div
+            className={
+              isMobile ? "mt-3 grid gap-3" : "grid gap-4 md:grid-cols-2"
+            }
+          >
+            <div className="flex flex-col gap-2">
+              <div className="text-muted-foreground text-xs">Date</div>
+              <Input
+                type="date"
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
+                disabled={readOnly}
+              />
             </div>
-            <div className="mt-3">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
-                    <TableHead className="w-2/12 min-w-0">Fund</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="w-1/12 min-w-0">Direction</TableHead>
-                    <TableHead className="w-2/12 min-w-0 text-right">
-                      Amount
-                    </TableHead>
-                    <TableHead className="w-1/24 min-w-0">Pending</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(initialEvent.children.length > 0
-                    ? initialEvent.children
-                    : [
-                        {
-                          id: initialEvent.id,
-                          walletName: initialEvent.walletName,
-                          fundName: initialEvent.fundName,
-                          description: initialEvent.description,
-                          amount: initialEvent.amount,
-                          isPending: initialEvent.isPending,
-                        },
-                      ]
-                  ).map((c) => {
-                    const n = Number(c.amount);
-                    const dir: Direction = n < 0 ? "out" : "in";
-                    return (
-                      <TableRow key={c.id}>
-                        <TableCell>{c.walletName ?? ""}</TableCell>
-                        <TableCell>{c.fundName ?? ""}</TableCell>
-                        <TableCell>{c.description ?? ""}</TableCell>
-                        <TableCell className="capitalize">{dir}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          <span className={n < 0 ? "text-destructive" : ""}>
-                            {fmtAmount(Math.abs(n))}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {Boolean(c.isPending) ? "yes" : "no"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            <div className="flex flex-col gap-2">
+              <div className="text-muted-foreground text-xs">Description</div>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description"
+                disabled={readOnly}
+              />
             </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium">Lines</div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addLine}
-                disabled={busy}
-              >
-                Add line
-              </Button>
-            </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-2/12 min-w-0">Wallet</TableHead>
-                  <TableHead className="w-2/12 min-w-0">Fund</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-1/12 min-w-0">Direction</TableHead>
-                  <TableHead className="w-2/12 min-w-0">Amount</TableHead>
-                  <TableHead className="w-1/24 min-w-0">Pending</TableHead>
-                  <TableHead className="w-1/24 min-w-0"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lines.map((l) => (
-                  <TableRow key={l.key}>
-                    <TableCell>
-                      <Select
-                        value={getWalletNameById(l.walletId) || ""}
-                        onValueChange={(value) =>
-                          setLines((prev) =>
-                            prev.map((x) =>
-                              x.key === l.key
-                                ? { ...x, walletId: value || "" }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        <SelectTrigger className="w-full min-w-0">
-                          <SelectValue placeholder="-" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {walletOptions.map((w) => (
-                            <SelectItem key={w.id} value={String(w.id)}>
-                              {w.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={getFundNameById(l.fundId) || ""}
-                        onValueChange={(value) =>
-                          setLines((prev) =>
-                            prev.map((x) =>
-                              x.key === l.key
-                                ? { ...x, fundId: value || "" }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        <SelectTrigger className="w-full min-w-0">
-                          <SelectValue placeholder="-" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fundOptions.map((f) => (
-                            <SelectItem key={f.id} value={String(f.id)}>
-                              {f.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={l.description}
-                        onChange={(e) =>
-                          setLines((prev) =>
-                            prev.map((x) =>
-                              x.key === l.key
-                                ? { ...x, description: e.target.value }
-                                : x,
-                            ),
-                          )
-                        }
-                        placeholder="(optional)"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={l.direction}
-                        onValueChange={(value) =>
-                          setLines((prev) =>
-                            prev.map((x) =>
-                              x.key === l.key
-                                ? {
-                                    ...x,
-                                    direction: value as Direction,
-                                  }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        <SelectTrigger className="w-full min-w-0 capitalize">
-                          <SelectValue placeholder="-" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="out">Out</SelectItem>
-                          <SelectItem value="in">In</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <Input
-                        inputMode="numeric"
-                        value={formatCentsToDisplay(l.amount)}
-                        onChange={(e) =>
-                          setLines((prev) =>
-                            prev.map((x) =>
-                              x.key === l.key
-                                ? {
-                                    ...x,
-                                    amount: parseInputAsCents(e.target.value),
-                                  }
-                                : x,
-                            ),
-                          )
-                        }
-                        placeholder="$0.00"
-                        className="text-right tabular-nums"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center">
-                        <Switch
-                          checked={l.isPending}
-                          onCheckedChange={(checked) =>
-                            setLines((prev) =>
-                              prev.map((x) =>
-                                x.key === l.key
-                                  ? { ...x, isPending: checked }
-                                  : x,
-                              ),
-                            )
-                          }
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          setLines((prev) =>
-                            prev.filter((x) => x.key !== l.key),
-                          )
-                        }
-                        disabled={busy}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        <DialogFooter className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {initialEvent && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={deleteEvent}
-                disabled={busy}
-              >
-                Delete
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {initialEvent && !editing && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </Button>
-            )}
-            {initialEvent && editing && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-            )}
-
-            {!initialEvent && (
-              <Button type="button" onClick={saveCreate} disabled={busy}>
-                Save
-              </Button>
-            )}
-            {initialEvent && editing && (
-              <Button type="button" onClick={saveEdit} disabled={busy}>
-                Save changes
-              </Button>
-            )}
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {renderBreakdown(isMobile)}
+          {renderLinesEditor(isMobile)}
+        </>
+      )}
+      renderFooter={() => (
+        <EventModalActions
+          hasInitialEvent={Boolean(initialEvent)}
+          editing={editing}
+          busy={busy}
+          onDelete={deleteEvent}
+          onStartEdit={() => setEditing(true)}
+          onCancelEdit={() => setEditing(false)}
+          onCreate={saveCreate}
+          onSaveEdit={saveEdit}
+        />
+      )}
+    />
   );
 }
