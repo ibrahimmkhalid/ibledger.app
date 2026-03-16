@@ -211,7 +211,7 @@ export function IncomeModal(args: {
                 }
                 disabled={readOnly}
               >
-                <SelectTrigger className={isMobile ? "" : "w-full min-w-0"}>
+                <SelectTrigger className="w-full min-w-0">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
