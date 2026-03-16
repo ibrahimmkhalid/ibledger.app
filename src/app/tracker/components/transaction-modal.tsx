@@ -536,7 +536,7 @@ export function TransactionModal(args: {
                     variant="outline"
                     size="sm"
                     onClick={() => removeLine(l.key)}
-                    disabled={busy}
+                    disabled={busy || lines.length <= 1}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </Button>
@@ -679,7 +679,7 @@ export function TransactionModal(args: {
                     type="button"
                     variant="outline"
                     onClick={() => removeLine(l.key)}
-                    disabled={busy}
+                    disabled={busy || lines.length <= 1}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </Button>
