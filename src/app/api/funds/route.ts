@@ -316,7 +316,7 @@ export async function DELETE(request: NextRequest) {
       .then((res) => res[0]);
 
     const bal = Number(fundBalanceRow?.balanceWithPending ?? 0);
-    if (Math.abs(bal) > 1e-9) {
+    if (Math.abs(bal) > 0.005) {
       return NextResponse.json(
         {
           error:

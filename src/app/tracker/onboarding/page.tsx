@@ -690,7 +690,7 @@ export default function OnboardingPage() {
                             );
                             const deleteBlocked =
                               Number.isFinite(rawWithPending) &&
-                              Math.abs(rawWithPending) > 1e-9;
+                              Math.abs(rawWithPending) > 0.005;
 
                             const title = deleteBlocked
                               ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
