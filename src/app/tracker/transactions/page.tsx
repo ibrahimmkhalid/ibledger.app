@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -15,9 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-import { IncomeModal } from "@/app/tracker/components/income-modal";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
-import { TransactionModal } from "@/app/tracker/components/transaction-modal";
 import { apiJson } from "@/app/tracker/lib/api";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
@@ -27,6 +26,22 @@ import type {
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
+
+const TransactionModal = dynamic(
+  () =>
+    import("@/app/tracker/components/transaction-modal").then(
+      (m) => m.TransactionModal,
+    ),
+  { ssr: false },
+);
+
+const IncomeModal = dynamic(
+  () =>
+    import("@/app/tracker/components/income-modal").then(
+      (m) => m.IncomeModal,
+    ),
+  { ssr: false },
+);
 
 export default function TransactionsPage() {
   const router = useRouter();
@@ -44,8 +59,6 @@ export default function TransactionsPage() {
   const [nextPage, setNextPage] = useState(-1);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
 
-  const visibleEvents = useMemo(() => events, [events]);
-
   const [createTransactionOpen, setCreateTransactionOpen] = useState(false);
   const [createIncomeOpen, setCreateIncomeOpen] = useState(false);
   const [detailsEvent, setDetailsEvent] = useState<TransactionEvent | null>(
@@ -53,8 +66,6 @@ export default function TransactionsPage() {
   );
 
   const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
-
-  const displayFunds = useMemo(() => funds, [funds]);
 
   const refresh = useCallback(
     async (next: { page: number; pendingOnly: boolean }) => {
@@ -110,6 +121,13 @@ export default function TransactionsPage() {
       setError(e instanceof Error ? e.message : "Failed to clear pending");
     }
   }, [setNotice, setError, setPendingOnly]);
+
+  // Prefetch sibling routes for instant navigation
+  useEffect(() => {
+    router.prefetch("/tracker");
+    router.prefetch("/tracker/funds");
+    router.prefetch("/tracker/wallets");
+  }, [router]);
 
   useEffect(() => {
     void refresh({ page: 0, pendingOnly });
@@ -170,7 +188,7 @@ export default function TransactionsPage() {
         open={createTransactionOpen}
         onOpenChange={setCreateTransactionOpen}
         wallets={wallets}
-        funds={displayFunds}
+        funds={funds}
         onSaved={async () => {
           setNotice("Transaction saved");
           await refresh({ page, pendingOnly });
@@ -193,7 +211,7 @@ export default function TransactionsPage() {
           if (!open) setDetailsEvent(null);
         }}
         wallets={wallets}
-        funds={displayFunds}
+        funds={funds}
         initialEvent={detailsEvent}
         onSaved={async () => {
           setNotice("Transaction updated");
@@ -254,7 +272,7 @@ export default function TransactionsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-1.5">
-            {visibleEvents.map((ev) => (
+            {events.map((ev) => (
               <TransactionEventCard
                 key={ev.id}
                 event={ev}

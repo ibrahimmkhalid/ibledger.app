@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -21,9 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { IncomeModal } from "@/app/tracker/components/income-modal";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
-import { TransactionModal } from "@/app/tracker/components/transaction-modal";
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { isIncomeLike } from "@/app/tracker/lib/events";
@@ -35,6 +34,22 @@ import type {
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
+
+const TransactionModal = dynamic(
+  () =>
+    import("@/app/tracker/components/transaction-modal").then(
+      (m) => m.TransactionModal,
+    ),
+  { ssr: false },
+);
+
+const IncomeModal = dynamic(
+  () =>
+    import("@/app/tracker/components/income-modal").then(
+      (m) => m.IncomeModal,
+    ),
+  { ssr: false },
+);
 
 function overspentBadge(args: { raw: number; label?: string }) {
   const raw = Number(args.raw);
@@ -84,8 +99,6 @@ export default function TrackerPage() {
 
   const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
 
-  const displayFunds = useMemo(() => funds, [funds]);
-
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -118,6 +131,13 @@ export default function TrackerPage() {
     } finally {
       setLoading(false);
     }
+  }, [router]);
+
+  // Prefetch sibling routes for instant navigation
+  useEffect(() => {
+    router.prefetch("/tracker/transactions");
+    router.prefetch("/tracker/funds");
+    router.prefetch("/tracker/wallets");
   }, [router]);
 
   useEffect(() => {
@@ -176,7 +196,7 @@ export default function TrackerPage() {
         open={createTransactionOpen}
         onOpenChange={setCreateTransactionOpen}
         wallets={wallets}
-        funds={displayFunds}
+        funds={funds}
         onSaved={async () => {
           setNotice("Transaction saved");
           await refresh();
@@ -199,7 +219,7 @@ export default function TrackerPage() {
           if (!open) setDetailsEvent(null);
         }}
         wallets={wallets}
-        funds={displayFunds}
+        funds={funds}
         initialEvent={detailsEvent}
         onSaved={async () => {
           setNotice("Transaction updated");
@@ -293,7 +313,7 @@ export default function TrackerPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayFunds.map((f) => (
+                {funds.map((f) => (
                   <TableRow key={f.id}>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">

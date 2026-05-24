@@ -11,14 +11,7 @@ import {
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import type { TransactionEvent } from "@/app/tracker/types";
 
-import { faClone, faSquare, faTag } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
-function eventIcon(ev: TransactionEvent) {
-  if (isIncomeLike(ev)) return faTag;
-  if (!ev.isPosting) return faClone;
-  return faSquare;
-}
+import { CopyIcon, SquareIcon, TagIcon } from "lucide-react";
 
 export function TransactionEventCard(args: {
   event: TransactionEvent;
@@ -51,10 +44,13 @@ export function TransactionEventCard(args: {
 
           <div className="mt-0.5 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              <FontAwesomeIcon
-                icon={eventIcon(ev)}
-                className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
-              />
+              {isIncomeLike(ev) ? (
+                <TagIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+              ) : !ev.isPosting ? (
+                <CopyIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+              ) : (
+                <SquareIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+              )}
               <div
                 className={
                   "min-w-0 truncate text-sm font-medium" +

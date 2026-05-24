@@ -32,8 +32,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { faQuestionCircle } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { CircleHelpIcon } from "lucide-react";
 
 type WalletFormState = {
   name: string;
@@ -80,8 +79,7 @@ function WalletModal(args: {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <FontAwesomeIcon
-                      icon={faQuestionCircle}
+                    <CircleHelpIcon
                       className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                     />
                   </TooltipTrigger>
@@ -176,8 +174,7 @@ function FundModal(args: {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <FontAwesomeIcon
-                      icon={faQuestionCircle}
+                    <CircleHelpIcon
                       className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                     />
                   </TooltipTrigger>
@@ -203,8 +200,7 @@ function FundModal(args: {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <FontAwesomeIcon
-                      icon={faQuestionCircle}
+                    <CircleHelpIcon
                       className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                     />
                   </TooltipTrigger>
