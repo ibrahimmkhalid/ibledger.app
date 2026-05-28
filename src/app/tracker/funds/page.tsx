@@ -96,15 +96,14 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const MAX = 99;
   const POOL = MAX - count; // remaining after 1 % per fund
 
-  let total = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
+  const total = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
 
   // Nothing allocated → distribute the pool equally.
   if (total === 0) {
     const share = roundHalf(POOL / count);
     let allocated = 0;
     nonSavings.forEach((f, i) => {
-      const variable =
-        i === count - 1 ? roundHalf(POOL - allocated) : share;
+      const variable = i === count - 1 ? roundHalf(POOL - allocated) : share;
       allocated += variable;
       f.pullPercentage = 1 + Math.max(0, variable);
     });
