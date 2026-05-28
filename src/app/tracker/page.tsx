@@ -45,9 +45,7 @@ const TransactionModal = dynamic(
 
 const IncomeModal = dynamic(
   () =>
-    import("@/app/tracker/components/income-modal").then(
-      (m) => m.IncomeModal,
-    ),
+    import("@/app/tracker/components/income-modal").then((m) => m.IncomeModal),
   { ssr: false },
 );
 
@@ -115,15 +113,13 @@ export default function TrackerPage() {
         return;
       }
 
-      const [walletsRes, fundsRes, totalsRes, eventsRes] = await Promise.all([
-        apiJson<{ wallets: Wallet[] }>("/api/wallets"),
-        apiJson<{ funds: Fund[] }>("/api/funds"),
+      const [totalsRes, eventsRes] = await Promise.all([
         apiJson<TotalsResponse>("/api/totals"),
-        apiJson<EventsResponse>(`/api/transactions?page=0`),
+        apiJson<EventsResponse>("/api/transactions?page=0"),
       ]);
 
-      setWallets(walletsRes.wallets);
-      setFunds(fundsRes.funds);
+      setWallets(totalsRes.wallets);
+      setFunds(totalsRes.funds);
       setTotals(totalsRes);
       setEvents(eventsRes.events);
     } catch (e) {

@@ -24,6 +24,7 @@ export async function GET() {
       .select({
         id: wallets.id,
         name: wallets.name,
+        openingAmount: wallets.openingAmount,
         balance: sql<number>`
           COALESCE(${wallets.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
@@ -51,6 +52,7 @@ export async function GET() {
         name: funds.name,
         isSavings: funds.isSavings,
         pullPercentage: funds.pullPercentage,
+        openingAmount: funds.openingAmount,
         balance: sql<number>`
           COALESCE(${funds.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)

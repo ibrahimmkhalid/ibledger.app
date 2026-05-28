@@ -6,6 +6,7 @@ export type TotalsResponse = {
     name: string;
     balance: number;
     balanceWithPending: number;
+    openingAmount: number;
   }>;
   funds: Array<{
     id: number;
@@ -14,6 +15,7 @@ export type TotalsResponse = {
     pullPercentage: number;
     balance: number;
     balanceWithPending: number;
+    openingAmount: number;
     rawBalance?: number;
     rawBalanceWithPending?: number;
   }>;
