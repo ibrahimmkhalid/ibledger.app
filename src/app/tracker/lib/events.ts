@@ -37,6 +37,9 @@ export function computeEventFundName(ev: TransactionEvent) {
   if (ev.children.length === 0) {
     return ev.fundName;
   }
+  if (ev.children.some((c) => c.incomePull !== null)) {
+    return null;
+  }
   const fundNames = Array.from(
     new Set(ev.children.map((c) => c.fundName).filter(Boolean)),
   );
