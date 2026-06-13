@@ -70,7 +70,15 @@ export type EventsResponse = {
   events: TransactionEvent[];
   currentPage: number;
   nextPage: number;
+  prevPage: number;
+  totalCount: number;
+  totalPages: number;
+  pageSize: number;
 };
+
+export const TRANSACTIONS_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+export type TransactionsPageSize =
+  (typeof TRANSACTIONS_PAGE_SIZE_OPTIONS)[number];
 
 export type BootstrapResponse = {
   onboarding?: {

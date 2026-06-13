@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
@@ -53,7 +53,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const pageSize = 20;
+    const pageSizeParam = searchParams.get("pageSize");
+    const allowedPageSizes = [20, 50, 100];
+    const pageSize = pageSizeParam ? Number(pageSizeParam) : 20;
+
+    if (Number.isNaN(pageSize) || !allowedPageSizes.includes(pageSize)) {
+      return NextResponse.json({ error: "Invalid pageSize" }, { status: 400 });
+    }
+
+    const filters = pendingOnly
+      ? and(
+          eq(transactions.userId, user.id),
+          isNull(transactions.parentId),
+          isNull(transactions.deletedAt),
+          eq(transactions.isPending, true),
+        )
+      : and(
+          eq(transactions.userId, user.id),
+          isNull(transactions.parentId),
+          isNull(transactions.deletedAt),
+        );
+
+    const [countRow] = await db
+      .select({ value: count() })
+      .from(transactions)
+      .where(filters);
+
+    const totalCount = Number(countRow?.value ?? 0);
+    const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / pageSize);
+
+    if (totalPages > 0 && page >= totalPages) {
+      return NextResponse.json({ error: "Invalid page" }, { status: 400 });
+    }
 
     const events = await db
       .select({
@@ -72,20 +103,7 @@ export async function GET(request: NextRequest) {
       .from(transactions)
       .leftJoin(wallets, eq(wallets.id, transactions.walletId))
       .leftJoin(funds, eq(funds.id, transactions.fundId))
-      .where(
-        pendingOnly
-          ? and(
-              eq(transactions.userId, user.id),
-              isNull(transactions.parentId),
-              isNull(transactions.deletedAt),
-              eq(transactions.isPending, true),
-            )
-          : and(
-              eq(transactions.userId, user.id),
-              isNull(transactions.parentId),
-              isNull(transactions.deletedAt),
-            ),
-      )
+      .where(filters)
       .orderBy(desc(transactions.occurredAt), desc(transactions.id))
       .offset(page * pageSize)
       .limit(pageSize);
@@ -142,7 +160,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       events: response,
       currentPage: page,
-      nextPage: events.length === pageSize ? page + 1 : -1,
+      nextPage: page + 1 < totalPages ? page + 1 : -1,
+      prevPage: page > 0 ? page - 1 : -1,
+      totalCount,
+      totalPages,
+      pageSize,
     });
   } catch (error) {
     console.error("API: Error fetching transactions", error);
