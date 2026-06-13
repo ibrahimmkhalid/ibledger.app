@@ -12,13 +12,11 @@ type PsuedoId = string | number;
 
 type ExportWallet = {
   name: string;
-  opening_amount: number;
   psuedo_id: PsuedoId;
 };
 
 type ExportFund = {
   name: string;
-  opening_amount: number;
   is_savings: boolean;
   pull_percentage: number;
   psuedo_id: PsuedoId;
@@ -118,7 +116,6 @@ async function main() {
       .select({
         id: wallets.id,
         name: wallets.name,
-        openingAmount: wallets.openingAmount,
       })
       .from(wallets)
       .where(and(eq(wallets.userId, userId), isNull(wallets.deletedAt)))
@@ -127,7 +124,6 @@ async function main() {
       .select({
         id: funds.id,
         name: funds.name,
-        openingAmount: funds.openingAmount,
         isSavings: funds.isSavings,
         pullPercentage: funds.pullPercentage,
       })
@@ -147,19 +143,19 @@ async function main() {
         walletId: transactions.walletId,
       })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)))
+      .where(
+        and(eq(transactions.userId, userId), isNull(transactions.deletedAt)),
+      )
       .orderBy(desc(transactions.id)),
   ]);
 
   const walletsExport: ExportWallet[] = walletRows.map((w) => ({
     name: String(w.name),
-    opening_amount: Number(w.openingAmount ?? 0),
     psuedo_id: w.id,
   }));
 
   const fundsExport: ExportFund[] = fundRows.map((f) => ({
     name: String(f.name),
-    opening_amount: Number(f.openingAmount ?? 0),
     is_savings: Boolean(f.isSavings),
     pull_percentage: Number(f.pullPercentage ?? 0),
     psuedo_id: f.id,

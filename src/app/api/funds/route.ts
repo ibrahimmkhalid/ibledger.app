@@ -26,15 +26,13 @@ export async function GET() {
         name: funds.name,
         isSavings: funds.isSavings,
         pullPercentage: funds.pullPercentage,
-        openingAmount: funds.openingAmount,
         createdAt: funds.createdAt,
         updatedAt: funds.updatedAt,
         balance: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
         balanceWithPending: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(funds)
@@ -53,7 +51,6 @@ export async function GET() {
         funds.name,
         funds.isSavings,
         funds.pullPercentage,
-        funds.openingAmount,
         funds.createdAt,
         funds.updatedAt,
       );
@@ -124,7 +121,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing name" }, { status: 400 });
     }
 
-    const openingAmount = Number(data.openingAmount ?? 0);
     const pullPercentage =
       data.pullPercentage === undefined ? 0 : Number(data.pullPercentage);
 
@@ -146,7 +142,6 @@ export async function POST(request: NextRequest) {
         name: String(data.name),
         isSavings: false,
         pullPercentage,
-        openingAmount,
       })
       .returning();
 
@@ -200,10 +195,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     const nextName = data?.name ? String(data.name) : selectedFund.name;
-    const nextOpeningAmount =
-      data?.openingAmount !== undefined
-        ? Number(data.openingAmount)
-        : selectedFund.openingAmount;
 
     const nextPullPercentage =
       data?.pullPercentage !== undefined
@@ -225,7 +216,6 @@ export async function PATCH(request: NextRequest) {
       .update(funds)
       .set({
         name: nextName,
-        openingAmount: nextOpeningAmount,
         pullPercentage: selectedFund.isSavings ? 0 : nextPullPercentage,
         updatedAt: new Date(),
       })
@@ -291,7 +281,7 @@ export async function DELETE(request: NextRequest) {
     const fundBalanceRow = await db
       .select({
         balanceWithPending: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(funds)
@@ -311,7 +301,7 @@ export async function DELETE(request: NextRequest) {
           isNull(funds.deletedAt),
         ),
       )
-      .groupBy(funds.id, funds.openingAmount)
+      .groupBy(funds.id)
       .limit(1)
       .then((res) => res[0]);
 

@@ -37,9 +37,7 @@ const TransactionModal = dynamic(
 
 const IncomeModal = dynamic(
   () =>
-    import("@/app/tracker/components/income-modal").then(
-      (m) => m.IncomeModal,
-    ),
+    import("@/app/tracker/components/income-modal").then((m) => m.IncomeModal),
   { ssr: false },
 );
 
@@ -78,6 +76,11 @@ export default function TransactionsPage() {
           method: "POST",
           body: "{}",
         });
+        if (boot.migration?.required) {
+          router.replace(boot.migration.redirectTo);
+          return;
+        }
+
         if (boot.onboarding?.required) {
           router.replace(boot.onboarding.redirectTo);
           return;

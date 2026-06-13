@@ -6,7 +6,6 @@ export type TotalsResponse = {
     name: string;
     balance: number;
     balanceWithPending: number;
-    openingAmount: number;
   }>;
   funds: Array<{
     id: number;
@@ -15,7 +14,6 @@ export type TotalsResponse = {
     pullPercentage: number;
     balance: number;
     balanceWithPending: number;
-    openingAmount: number;
     rawBalance?: number;
     rawBalanceWithPending?: number;
   }>;
@@ -24,7 +22,6 @@ export type TotalsResponse = {
 export type Wallet = {
   id: number;
   name: string;
-  openingAmount: number;
   balance: number;
   balanceWithPending: number;
 };
@@ -34,7 +31,6 @@ export type Fund = {
   name: string;
   isSavings: boolean;
   pullPercentage: number;
-  openingAmount: number;
   balance: number;
   balanceWithPending: number;
   rawBalance?: number;
@@ -78,6 +74,10 @@ export type EventsResponse = {
 
 export type BootstrapResponse = {
   onboarding?: {
+    required: boolean;
+    redirectTo: string;
+  };
+  migration?: {
     required: boolean;
     redirectTo: string;
   };

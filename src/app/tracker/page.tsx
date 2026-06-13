@@ -108,6 +108,11 @@ export default function TrackerPage() {
         body: "{}",
       });
 
+      if (boot.migration?.required) {
+        router.replace(boot.migration.redirectTo);
+        return;
+      }
+
       if (boot.onboarding?.required) {
         router.replace(boot.onboarding.redirectTo);
         return;

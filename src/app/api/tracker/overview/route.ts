@@ -27,11 +27,10 @@ export async function GET() {
         isSavings: funds.isSavings,
         pullPercentage: funds.pullPercentage,
         balance: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
         balanceWithPending: sql<number>`
-          COALESCE(${funds.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(funds)
@@ -45,13 +44,7 @@ export async function GET() {
         ),
       )
       .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-      .groupBy(
-        funds.id,
-        funds.name,
-        funds.isSavings,
-        funds.pullPercentage,
-        funds.openingAmount,
-      );
+      .groupBy(funds.id, funds.name, funds.isSavings, funds.pullPercentage);
 
     const fundsWithRaw = fundsInfoRaw.map((f) => ({
       ...f,
@@ -90,11 +83,10 @@ export async function GET() {
         id: wallets.id,
         name: wallets.name,
         balance: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
         balanceWithPending: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(wallets)
@@ -108,7 +100,7 @@ export async function GET() {
         ),
       )
       .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
-      .groupBy(wallets.id, wallets.name, wallets.openingAmount);
+      .groupBy(wallets.id, wallets.name);
 
     const recentTransactions = await db
       .select({

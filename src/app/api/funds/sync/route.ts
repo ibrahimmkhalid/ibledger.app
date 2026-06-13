@@ -16,7 +16,6 @@ import { currentUser, currentUserWithDB } from "@/lib/auth";
  *   funds: Array<{
  *     id?: number;           // omit for new funds
  *     name: string;
- *     openingAmount: number;
  *     pullPercentage: number;
  *   }>;
  *   deletedIds: number[];    // fund IDs to soft-delete
@@ -43,7 +42,6 @@ export async function PUT(request: NextRequest) {
     const fundInputs: {
       id?: number;
       name: string;
-      openingAmount: number;
       pullPercentage: number;
     }[] = data?.funds ?? [];
 
@@ -55,12 +53,6 @@ export async function PUT(request: NextRequest) {
       if (!f.name?.trim()) {
         return NextResponse.json(
           { error: "All funds must have a name" },
-          { status: 400 },
-        );
-      }
-      if (Number.isNaN(Number(f.openingAmount))) {
-        return NextResponse.json(
-          { error: `Invalid opening amount for "${f.name}"` },
           { status: 400 },
         );
       }
@@ -109,8 +101,7 @@ export async function PUT(request: NextRequest) {
         const balRow = await tx
           .select({
             bal: sql<number>`
-              COALESCE(${funds.openingAmount}, 0)
-              + COALESCE(SUM(${transactions.amount}), 0)
+              COALESCE(SUM(${transactions.amount}), 0)
             `.as("bal"),
           })
           .from(funds)
@@ -130,7 +121,7 @@ export async function PUT(request: NextRequest) {
               isNull(funds.deletedAt),
             ),
           )
-          .groupBy(funds.id, funds.openingAmount)
+          .groupBy(funds.id)
           .limit(1)
           .then((r) => r[0]);
 
@@ -170,7 +161,6 @@ export async function PUT(request: NextRequest) {
             .update(funds)
             .set({
               name: f.name.trim(),
-              openingAmount: Number(f.openingAmount),
               pullPercentage: target.isSavings ? 0 : Number(f.pullPercentage),
               updatedAt: now,
             })
@@ -182,7 +172,6 @@ export async function PUT(request: NextRequest) {
             name: f.name.trim(),
             isSavings: false,
             pullPercentage: Number(f.pullPercentage),
-            openingAmount: Number(f.openingAmount),
           });
         }
       }

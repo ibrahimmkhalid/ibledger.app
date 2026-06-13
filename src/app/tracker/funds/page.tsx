@@ -36,7 +36,6 @@ type DraftFund = {
   key: string;
   id?: number;
   name: string;
-  openingAmount: string;
   pullPercentage: number;
   isSavings: boolean;
   balance: number;
@@ -68,7 +67,6 @@ function fundToDraft(f: Fund): DraftFund {
     key: String(f.id),
     id: f.id,
     name: f.name,
-    openingAmount: String(f.openingAmount),
     pullPercentage: f.pullPercentage,
     isSavings: f.isSavings,
     balance: f.balance,
@@ -236,6 +234,11 @@ export default function FundsPage() {
         method: "POST",
         body: "{}",
       });
+      if (boot.migration?.required) {
+        router.replace(boot.migration.redirectTo);
+        return;
+      }
+
       if (boot.onboarding?.required) {
         router.replace(boot.onboarding.redirectTo);
         return;
@@ -313,7 +316,6 @@ export default function FundsPage() {
         {
           key: crypto.randomUUID(),
           name: "",
-          openingAmount: "0",
           pullPercentage: 1,
           isSavings: false,
           balance: 0,
@@ -351,8 +353,6 @@ export default function FundsPage() {
     try {
       for (const f of draftFunds) {
         if (!f.name.trim()) throw new Error("All funds must have a name");
-        if (Number.isNaN(Number(f.openingAmount)))
-          throw new Error(`Invalid opening amount for "${f.name}"`);
       }
 
       await apiJson("/api/funds/sync", {
@@ -361,7 +361,6 @@ export default function FundsPage() {
           funds: draftFunds.map((f) => ({
             id: f.id,
             name: f.name.trim(),
-            openingAmount: Number(f.openingAmount),
             pullPercentage: f.isSavings ? 0 : f.pullPercentage,
           })),
           deletedIds,
@@ -487,7 +486,6 @@ export default function FundsPage() {
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[150px]">Opening amount</TableHead>
                 <TableHead className="w-[120px] text-right">Balance</TableHead>
                 <TableHead className="w-[140px] text-right">
                   w/ Pending
@@ -539,20 +537,6 @@ export default function FundsPage() {
                           </span>
                         )}
                       </div>
-                    </TableCell>
-
-                    {/* Opening amount */}
-                    <TableCell>
-                      <Input
-                        inputMode="decimal"
-                        value={f.openingAmount}
-                        onChange={(e) =>
-                          updateDraft(f.key, {
-                            openingAmount: e.target.value,
-                          })
-                        }
-                        disabled={busy}
-                      />
                     </TableCell>
 
                     {/* Balance */}
@@ -611,10 +595,6 @@ export default function FundsPage() {
                   >
                     <span className="min-w-[100px] font-medium">{f.name}</span>
                     <span className="tabular-nums">{displayPct} pull</span>
-                    <span className="opacity-40">·</span>
-                    <span className="tabular-nums">
-                      {fmtAmount(f.openingAmount)} opening
-                    </span>
                     <span className="opacity-40">·</span>
                     <span className="tabular-nums">
                       {fmtAmount(f.balance)} balance

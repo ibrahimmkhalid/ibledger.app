@@ -29,7 +29,6 @@ import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
 
 type WalletFormState = {
   name: string;
-  openingAmount: string;
 };
 
 function WalletModal(args: {
@@ -42,14 +41,10 @@ function WalletModal(args: {
 }) {
   const { open, onOpenChange, title, initial, busy, onSave } = args;
   const [name, setName] = useState(initial?.name ?? "");
-  const [openingAmount, setOpeningAmount] = useState(
-    initial?.openingAmount ?? "0",
-  );
 
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
-    setOpeningAmount(initial?.openingAmount ?? "0");
   }, [open, initial]);
 
   return (
@@ -64,20 +59,12 @@ function WalletModal(args: {
             <div className="text-muted-foreground text-xs">Name</div>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Opening amount</div>
-            <Input
-              inputMode="decimal"
-              value={openingAmount}
-              onChange={(e) => setOpeningAmount(e.target.value)}
-            />
-          </div>
         </div>
 
         <DialogFooter>
           <Button
             type="button"
-            onClick={() => void onSave({ name, openingAmount })}
+            onClick={() => void onSave({ name })}
             disabled={busy}
           >
             Save
@@ -109,6 +96,11 @@ export default function WalletsPage() {
         method: "POST",
         body: "{}",
       });
+      if (boot.migration?.required) {
+        router.replace(boot.migration.redirectTo);
+        return;
+      }
+
       if (boot.onboarding?.required) {
         router.replace(boot.onboarding.redirectTo);
         return;
@@ -130,14 +122,11 @@ export default function WalletsPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
 
       await apiJson("/api/wallets", {
         method: "POST",
-        body: JSON.stringify({ name: data.name, openingAmount }),
+        body: JSON.stringify({ name: data.name }),
       });
       setCreateOpen(false);
       setNotice("Wallet created");
@@ -153,14 +142,11 @@ export default function WalletsPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
 
       await apiJson("/api/wallets", {
         method: "PATCH",
-        body: JSON.stringify({ id: wallet.id, name: data.name, openingAmount }),
+        body: JSON.stringify({ id: wallet.id, name: data.name }),
       });
       setEditWallet(null);
       setNotice("Wallet updated");
@@ -255,7 +241,6 @@ export default function WalletsPage() {
           editWallet
             ? {
                 name: editWallet.name,
-                openingAmount: String(editWallet.openingAmount),
               }
             : undefined
         }

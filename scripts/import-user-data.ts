@@ -12,13 +12,11 @@ type PsuedoId = string | number;
 
 type ImportWallet = {
   name: unknown;
-  opening_amount: unknown;
   psuedo_id: unknown;
 };
 
 type ImportFund = {
   name: unknown;
-  opening_amount: unknown;
   is_savings: unknown;
   pull_percentage: unknown;
   psuedo_id: unknown;
@@ -144,7 +142,9 @@ async function main() {
   const walletsIn = Array.isArray(parsed.wallets)
     ? (parsed.wallets as ImportWallet[])
     : null;
-  const fundsIn = Array.isArray(parsed.funds) ? (parsed.funds as ImportFund[]) : null;
+  const fundsIn = Array.isArray(parsed.funds)
+    ? (parsed.funds as ImportFund[])
+    : null;
   const txIn = Array.isArray(parsed.transactions)
     ? (parsed.transactions as ImportTransaction[])
     : null;
@@ -183,11 +183,15 @@ async function main() {
     // Hard delete existing data for this user.
     const delChildren = await tx
       .delete(transactions)
-      .where(and(eq(transactions.userId, userId), isNotNull(transactions.parentId)))
+      .where(
+        and(eq(transactions.userId, userId), isNotNull(transactions.parentId)),
+      )
       .returning({ id: transactions.id });
     const delRoots = await tx
       .delete(transactions)
-      .where(and(eq(transactions.userId, userId), isNull(transactions.parentId)))
+      .where(
+        and(eq(transactions.userId, userId), isNull(transactions.parentId)),
+      )
       .returning({ id: transactions.id });
 
     const delWallets = await tx
@@ -207,11 +211,10 @@ async function main() {
     for (const w of walletsIn) {
       const psuedoId = toPsuedoId(w.psuedo_id, "wallet.psuedo_id");
       const name = String(w.name);
-      const openingAmount = toNumber(w.opening_amount, "wallet.opening_amount");
 
       const inserted = await tx
         .insert(wallets)
-        .values({ userId, name, openingAmount })
+        .values({ userId, name })
         .returning({ id: wallets.id });
 
       walletIdByPsuedo.set(String(psuedoId), inserted[0]!.id);
@@ -222,7 +225,6 @@ async function main() {
     for (const f of fundsIn) {
       const psuedoId = toPsuedoId(f.psuedo_id, "fund.psuedo_id");
       const name = String(f.name);
-      const openingAmount = toNumber(f.opening_amount, "fund.opening_amount");
       const isSavings = toBoolean(f.is_savings, "fund.is_savings");
       const pullPercentage = isSavings
         ? 0
@@ -233,7 +235,6 @@ async function main() {
         .values({
           userId,
           name,
-          openingAmount,
           isSavings,
           pullPercentage,
         })
@@ -287,16 +288,26 @@ async function main() {
 
     const events: Event[] = [];
     for (const r of roots) {
-      events.push({ kind: "root", key: r.key, occurredAt: r.occurredAt, index: r.index });
+      events.push({
+        kind: "root",
+        key: r.key,
+        occurredAt: r.occurredAt,
+        index: r.index,
+      });
 
       const childRaw = r.root.child_transactions;
-      const children = Array.isArray(childRaw) ? (childRaw as ImportTransactionLine[]) : [];
+      const children = Array.isArray(childRaw)
+        ? (childRaw as ImportTransactionLine[])
+        : [];
       for (let j = 0; j < children.length; j++) {
         const child = children[j]!;
         events.push({
           kind: "child",
           key: r.key,
-          occurredAt: parseOccurredAt(child, `transactions[${r.index}].child_transactions[${j}]`),
+          occurredAt: parseOccurredAt(
+            child,
+            `transactions[${r.index}].child_transactions[${j}]`,
+          ),
           index: r.index,
           childIndex: j,
           child,
@@ -310,7 +321,8 @@ async function main() {
       if (ta !== tb) return ta - tb;
       if (a.kind !== b.kind) return a.kind === "root" ? -1 : 1;
       if (a.index !== b.index) return a.index - b.index;
-      if (a.kind === "child" && b.kind === "child") return a.childIndex - b.childIndex;
+      if (a.kind === "child" && b.kind === "child")
+        return a.childIndex - b.childIndex;
       return 0;
     });
 
@@ -337,8 +349,12 @@ async function main() {
       const root = rootByKey.get(key);
       if (!root) throw new Error(`Missing root transaction for key=${key}`);
 
-      const walletId = resolveWalletId((root.root as ImportTransactionLine).wallet_psuedo_id);
-      const fundId = resolveFundId((root.root as ImportTransactionLine).fund_psuedo_id);
+      const walletId = resolveWalletId(
+        (root.root as ImportTransactionLine).wallet_psuedo_id,
+      );
+      const fundId = resolveFundId(
+        (root.root as ImportTransactionLine).fund_psuedo_id,
+      );
 
       const descriptionRaw = (root.root as ImportTransactionLine).description;
       const description =
@@ -348,7 +364,9 @@ async function main() {
 
       const isPendingRaw = (root.root as ImportTransactionLine).is_pending;
       const isPending =
-        isPendingRaw === undefined ? true : toBoolean(isPendingRaw, "transaction.is_pending");
+        isPendingRaw === undefined
+          ? true
+          : toBoolean(isPendingRaw, "transaction.is_pending");
 
       const incomePullRaw = (root.root as ImportTransactionLine).income_pull;
       const incomePull =
@@ -356,7 +374,10 @@ async function main() {
           ? null
           : toNumber(incomePullRaw, "transaction.income_pull");
 
-      const amount = toNumber((root.root as ImportTransactionLine).amount, "transaction.amount");
+      const amount = toNumber(
+        (root.root as ImportTransactionLine).amount,
+        "transaction.amount",
+      );
 
       const inserted = await tx
         .insert(transactions)
@@ -411,7 +432,9 @@ async function main() {
 
       const isPendingRaw = e.child.is_pending;
       const isPending =
-        isPendingRaw === undefined ? true : toBoolean(isPendingRaw, "child.is_pending");
+        isPendingRaw === undefined
+          ? true
+          : toBoolean(isPendingRaw, "child.is_pending");
 
       const incomePullRaw = e.child.income_pull;
       const incomePull =

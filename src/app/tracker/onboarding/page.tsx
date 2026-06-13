@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount } from "@/app/tracker/lib/format";
 import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
@@ -36,7 +35,6 @@ import { CircleHelpIcon } from "lucide-react";
 
 type WalletFormState = {
   name: string;
-  openingAmount: string;
 };
 
 function WalletModal(args: {
@@ -49,14 +47,10 @@ function WalletModal(args: {
 }) {
   const { open, onOpenChange, title, initial, busy, onSave } = args;
   const [name, setName] = useState(initial?.name ?? "");
-  const [openingAmount, setOpeningAmount] = useState(
-    initial?.openingAmount ?? "0",
-  );
 
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
-    setOpeningAmount(initial?.openingAmount ?? "0");
   }, [open, initial]);
 
   return (
@@ -71,40 +65,12 @@ function WalletModal(args: {
             <div className="text-muted-foreground text-xs">Name</div>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-row gap-1">
-              <div className="text-muted-foreground text-xs">
-                Opening amount
-              </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <CircleHelpIcon
-                      className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">
-                      The initial balance of this wallet when you start
-                      tracking.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-
-            <Input
-              inputMode="decimal"
-              value={openingAmount}
-              onChange={(e) => setOpeningAmount(e.target.value)}
-            />
-          </div>
         </div>
 
         <DialogFooter>
           <Button
             type="button"
-            onClick={() => void onSave({ name, openingAmount })}
+            onClick={() => void onSave({ name })}
             disabled={busy}
           >
             Save
@@ -117,7 +83,6 @@ function WalletModal(args: {
 
 type FundFormState = {
   name: string;
-  openingAmount: string;
   pullPercentage: string;
 };
 
@@ -140,9 +105,6 @@ function FundModal(args: {
     onSave,
   } = args;
   const [name, setName] = useState(initial?.name ?? "");
-  const [openingAmount, setOpeningAmount] = useState(
-    initial?.openingAmount ?? "0",
-  );
   const [pullPercentage, setPullPercentage] = useState(
     initial?.pullPercentage ?? "0",
   );
@@ -150,7 +112,6 @@ function FundModal(args: {
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
-    setOpeningAmount(initial?.openingAmount ?? "0");
     setPullPercentage(initial?.pullPercentage ?? "0");
   }, [open, initial]);
 
@@ -169,40 +130,12 @@ function FundModal(args: {
           <div className="flex flex-col gap-2">
             <div className="flex flex-row gap-1">
               <div className="text-muted-foreground text-xs">
-                Opening amount
-              </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <CircleHelpIcon
-                      className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">
-                      The initial balance of this fund when you start tracking.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <Input
-              inputMode="decimal"
-              value={openingAmount}
-              onChange={(e) => setOpeningAmount(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-row gap-1">
-              <div className="text-muted-foreground text-xs">
                 Pull percentage
               </div>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <CircleHelpIcon
-                      className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
-                    />
+                    <CircleHelpIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -225,7 +158,7 @@ function FundModal(args: {
         <DialogFooter>
           <Button
             type="button"
-            onClick={() => void onSave({ name, openingAmount, pullPercentage })}
+            onClick={() => void onSave({ name, pullPercentage })}
             disabled={busy}
           >
             Save
@@ -261,10 +194,15 @@ export default function OnboardingPage() {
     setNotice(null);
 
     try {
-      await apiJson<BootstrapResponse>("/api/bootstrap", {
+      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
         method: "POST",
         body: "{}",
       });
+
+      if (boot.migration?.required) {
+        router.replace(boot.migration.redirectTo);
+        return;
+      }
 
       // Even if onboarding is no longer required, allow users to revisit this
       // page to tweak initial setup.
@@ -281,7 +219,7 @@ export default function OnboardingPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void refresh();
@@ -291,14 +229,11 @@ export default function OnboardingPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
 
       await apiJson("/api/wallets", {
         method: "POST",
-        body: JSON.stringify({ name: data.name, openingAmount }),
+        body: JSON.stringify({ name: data.name }),
       });
       setCreateWalletOpen(false);
       setNotice("Wallet created");
@@ -314,14 +249,11 @@ export default function OnboardingPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
 
       await apiJson("/api/wallets", {
         method: "PATCH",
-        body: JSON.stringify({ id: wallet.id, name: data.name, openingAmount }),
+        body: JSON.stringify({ id: wallet.id, name: data.name }),
       });
       setEditWallet(null);
       setNotice("Wallet updated");
@@ -359,11 +291,8 @@ export default function OnboardingPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
       if (
         Number.isNaN(pullPercentage) ||
         pullPercentage < 0 ||
@@ -376,7 +305,6 @@ export default function OnboardingPage() {
         method: "POST",
         body: JSON.stringify({
           name: data.name,
-          openingAmount,
           pullPercentage,
         }),
       });
@@ -394,11 +322,8 @@ export default function OnboardingPage() {
     setBusy(true);
     setError(null);
     try {
-      const openingAmount = Number(data.openingAmount);
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (Number.isNaN(openingAmount))
-        throw new Error("Invalid opening amount");
       if (
         Number.isNaN(pullPercentage) ||
         pullPercentage < 0 ||
@@ -412,7 +337,6 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           id: fund.id,
           name: data.name,
-          openingAmount,
           pullPercentage,
         }),
       });
@@ -530,7 +454,6 @@ export default function OnboardingPage() {
           editWallet
             ? {
                 name: editWallet.name,
-                openingAmount: String(editWallet.openingAmount),
               }
             : undefined
         }
@@ -559,7 +482,6 @@ export default function OnboardingPage() {
           editFund
             ? {
                 name: editFund.name,
-                openingAmount: String(editFund.openingAmount),
                 pullPercentage: String(editFund.pullPercentage ?? 0),
               }
             : undefined
@@ -591,14 +513,13 @@ export default function OnboardingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[160px] text-right">Opening</TableHead>
                 <TableHead className="w-[200px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {wallets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground">
+                  <TableCell colSpan={2} className="text-muted-foreground">
                     No wallets yet.
                   </TableCell>
                 </TableRow>
@@ -606,9 +527,6 @@ export default function OnboardingPage() {
                 wallets.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {fmtAmount(w.openingAmount)}
-                    </TableCell>
                     <TableCell className="flex justify-end gap-2">
                       <Button
                         variant="outline"
@@ -652,14 +570,13 @@ export default function OnboardingPage() {
                 <TableHead>Name</TableHead>
                 <TableHead className="w-[110px]">Savings</TableHead>
                 <TableHead className="w-[130px] text-right">Pull %</TableHead>
-                <TableHead className="w-[160px] text-right">Opening</TableHead>
                 <TableHead className="w-[220px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {funds.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground">
+                  <TableCell colSpan={4} className="text-muted-foreground">
                     No funds yet.
                   </TableCell>
                 </TableRow>
@@ -670,9 +587,6 @@ export default function OnboardingPage() {
                     <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {fmtAmount(f.openingAmount)}
                     </TableCell>
                     <TableCell className="flex justify-end gap-2">
                       <Button

@@ -24,15 +24,13 @@ export async function GET() {
       .select({
         id: wallets.id,
         name: wallets.name,
-        openingAmount: wallets.openingAmount,
         createdAt: wallets.createdAt,
         updatedAt: wallets.updatedAt,
         balance: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) +
           COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
         `.as("balance"),
         balanceWithPending: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(wallets)
@@ -46,13 +44,7 @@ export async function GET() {
         ),
       )
       .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
-      .groupBy(
-        wallets.id,
-        wallets.name,
-        wallets.openingAmount,
-        wallets.createdAt,
-        wallets.updatedAt,
-      );
+      .groupBy(wallets.id, wallets.name, wallets.createdAt, wallets.updatedAt);
 
     return NextResponse.json({ wallets: userWallets });
   } catch (error) {
@@ -85,14 +77,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing name" }, { status: 400 });
     }
 
-    const openingAmount = Number(data.openingAmount ?? 0);
-
     const newWallet = await db
       .insert(wallets)
       .values({
         userId: user.id,
         name: String(data.name),
-        openingAmount,
       })
       .returning();
 
@@ -146,16 +135,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const nextName = data?.name ? String(data.name) : selectedWallet.name;
-    const nextOpeningAmount =
-      data?.openingAmount !== undefined
-        ? Number(data.openingAmount)
-        : selectedWallet.openingAmount;
 
     const updatedWallet = await db
       .update(wallets)
       .set({
         name: nextName,
-        openingAmount: nextOpeningAmount,
         updatedAt: new Date(),
       })
       .where(eq(wallets.id, walletId))
@@ -225,7 +209,7 @@ export async function DELETE(request: NextRequest) {
     const walletBalanceRow = await db
       .select({
         balanceWithPending: sql<number>`
-          COALESCE(${wallets.openingAmount}, 0) + COALESCE(SUM(${transactions.amount}), 0)
+          COALESCE(SUM(${transactions.amount}), 0)
         `.as("balanceWithPending"),
       })
       .from(wallets)
@@ -245,7 +229,7 @@ export async function DELETE(request: NextRequest) {
           isNull(wallets.deletedAt),
         ),
       )
-      .groupBy(wallets.id, wallets.openingAmount)
+      .groupBy(wallets.id)
       .limit(1)
       .then((res) => res[0]);
 
