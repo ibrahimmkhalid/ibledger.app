@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
@@ -74,106 +74,156 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    for (const f of fundInputs) {
+      if (
+        f.id !== undefined &&
+        f.id !== null &&
+        (!Number.isFinite(Number(f.id)) || Number(f.id) <= 0)
+      ) {
+        return NextResponse.json(
+          { error: "Invalid fund id in funds" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const updateInputs = fundInputs.filter((fund) => Boolean(fund.id));
+    const createInputs = fundInputs.filter((fund) => !fund.id);
+    const deletedFundIds = Array.from(new Set(deletedIds));
+    const deletedFundIdSet = new Set(deletedFundIds);
+    const overlappingFundId = updateInputs
+      .map((fund) => Number(fund.id))
+      .find((id) => deletedFundIdSet.has(id));
+
+    if (overlappingFundId !== undefined) {
+      return NextResponse.json(
+        { error: `Fund ${overlappingFundId} cannot be updated and deleted` },
+        { status: 400 },
+      );
+    }
+
+    const touchedFundIds = Array.from(
+      new Set([
+        ...deletedFundIds,
+        ...updateInputs.map((fund) => Number(fund.id)),
+      ]),
+    );
+
     // ── Apply inside a transaction ───────────────────────────────────
 
     await db.transaction(async (tx) => {
       const now = new Date();
 
-      // 1. Deletions
-      for (const id of deletedIds) {
-        const target = await tx
-          .select({ id: funds.id, isSavings: funds.isSavings })
-          .from(funds)
-          .where(
-            and(
-              eq(funds.id, id),
-              eq(funds.userId, user.id),
-              isNull(funds.deletedAt),
-            ),
-          )
-          .limit(1)
-          .then((r) => r[0]);
+      const existingFunds =
+        touchedFundIds.length === 0
+          ? []
+          : await tx
+              .select({ id: funds.id, isSavings: funds.isSavings })
+              .from(funds)
+              .where(
+                and(
+                  eq(funds.userId, user.id),
+                  inArray(funds.id, touchedFundIds),
+                  isNull(funds.deletedAt),
+                ),
+              );
 
+      const existingById = new Map(
+        existingFunds.map((fund) => [fund.id, fund]),
+      );
+
+      for (const id of deletedFundIds) {
+        const target = existingById.get(id);
         if (!target) throw new Error(`Fund ${id} not found`);
         if (target.isSavings) throw new Error("Cannot delete savings fund");
+      }
 
-        // Verify zero balance (including pending)
-        const balRow = await tx
-          .select({
-            bal: sql<number>`
+      for (const fund of updateInputs) {
+        const id = Number(fund.id);
+        if (!existingById.has(id)) throw new Error(`Fund ${id} not found`);
+      }
+
+      // Verify zero balance for all deletions in one grouped read.
+      const balanceRows =
+        deletedFundIds.length === 0
+          ? []
+          : await tx
+              .select({
+                fundId: transactions.fundId,
+                bal: sql<number>`
               COALESCE(SUM(${transactions.amount}), 0)
             `.as("bal"),
-          })
-          .from(funds)
-          .leftJoin(
-            transactions,
-            and(
-              eq(transactions.userId, user.id),
-              eq(transactions.fundId, funds.id),
-              eq(transactions.isPosting, true),
-              isNull(transactions.deletedAt),
-            ),
-          )
-          .where(
-            and(
-              eq(funds.id, id),
-              eq(funds.userId, user.id),
-              isNull(funds.deletedAt),
-            ),
-          )
-          .groupBy(funds.id)
-          .limit(1)
-          .then((r) => r[0]);
+              })
+              .from(transactions)
+              .where(
+                and(
+                  eq(transactions.userId, user.id),
+                  inArray(transactions.fundId, deletedFundIds),
+                  eq(transactions.isPosting, true),
+                  isNull(transactions.deletedAt),
+                ),
+              )
+              .groupBy(transactions.fundId);
 
-        const bal = Number(balRow?.bal ?? 0);
+      const balanceByFundId = new Map<number, number>();
+      for (const row of balanceRows) {
+        if (row.fundId !== null) {
+          balanceByFundId.set(row.fundId, Number(row.bal ?? 0));
+        }
+      }
+
+      for (const id of deletedFundIds) {
+        const bal = balanceByFundId.get(id) ?? 0;
         if (Math.abs(bal) > 0.005) {
           throw new Error(
-            `Fund "${target.id}" has a non-zero balance. Move the money out first.`,
+            `Fund "${id}" has a non-zero balance. Move the money out first.`,
           );
         }
+      }
 
+      if (deletedFundIds.length > 0) {
         await tx
           .update(funds)
           .set({ deletedAt: now, updatedAt: now })
-          .where(eq(funds.id, id));
+          .where(
+            and(
+              eq(funds.userId, user.id),
+              inArray(funds.id, deletedFundIds),
+              isNull(funds.deletedAt),
+            ),
+          );
       }
 
-      // 2. Updates & creates
-      for (const f of fundInputs) {
-        if (f.id) {
-          // ── Update existing ──
-          const target = await tx
-            .select({ id: funds.id, isSavings: funds.isSavings })
-            .from(funds)
-            .where(
-              and(
-                eq(funds.id, f.id),
-                eq(funds.userId, user.id),
-                isNull(funds.deletedAt),
-              ),
-            )
-            .limit(1)
-            .then((r) => r[0]);
+      for (const f of updateInputs) {
+        const id = Number(f.id);
+        const target = existingById.get(id);
+        if (!target) throw new Error(`Fund ${id} not found`);
 
-          if (!target) throw new Error(`Fund ${f.id} not found`);
-
-          await tx
-            .update(funds)
-            .set({
-              name: f.name.trim(),
-              pullPercentage: target.isSavings ? 0 : Number(f.pullPercentage),
-              updatedAt: now,
-            })
-            .where(eq(funds.id, f.id));
-        } else {
-          // ── Create new fund ──
-          await tx.insert(funds).values({
-            userId: user.id,
+        await tx
+          .update(funds)
+          .set({
             name: f.name.trim(),
+            pullPercentage: target.isSavings ? 0 : Number(f.pullPercentage),
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(funds.id, id),
+              eq(funds.userId, user.id),
+              isNull(funds.deletedAt),
+            ),
+          );
+      }
+
+      if (createInputs.length > 0) {
+        await tx.insert(funds).values(
+          createInputs.map((fund) => ({
+            userId: user.id,
+            name: fund.name.trim(),
             isSavings: false,
-            pullPercentage: Number(f.pullPercentage),
-          });
-        }
+            pullPercentage: Number(fund.pullPercentage),
+          })),
+        );
       }
     });
 

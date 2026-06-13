@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
@@ -61,44 +61,45 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid id" }, { status: 400 });
     }
 
-    const event = await db
-      .select()
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.id, eventId),
-          eq(transactions.userId, user.id),
-          isNull(transactions.parentId),
-          isNull(transactions.deletedAt),
+    const [event, childPostings] = await Promise.all([
+      db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.id, eventId),
+            eq(transactions.userId, user.id),
+            isNull(transactions.parentId),
+            isNull(transactions.deletedAt),
+          ),
+        )
+        .limit(1)
+        .then((res) => res[0]),
+      db
+        .select({
+          id: transactions.id,
+          occurredAt: transactions.occurredAt,
+          description: transactions.description,
+          isPending: transactions.isPending,
+          amount: transactions.amount,
+          incomePull: transactions.incomePull,
+          walletId: transactions.walletId,
+          fundId: transactions.fundId,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.parentId, eventId),
+            eq(transactions.isPosting, true),
+            isNull(transactions.deletedAt),
+          ),
         ),
-      )
-      .limit(1)
-      .then((res) => res[0]);
+    ]);
 
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
-
-    const childPostings = await db
-      .select({
-        id: transactions.id,
-        occurredAt: transactions.occurredAt,
-        description: transactions.description,
-        isPending: transactions.isPending,
-        amount: transactions.amount,
-        incomePull: transactions.incomePull,
-        walletId: transactions.walletId,
-        fundId: transactions.fundId,
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.parentId, eventId),
-          eq(transactions.isPosting, true),
-          isNull(transactions.deletedAt),
-        ),
-      );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = await request.json();
@@ -153,37 +154,38 @@ export async function PATCH(
         );
       }
 
-      const ownedWallet = await db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.id, nextWalletId),
-            eq(wallets.userId, user.id),
-            isNull(wallets.deletedAt),
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]);
+      const [ownedWallet, savingsFundId] = await Promise.all([
+        db
+          .select({ id: wallets.id })
+          .from(wallets)
+          .where(
+            and(
+              eq(wallets.id, nextWalletId),
+              eq(wallets.userId, user.id),
+              isNull(wallets.deletedAt),
+            ),
+          )
+          .limit(1)
+          .then((res) => res[0]),
+        db
+          .select({ id: funds.id })
+          .from(funds)
+          .where(
+            and(
+              eq(funds.userId, user.id),
+              eq(funds.isSavings, true),
+              isNull(funds.deletedAt),
+            ),
+          )
+          .limit(1)
+          .then((res) => res[0]?.id ?? null),
+      ]);
       if (!ownedWallet) {
         return NextResponse.json(
           { error: "Wallet not found" },
           { status: 404 },
         );
       }
-
-      const savingsFundId = await db
-        .select({ id: funds.id })
-        .from(funds)
-        .where(
-          and(
-            eq(funds.userId, user.id),
-            eq(funds.isSavings, true),
-            isNull(funds.deletedAt),
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]?.id ?? null);
 
       if (!savingsFundId) {
         return NextResponse.json(
@@ -437,18 +439,34 @@ export async function PATCH(
       ),
     );
 
-    if (neededWalletIds.length > 0) {
-      const ownedWallets = await db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.userId, user.id),
-            inArray(wallets.id, neededWalletIds),
-            isNull(wallets.deletedAt),
-          ),
-        );
+    const [ownedWallets, ownedFunds] = await Promise.all([
+      neededWalletIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: wallets.id })
+            .from(wallets)
+            .where(
+              and(
+                eq(wallets.userId, user.id),
+                inArray(wallets.id, neededWalletIds),
+                isNull(wallets.deletedAt),
+              ),
+            ),
+      neededFundIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: funds.id })
+            .from(funds)
+            .where(
+              and(
+                eq(funds.userId, user.id),
+                inArray(funds.id, neededFundIds),
+                isNull(funds.deletedAt),
+              ),
+            ),
+    ]);
 
+    if (neededWalletIds.length > 0) {
       if (ownedWallets.length !== neededWalletIds.length) {
         return NextResponse.json(
           { error: "One or more wallets not found" },
@@ -458,17 +476,6 @@ export async function PATCH(
     }
 
     if (neededFundIds.length > 0) {
-      const ownedFunds = await db
-        .select({ id: funds.id })
-        .from(funds)
-        .where(
-          and(
-            eq(funds.userId, user.id),
-            inArray(funds.id, neededFundIds),
-            isNull(funds.deletedAt),
-          ),
-        );
-
       if (ownedFunds.length !== neededFundIds.length) {
         return NextResponse.json(
           { error: "One or more funds not found" },
@@ -676,16 +683,9 @@ export async function DELETE(
       .update(transactions)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(
-        and(eq(transactions.userId, user.id), eq(transactions.id, eventId)),
-      );
-
-    await db
-      .update(transactions)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(
         and(
           eq(transactions.userId, user.id),
-          eq(transactions.parentId, eventId),
+          or(eq(transactions.id, eventId), eq(transactions.parentId, eventId)),
         ),
       );
 

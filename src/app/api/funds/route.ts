@@ -177,34 +177,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing fund id" }, { status: 400 });
     }
 
-    const selectedFund = await db
-      .select()
-      .from(funds)
-      .where(
-        and(
-          eq(funds.id, fundId),
-          eq(funds.userId, user.id),
-          isNull(funds.deletedAt),
-        ),
-      )
-      .limit(1)
-      .then((res) => res[0]);
-
-    if (!selectedFund) {
-      return NextResponse.json({ error: "Fund not found" }, { status: 404 });
-    }
-
-    const nextName = data?.name ? String(data.name) : selectedFund.name;
-
     const nextPullPercentage =
-      data?.pullPercentage !== undefined
-        ? Number(data.pullPercentage)
-        : Number(selectedFund.pullPercentage ?? 0);
+      data?.pullPercentage !== undefined ? Number(data.pullPercentage) : null;
 
     if (
-      Number.isNaN(nextPullPercentage) ||
-      nextPullPercentage < 0 ||
-      nextPullPercentage > 100
+      nextPullPercentage !== null &&
+      (Number.isNaN(nextPullPercentage) ||
+        nextPullPercentage < 0 ||
+        nextPullPercentage > 100)
     ) {
       return NextResponse.json(
         { error: "Invalid pullPercentage" },
@@ -215,14 +195,32 @@ export async function PATCH(request: NextRequest) {
     const updatedFund = await db
       .update(funds)
       .set({
-        name: nextName,
-        pullPercentage: selectedFund.isSavings ? 0 : nextPullPercentage,
+        ...(data?.name ? { name: String(data.name) } : {}),
+        pullPercentage:
+          nextPullPercentage === null
+            ? sql<number>`
+                CASE WHEN ${funds.isSavings} THEN 0 ELSE ${funds.pullPercentage} END
+              `
+            : sql<number>`
+                CASE WHEN ${funds.isSavings} THEN 0 ELSE ${nextPullPercentage} END
+              `,
         updatedAt: new Date(),
       })
-      .where(eq(funds.id, fundId))
-      .returning();
+      .where(
+        and(
+          eq(funds.id, fundId),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      )
+      .returning()
+      .then((res) => res[0]);
 
-    return NextResponse.json({ fund: updatedFund[0] });
+    if (!updatedFund) {
+      return NextResponse.json({ error: "Fund not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ fund: updatedFund });
   } catch (error) {
     console.error("API: Error updating fund", error);
     return NextResponse.json(
@@ -254,18 +252,36 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing fund id" }, { status: 400 });
     }
 
-    const selectedFund = await db
-      .select()
-      .from(funds)
-      .where(
-        and(
-          eq(funds.id, fundId),
-          eq(funds.userId, user.id),
-          isNull(funds.deletedAt),
-        ),
-      )
-      .limit(1)
-      .then((res) => res[0]);
+    const [selectedFund, fundBalanceRow] = await Promise.all([
+      db
+        .select({ id: funds.id, isSavings: funds.isSavings })
+        .from(funds)
+        .where(
+          and(
+            eq(funds.id, fundId),
+            eq(funds.userId, user.id),
+            isNull(funds.deletedAt),
+          ),
+        )
+        .limit(1)
+        .then((res) => res[0]),
+      db
+        .select({
+          balanceWithPending: sql<number>`
+            COALESCE(SUM(${transactions.amount}), 0)
+          `.as("balanceWithPending"),
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.fundId, fundId),
+            eq(transactions.isPosting, true),
+            isNull(transactions.deletedAt),
+          ),
+        )
+        .then((res) => res[0]),
+    ]);
 
     if (!selectedFund) {
       return NextResponse.json({ error: "Fund not found" }, { status: 404 });
@@ -277,33 +293,6 @@ export async function DELETE(request: NextRequest) {
         { status: 400 },
       );
     }
-
-    const fundBalanceRow = await db
-      .select({
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
-      })
-      .from(funds)
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.fundId, funds.id),
-          eq(transactions.isPosting, true),
-          isNull(transactions.deletedAt),
-        ),
-      )
-      .where(
-        and(
-          eq(funds.id, fundId),
-          eq(funds.userId, user.id),
-          isNull(funds.deletedAt),
-        ),
-      )
-      .groupBy(funds.id)
-      .limit(1)
-      .then((res) => res[0]);
 
     const bal = Number(fundBalanceRow?.balanceWithPending ?? 0);
     if (Math.abs(bal) > 0.005) {
@@ -319,10 +308,21 @@ export async function DELETE(request: NextRequest) {
     const deletedFund = await db
       .update(funds)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(funds.id, fundId))
-      .returning();
+      .where(
+        and(
+          eq(funds.id, fundId),
+          eq(funds.userId, user.id),
+          isNull(funds.deletedAt),
+        ),
+      )
+      .returning()
+      .then((res) => res[0]);
 
-    return NextResponse.json({ fund: deletedFund[0] });
+    if (!deletedFund) {
+      return NextResponse.json({ error: "Fund not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ fund: deletedFund });
   } catch (error) {
     console.error("API: Error deleting fund", error);
     return NextResponse.json(

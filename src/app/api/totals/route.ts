@@ -20,55 +20,56 @@ export async function GET() {
       );
     }
 
-    const walletTotals = await db
-      .select({
-        id: wallets.id,
-        name: wallets.name,
-        balance: sql<number>`
-          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-        `.as("balance"),
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
-      })
-      .from(wallets)
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.walletId, wallets.id),
-          eq(transactions.isPosting, true),
-          isNull(transactions.deletedAt),
-        ),
-      )
-      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
-      .groupBy(wallets.id, wallets.name);
-
-    const fundTotals = await db
-      .select({
-        id: funds.id,
-        name: funds.name,
-        isSavings: funds.isSavings,
-        pullPercentage: funds.pullPercentage,
-        balance: sql<number>`
-          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-        `.as("balance"),
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
-      })
-      .from(funds)
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.fundId, funds.id),
-          eq(transactions.isPosting, true),
-          isNull(transactions.deletedAt),
-        ),
-      )
-      .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-      .groupBy(funds.id, funds.name, funds.isSavings, funds.pullPercentage);
+    const [walletTotals, fundTotals] = await Promise.all([
+      db
+        .select({
+          id: wallets.id,
+          name: wallets.name,
+          balance: sql<number>`
+            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
+          `.as("balance"),
+          balanceWithPending: sql<number>`
+            COALESCE(SUM(${transactions.amount}), 0)
+          `.as("balanceWithPending"),
+        })
+        .from(wallets)
+        .leftJoin(
+          transactions,
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.walletId, wallets.id),
+            eq(transactions.isPosting, true),
+            isNull(transactions.deletedAt),
+          ),
+        )
+        .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+        .groupBy(wallets.id, wallets.name),
+      db
+        .select({
+          id: funds.id,
+          name: funds.name,
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+          balance: sql<number>`
+            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
+          `.as("balance"),
+          balanceWithPending: sql<number>`
+            COALESCE(SUM(${transactions.amount}), 0)
+          `.as("balanceWithPending"),
+        })
+        .from(funds)
+        .leftJoin(
+          transactions,
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.fundId, funds.id),
+            eq(transactions.isPosting, true),
+            isNull(transactions.deletedAt),
+          ),
+        )
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
+        .groupBy(funds.id, funds.name, funds.isSavings, funds.pullPercentage),
+    ]);
 
     const fundTotalsWithRaw = fundTotals.map((f) => ({
       ...f,

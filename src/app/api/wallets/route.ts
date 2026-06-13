@@ -117,9 +117,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing wallet id" }, { status: 400 });
     }
 
-    const selectedWallet = await db
-      .select()
-      .from(wallets)
+    const updatedWallet = await db
+      .update(wallets)
+      .set({
+        ...(data?.name ? { name: String(data.name) } : {}),
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(wallets.id, walletId),
@@ -127,25 +130,14 @@ export async function PATCH(request: NextRequest) {
           isNull(wallets.deletedAt),
         ),
       )
-      .limit(1)
+      .returning()
       .then((res) => res[0]);
 
-    if (!selectedWallet) {
+    if (!updatedWallet) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
-    const nextName = data?.name ? String(data.name) : selectedWallet.name;
-
-    const updatedWallet = await db
-      .update(wallets)
-      .set({
-        name: nextName,
-        updatedAt: new Date(),
-      })
-      .where(eq(wallets.id, walletId))
-      .returning();
-
-    return NextResponse.json({ wallet: updatedWallet[0] });
+    return NextResponse.json({ wallet: updatedWallet });
   } catch (error) {
     console.error("API: Error updating wallet", error);
     return NextResponse.json(
@@ -177,11 +169,46 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing wallet id" }, { status: 400 });
     }
 
-    const numWallets = await db
-      .select()
-      .from(wallets)
-      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
-      .then((res) => res.length);
+    const [walletCountRow, selectedWallet, walletBalanceRow] =
+      await Promise.all([
+        db
+          .select({
+            count: sql<number>`COUNT(*)`.as("count"),
+          })
+          .from(wallets)
+          .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+          .then((res) => res[0]),
+        db
+          .select({ id: wallets.id })
+          .from(wallets)
+          .where(
+            and(
+              eq(wallets.id, walletId),
+              eq(wallets.userId, user.id),
+              isNull(wallets.deletedAt),
+            ),
+          )
+          .limit(1)
+          .then((res) => res[0]),
+        db
+          .select({
+            balanceWithPending: sql<number>`
+              COALESCE(SUM(${transactions.amount}), 0)
+            `.as("balanceWithPending"),
+          })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.walletId, walletId),
+              eq(transactions.isPosting, true),
+              isNull(transactions.deletedAt),
+            ),
+          )
+          .then((res) => res[0]),
+      ]);
+
+    const numWallets = Number(walletCountRow?.count ?? 0);
     if (numWallets <= 1) {
       return NextResponse.json(
         { error: "Cannot delete last wallet" },
@@ -189,49 +216,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const selectedWallet = await db
-      .select()
-      .from(wallets)
-      .where(
-        and(
-          eq(wallets.id, walletId),
-          eq(wallets.userId, user.id),
-          isNull(wallets.deletedAt),
-        ),
-      )
-      .limit(1)
-      .then((res) => res[0]);
-
     if (!selectedWallet) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
-
-    const walletBalanceRow = await db
-      .select({
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
-      })
-      .from(wallets)
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.userId, user.id),
-          eq(transactions.walletId, wallets.id),
-          eq(transactions.isPosting, true),
-          isNull(transactions.deletedAt),
-        ),
-      )
-      .where(
-        and(
-          eq(wallets.id, walletId),
-          eq(wallets.userId, user.id),
-          isNull(wallets.deletedAt),
-        ),
-      )
-      .groupBy(wallets.id)
-      .limit(1)
-      .then((res) => res[0]);
 
     const bal = Number(walletBalanceRow?.balanceWithPending ?? 0);
     if (Math.abs(bal) > 0.005) {
@@ -247,10 +234,21 @@ export async function DELETE(request: NextRequest) {
     const deletedWallet = await db
       .update(wallets)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(wallets.id, walletId))
-      .returning();
+      .where(
+        and(
+          eq(wallets.id, walletId),
+          eq(wallets.userId, user.id),
+          isNull(wallets.deletedAt),
+        ),
+      )
+      .returning()
+      .then((res) => res[0]);
 
-    return NextResponse.json({ wallet: deletedWallet[0] });
+    if (!deletedWallet) {
+      return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ wallet: deletedWallet });
   } catch (error) {
     console.error("API: Error deleting wallet", error);
     return NextResponse.json(

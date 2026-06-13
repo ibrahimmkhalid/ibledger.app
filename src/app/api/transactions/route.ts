@@ -179,27 +179,6 @@ export async function POST(request: NextRequest) {
     const type = body?.type ? String(body.type) : "expense";
 
     if (type === "income") {
-      // Ensure we can find the required system savings fund.
-      const userFunds = await db
-        .select({
-          id: funds.id,
-          isSavings: funds.isSavings,
-          pullPercentage: funds.pullPercentage,
-        })
-        .from(funds)
-        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
-
-      const savingsFundId = userFunds.find((f) => Boolean(f.isSavings))?.id;
-
-      if (!savingsFundId) {
-        return NextResponse.json(
-          {
-            error: "Missing savings fund. Call POST /api/bootstrap first.",
-          },
-          { status: 400 },
-        );
-      }
-
       const walletId = Number(body?.walletId);
       const amount = Number(body?.amount);
       const isPending = eventIsPending;
@@ -218,23 +197,44 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const ownedWallet = await db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.id, walletId),
-            eq(wallets.userId, user.id),
-            isNull(wallets.deletedAt),
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]);
+      const [userFunds, ownedWallet] = await Promise.all([
+        db
+          .select({
+            id: funds.id,
+            isSavings: funds.isSavings,
+            pullPercentage: funds.pullPercentage,
+          })
+          .from(funds)
+          .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt))),
+        db
+          .select({ id: wallets.id })
+          .from(wallets)
+          .where(
+            and(
+              eq(wallets.id, walletId),
+              eq(wallets.userId, user.id),
+              isNull(wallets.deletedAt),
+            ),
+          )
+          .limit(1)
+          .then((res) => res[0]),
+      ]);
 
       if (!ownedWallet) {
         return NextResponse.json(
           { error: "Wallet not found" },
           { status: 404 },
+        );
+      }
+
+      const savingsFundId = userFunds.find((f) => Boolean(f.isSavings))?.id;
+
+      if (!savingsFundId) {
+        return NextResponse.json(
+          {
+            error: "Missing savings fund. Call POST /api/bootstrap first.",
+          },
+          { status: 400 },
         );
       }
 
@@ -377,30 +377,22 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    if (neededWalletIds.length > 0) {
-      const ownedWallets = await db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.userId, user.id),
-            inArray(wallets.id, neededWalletIds),
-            isNull(wallets.deletedAt),
-          ),
-        );
-
-      if (ownedWallets.length !== neededWalletIds.length) {
-        return NextResponse.json(
-          { error: "One or more wallets not found" },
-          { status: 400 },
-        );
-      }
-    }
-
-    const fundRows =
+    const [ownedWallets, fundRows] = await Promise.all([
+      neededWalletIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: wallets.id })
+            .from(wallets)
+            .where(
+              and(
+                eq(wallets.userId, user.id),
+                inArray(wallets.id, neededWalletIds),
+                isNull(wallets.deletedAt),
+              ),
+            ),
       neededFundIds.length === 0
-        ? []
-        : await db
+        ? Promise.resolve([])
+        : db
             .select({ id: funds.id })
             .from(funds)
             .where(
@@ -409,7 +401,17 @@ export async function POST(request: NextRequest) {
                 inArray(funds.id, neededFundIds),
                 isNull(funds.deletedAt),
               ),
-            );
+            ),
+    ]);
+
+    if (neededWalletIds.length > 0) {
+      if (ownedWallets.length !== neededWalletIds.length) {
+        return NextResponse.json(
+          { error: "One or more wallets not found" },
+          { status: 400 },
+        );
+      }
+    }
 
     if (fundRows.length !== neededFundIds.length) {
       return NextResponse.json(

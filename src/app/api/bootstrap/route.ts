@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, users, wallets } from "@/db/schema";
@@ -32,22 +32,16 @@ export async function POST() {
         .toLowerCase() ??
       email;
 
-    const existingByClerkId = await db
+    const existingRows = await db
       .select()
       .from(users)
-      .where(eq(users.clerkId, clerkId))
-      .limit(1)
-      .then((res) => res[0]);
+      .where(or(eq(users.clerkId, clerkId), eq(users.email, email)))
+      .limit(2);
 
-    const existingByEmail = existingByClerkId
-      ? null
-      : await db
-          .select()
-          .from(users)
-          .where(eq(users.email, email))
-          .limit(1)
-          .then((res) => res[0]);
-
+    const existingByClerkId = existingRows.find(
+      (row) => row.clerkId === clerkId,
+    );
+    const existingByEmail = existingRows.find((row) => row.email === email);
     const existing = existingByClerkId ?? existingByEmail;
 
     const dbUser = existing
@@ -133,13 +127,15 @@ export async function POST() {
     }
 
     const hasTransactions = await db
-      .select()
+      .select({ id: transactions.id })
       .from(transactions)
       .where(
         and(eq(transactions.userId, dbUser.id), isNull(transactions.deletedAt)),
-      );
+      )
+      .limit(1)
+      .then((res) => res[0]);
 
-    if (hasTransactions.length > 0) {
+    if (hasTransactions) {
       await db
         .update(users)
         .set({ onboarded: true })
@@ -155,7 +151,7 @@ export async function POST() {
     }
 
     let savingsFund = await db
-      .select()
+      .select({ id: funds.id })
       .from(funds)
       .where(
         and(
@@ -176,16 +172,18 @@ export async function POST() {
           isSavings: true,
           pullPercentage: 0,
         })
-        .returning()
+        .returning({ id: funds.id })
         .then((res) => res[0]);
     }
 
     const hasWallets = await db
-      .select()
+      .select({ id: wallets.id })
       .from(wallets)
-      .where(and(eq(wallets.userId, dbUser.id), isNull(wallets.deletedAt)));
+      .where(and(eq(wallets.userId, dbUser.id), isNull(wallets.deletedAt)))
+      .limit(1)
+      .then((res) => res[0]);
 
-    if (hasWallets.length === 0) {
+    if (!hasWallets) {
       await db.insert(wallets).values({
         userId: dbUser.id,
         name: "Bank",
