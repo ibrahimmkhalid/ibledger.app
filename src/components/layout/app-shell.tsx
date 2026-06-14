@@ -61,6 +61,15 @@ export function AppShell(args: {
                   Transactions
                 </Link>
                 <Link
+                  href="/tracker/analytics"
+                  className={navLinkClassName({
+                    href: "/tracker/analytics",
+                    pathname,
+                  })}
+                >
+                  Analytics
+                </Link>
+                <Link
                   href="/tracker/funds"
                   className={navLinkClassName({
                     href: "/tracker/funds",
@@ -135,6 +144,15 @@ export function AppShell(args: {
                 })}
               >
                 Transactions
+              </Link>
+              <Link
+                href="/tracker/analytics"
+                className={navLinkClassName({
+                  href: "/tracker/analytics",
+                  pathname,
+                })}
+              >
+                Analytics
               </Link>
               <Link
                 href="/tracker/funds"
