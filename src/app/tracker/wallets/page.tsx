@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,8 +80,6 @@ export default function WalletsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
@@ -89,8 +88,6 @@ export default function WalletsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setNotice(null);
     try {
       const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
         method: "POST",
@@ -108,7 +105,7 @@ export default function WalletsPage() {
       const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
       setWallets(res.wallets);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load wallets");
+      toast.error(e instanceof Error ? e.message : "Failed to load wallets");
     } finally {
       setLoading(false);
     }
@@ -120,7 +117,6 @@ export default function WalletsPage() {
 
   async function createWallet(data: WalletFormState) {
     setBusy(true);
-    setError(null);
     try {
       if (!data.name.trim()) throw new Error("Name is required");
 
@@ -129,10 +125,10 @@ export default function WalletsPage() {
         body: JSON.stringify({ name: data.name }),
       });
       setCreateOpen(false);
-      setNotice("Wallet created");
+      toast.success("Wallet created");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to create wallet");
     } finally {
       setBusy(false);
     }
@@ -140,7 +136,6 @@ export default function WalletsPage() {
 
   async function updateWallet(wallet: Wallet, data: WalletFormState) {
     setBusy(true);
-    setError(null);
     try {
       if (!data.name.trim()) throw new Error("Name is required");
 
@@ -149,10 +144,10 @@ export default function WalletsPage() {
         body: JSON.stringify({ id: wallet.id, name: data.name }),
       });
       setEditWallet(null);
-      setNotice("Wallet updated");
+      toast.success("Wallet updated");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
     } finally {
       setBusy(false);
     }
@@ -165,16 +160,15 @@ export default function WalletsPage() {
     if (!ok) return;
 
     setBusy(true);
-    setError(null);
     try {
       await apiJson("/api/wallets", {
         method: "DELETE",
         body: JSON.stringify({ id: wallet.id }),
       });
-      setNotice("Wallet deleted");
+      toast.success("Wallet deleted");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to delete wallet");
     } finally {
       setBusy(false);
     }
@@ -204,24 +198,6 @@ export default function WalletsPage() {
           <Button onClick={() => setCreateOpen(true)}>New wallet</Button>
         </div>
       </div>
-
-      {error && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{error}</CardContent>
-        </Card>
-      )}
-
-      {notice && (
-        <Card>
-          <CardHeader>
-            <CardTitle>OK</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{notice}</CardContent>
-        </Card>
-      )}
 
       <WalletModal
         open={createOpen}

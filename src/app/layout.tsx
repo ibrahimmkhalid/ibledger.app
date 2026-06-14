@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/utils/auth-provider";
 import { ThemeProvider } from "@/components/utils/theme-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "Ibrahim's Ledger App",
@@ -28,6 +29,7 @@ export default function RootLayout({
             <div>
               <AppShell devTesting={isDevTesting}>{children}</AppShell>
             </div>
+            <Toaster />
           </ThemeProvider>
         </body>
       </html>

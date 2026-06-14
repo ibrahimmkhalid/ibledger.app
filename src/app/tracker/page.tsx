@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Fragment, useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -81,8 +82,6 @@ export default function TrackerPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -99,8 +98,6 @@ export default function TrackerPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setNotice(null);
 
     try {
       const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
@@ -128,7 +125,7 @@ export default function TrackerPage() {
       setTotals(totalsRes);
       setEvents(eventsRes.events);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      toast.error(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
@@ -175,31 +172,13 @@ export default function TrackerPage() {
         </div>
       </div>
 
-      {error && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{error}</CardContent>
-        </Card>
-      )}
-
-      {notice && (
-        <Card>
-          <CardHeader>
-            <CardTitle>OK</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{notice}</CardContent>
-        </Card>
-      )}
-
       <TransactionModal
         open={createTransactionOpen}
         onOpenChange={setCreateTransactionOpen}
         wallets={wallets}
         funds={funds}
         onSaved={async () => {
-          setNotice("Transaction saved");
+          toast.success("Transaction saved");
           await refresh();
         }}
       />
@@ -209,7 +188,7 @@ export default function TrackerPage() {
         onOpenChange={setCreateIncomeOpen}
         wallets={wallets}
         onSaved={async () => {
-          setNotice("Income saved");
+          toast.success("Income saved");
           await refresh();
         }}
       />
@@ -223,12 +202,12 @@ export default function TrackerPage() {
         funds={funds}
         initialEvent={detailsEvent}
         onSaved={async () => {
-          setNotice("Transaction updated");
+          toast.success("Transaction updated");
           await refresh();
           setDetailsEvent(null);
         }}
         onDeleted={async () => {
-          setNotice("Transaction deleted");
+          toast.success("Transaction deleted");
           await refresh();
           setDetailsEvent(null);
         }}
@@ -242,12 +221,12 @@ export default function TrackerPage() {
         wallets={wallets}
         initialEvent={detailsEvent}
         onSaved={async () => {
-          setNotice("Income updated");
+          toast.success("Income updated");
           await refresh();
           setDetailsEvent(null);
         }}
         onDeleted={async () => {
-          setNotice("Income deleted");
+          toast.success("Income deleted");
           await refresh();
           setDetailsEvent(null);
         }}

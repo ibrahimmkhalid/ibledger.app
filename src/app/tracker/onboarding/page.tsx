@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -174,8 +175,6 @@ export default function OnboardingPage() {
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
@@ -190,8 +189,6 @@ export default function OnboardingPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setNotice(null);
 
     try {
       const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
@@ -215,7 +212,7 @@ export default function OnboardingPage() {
       setWallets(walletsRes.wallets);
       setFunds(fundsRes.funds);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load onboarding");
+      toast.error(e instanceof Error ? e.message : "Failed to load onboarding");
     } finally {
       setLoading(false);
     }
@@ -227,7 +224,6 @@ export default function OnboardingPage() {
 
   async function createWallet(data: WalletFormState) {
     setBusy(true);
-    setError(null);
     try {
       if (!data.name.trim()) throw new Error("Name is required");
 
@@ -236,10 +232,10 @@ export default function OnboardingPage() {
         body: JSON.stringify({ name: data.name }),
       });
       setCreateWalletOpen(false);
-      setNotice("Wallet created");
+      toast.success("Wallet created");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to create wallet");
     } finally {
       setBusy(false);
     }
@@ -247,7 +243,6 @@ export default function OnboardingPage() {
 
   async function updateWallet(wallet: Wallet, data: WalletFormState) {
     setBusy(true);
-    setError(null);
     try {
       if (!data.name.trim()) throw new Error("Name is required");
 
@@ -256,10 +251,10 @@ export default function OnboardingPage() {
         body: JSON.stringify({ id: wallet.id, name: data.name }),
       });
       setEditWallet(null);
-      setNotice("Wallet updated");
+      toast.success("Wallet updated");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
     } finally {
       setBusy(false);
     }
@@ -272,16 +267,15 @@ export default function OnboardingPage() {
     if (!ok) return;
 
     setBusy(true);
-    setError(null);
     try {
       await apiJson("/api/wallets", {
         method: "DELETE",
         body: JSON.stringify({ id: wallet.id }),
       });
-      setNotice("Wallet deleted");
+      toast.success("Wallet deleted");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete wallet");
+      toast.error(e instanceof Error ? e.message : "Failed to delete wallet");
     } finally {
       setBusy(false);
     }
@@ -289,7 +283,6 @@ export default function OnboardingPage() {
 
   async function createFund(data: FundFormState) {
     setBusy(true);
-    setError(null);
     try {
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
@@ -309,10 +302,10 @@ export default function OnboardingPage() {
         }),
       });
       setCreateFundOpen(false);
-      setNotice("Fund created");
+      toast.success("Fund created");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create fund");
+      toast.error(e instanceof Error ? e.message : "Failed to create fund");
     } finally {
       setBusy(false);
     }
@@ -320,7 +313,6 @@ export default function OnboardingPage() {
 
   async function updateFund(fund: Fund, data: FundFormState) {
     setBusy(true);
-    setError(null);
     try {
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
@@ -341,10 +333,10 @@ export default function OnboardingPage() {
         }),
       });
       setEditFund(null);
-      setNotice("Fund updated");
+      toast.success("Fund updated");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update fund");
+      toast.error(e instanceof Error ? e.message : "Failed to update fund");
     } finally {
       setBusy(false);
     }
@@ -357,16 +349,15 @@ export default function OnboardingPage() {
     if (!ok) return;
 
     setBusy(true);
-    setError(null);
     try {
       await apiJson("/api/funds", {
         method: "DELETE",
         body: JSON.stringify({ id: fund.id }),
       });
-      setNotice("Fund deleted");
+      toast.success("Fund deleted");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete fund");
+      toast.error(e instanceof Error ? e.message : "Failed to delete fund");
     } finally {
       setBusy(false);
     }
@@ -417,24 +408,6 @@ export default function OnboardingPage() {
           </Button>
         </div>
       </div>
-
-      {error && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{error}</CardContent>
-        </Card>
-      )}
-
-      {notice && (
-        <Card>
-          <CardHeader>
-            <CardTitle>OK</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{notice}</CardContent>
-        </Card>
-      )}
 
       <WalletModal
         open={createWalletOpen}

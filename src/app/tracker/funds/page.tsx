@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -192,8 +193,6 @@ export default function FundsPage() {
 
   // ── ui state ─────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   // ── derived ──────────────────────────────────────────────────────
   const sliderFunds = useMemo(() => buildSliderFunds(draftFunds), [draftFunds]);
@@ -227,8 +226,6 @@ export default function FundsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setNotice(null);
     try {
       const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
         method: "POST",
@@ -246,7 +243,7 @@ export default function FundsPage() {
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setServerFunds(res.funds);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load funds");
+      toast.error(e instanceof Error ? e.message : "Failed to load funds");
     } finally {
       setLoading(false);
     }
@@ -339,16 +336,12 @@ export default function FundsPage() {
 
   function revert() {
     resetDraft();
-    setError(null);
-    setNotice(null);
   }
 
   // ── save ─────────────────────────────────────────────────────────
 
   async function confirmChanges() {
     setBusy(true);
-    setError(null);
-    setNotice(null);
 
     try {
       for (const f of draftFunds) {
@@ -367,10 +360,10 @@ export default function FundsPage() {
         }),
       });
 
-      setNotice("Changes saved");
+      toast.success("Changes saved");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
+      toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setBusy(false);
     }
@@ -426,24 +419,6 @@ export default function FundsPage() {
           </Button>
         </div>
       </div>
-
-      {/* ── Feedback ────────────────────────────────────────────── */}
-      {error && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{error}</CardContent>
-        </Card>
-      )}
-      {notice && (
-        <Card>
-          <CardHeader>
-            <CardTitle>OK</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{notice}</CardContent>
-        </Card>
-      )}
 
       {/* ── Allocation slider ───────────────────────────────────── */}
       {sliderFunds.length > 1 && (

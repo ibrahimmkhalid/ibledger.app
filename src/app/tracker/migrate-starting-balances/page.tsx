@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -323,12 +324,11 @@ export default function MigrateStartingBalancesPage() {
 
   async function migrate() {
     if (validationError) {
-      setError(validationError);
+      toast.error(validationError);
       return;
     }
 
     setBusy(true);
-    setError(null);
 
     try {
       await apiJson("/api/legacy-starting-balances", {
@@ -345,7 +345,7 @@ export default function MigrateStartingBalancesPage() {
 
       router.replace("/tracker");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to migrate balances");
+      toast.error(e instanceof Error ? e.message : "Failed to migrate balances");
     } finally {
       setBusy(false);
     }
@@ -395,15 +395,6 @@ export default function MigrateStartingBalancesPage() {
           Create transactions
         </Button>
       </div>
-
-      {error && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm">{error}</CardContent>
-        </Card>
-      )}
 
       {!data.totalsMatch && hasWalletLegacy && hasFundLegacy && (
         <Card className="border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
