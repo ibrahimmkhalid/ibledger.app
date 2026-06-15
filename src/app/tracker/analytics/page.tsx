@@ -15,7 +15,14 @@ import {
   WalletCardsIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -54,6 +61,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import { AnalyticsSkeleton } from "@/app/tracker/analytics/analytics-skeleton";
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import {
@@ -449,6 +457,87 @@ function formatHoverAmount(value: number) {
   return fmtAmount(value) ?? "$0.00";
 }
 
+type AxisPoint = { label: string; period: string };
+
+// Splits a period key into its year and a compact, always-shown primary label
+// (e.g. "Feb" for months, "Feb 3" for days/weeks). The year is appended
+// separately only when it changes across the displayed ticks.
+function periodAxisParts(period: string, groupBy: GroupBy) {
+  const [year, month, day] = period.split("-").map((part) => Number(part));
+  if (groupBy === "month") {
+    return {
+      year,
+      primary: new Intl.DateTimeFormat("en", {
+        month: "short",
+        timeZone: "UTC",
+      }).format(new Date(Date.UTC(year, (month ?? 1) - 1, 1))),
+    };
+  }
+
+  return {
+    year,
+    primary: new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1))),
+  };
+}
+
+// Roughly how much horizontal room a single tick label needs.
+const TICK_PX_PER_LABEL = 64;
+// Approximate horizontal space consumed by the y-axis + right margin.
+const TICK_AXIS_GUTTER = 92;
+
+// Picks a subset of ticks so ~one label renders per TICK_PX_PER_LABEL of width
+// (every entry when there are few, every Nth when there are many), and labels
+// each shown tick — appending the year only when it differs from the previous
+// shown tick.
+function buildAxisTicks(points: AxisPoint[], groupBy: GroupBy, width: number) {
+  const count = points.length;
+  if (count === 0) return null;
+
+  const usableWidth = Math.max(120, (width || 640) - TICK_AXIS_GUTTER);
+  const target = Math.max(
+    2,
+    Math.min(count, Math.floor(usableWidth / TICK_PX_PER_LABEL)),
+  );
+  const step = Math.max(1, Math.ceil(count / target));
+
+  const tickvals: string[] = [];
+  const ticktext: string[] = [];
+  let prevYear: number | null = null;
+
+  for (let i = 0; i < count; i += step) {
+    const { year, primary } = periodAxisParts(points[i].period, groupBy);
+    ticktext.push(prevYear === year ? primary : `${primary} ${year}`);
+    tickvals.push(points[i].label);
+    prevYear = year;
+  }
+
+  return { tickvals, ticktext };
+}
+
+// Tracks the rendered width of a chart container so tick density can adapt.
+function useElementWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[0]?.contentRect.width;
+      if (next) setWidth(next);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, width };
+}
+
 function usePlotTheme() {
   const [theme, setTheme] = useState({
     foreground: "#27272a",
@@ -511,10 +600,13 @@ function basePlotLayout(
   };
 }
 
+// Inline charts: scroll-to-zoom is disabled so page scrolling (especially on
+// touch devices) isn't hijacked while the pointer is over the chart.
 const PLOT_CONFIG: PlotParams["config"] = {
   responsive: true,
   displaylogo: false,
-  scrollZoom: true,
+  scrollZoom: false,
+  displayModeBar: false,
   modeBarButtonsToRemove: ["lasso2d", "select2d"],
   toImageButtonOptions: {
     format: "png",
@@ -523,27 +615,67 @@ const PLOT_CONFIG: PlotParams["config"] = {
   },
 };
 
+// Expanded charts live in a focused dialog where richer interaction is expected.
+const PLOT_CONFIG_EXPANDED: PlotParams["config"] = {
+  ...PLOT_CONFIG,
+  scrollZoom: true,
+  displayModeBar: true,
+};
+
 function PlotlyChart({
   data,
   layout,
   height,
   ariaLabel,
+  fill = false,
+  tickAxis,
 }: {
   data: PlotParams["data"];
   layout: PlotParams["layout"];
   height: number;
   ariaLabel: string;
+  fill?: boolean;
+  tickAxis?: { points: AxisPoint[]; groupBy: GroupBy };
 }) {
+  const { ref, width } = useElementWidth();
+
+  const resolvedLayout = useMemo(() => {
+    const base = fill
+      ? { ...layout, height: undefined, autosize: true }
+      : layout;
+
+    if (!tickAxis) return base;
+
+    const ticks = buildAxisTicks(tickAxis.points, tickAxis.groupBy, width);
+    if (!ticks) return base;
+
+    return {
+      ...base,
+      xaxis: {
+        ...base?.xaxis,
+        tickmode: "array" as const,
+        tickvals: ticks.tickvals,
+        ticktext: ticks.ticktext,
+        tickangle: 0,
+      },
+    } satisfies PlotParams["layout"];
+  }, [fill, layout, tickAxis, width]);
+
   if (data.length === 0) return <EmptyChart />;
 
   return (
-    <div className="min-w-0" aria-label={ariaLabel}>
+    <div
+      ref={ref}
+      className={cn("min-w-0", fill && "h-full")}
+      role="img"
+      aria-label={ariaLabel}
+    >
       <Plot
         data={data}
-        layout={layout}
-        config={PLOT_CONFIG}
+        layout={resolvedLayout}
+        config={fill ? PLOT_CONFIG_EXPANDED : PLOT_CONFIG}
         useResizeHandler
-        style={{ width: "100%", height }}
+        style={{ width: "100%", height: fill ? "100%" : height }}
       />
     </div>
   );
@@ -589,7 +721,7 @@ function ExpandableChartCard({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0">{expandedChildren}</div>
+          <div className="h-full min-h-0">{expandedChildren}</div>
         </DialogContent>
       </Dialog>
     </>
@@ -623,8 +755,10 @@ function incomeSpendingPlot(
         x: labels,
         y: data.map((point) => point.income),
         marker: { color: CHART_COLORS[0], line: { width: 0 } },
-        text: incomeText,
-        hovertemplate: "%{text}<extra></extra>",
+        text: undefined,
+        textposition: "none",
+        hovertext: incomeText,
+        hovertemplate: "%{hovertext}<extra></extra>",
       },
       {
         type: "bar",
@@ -632,8 +766,10 @@ function incomeSpendingPlot(
         x: labels,
         y: data.map((point) => point.spending),
         marker: { color: CHART_COLORS[1], line: { width: 0 } },
-        text: spendingText,
-        hovertemplate: "%{text}<extra></extra>",
+        text: undefined,
+        textposition: "none",
+        hovertext: spendingText,
+        hovertemplate: "%{hovertext}<extra></extra>",
       },
     ] satisfies PlotParams["data"],
     layout: {
@@ -684,11 +820,11 @@ function trendPlot(
         color: CHART_COLORS[index % CHART_COLORS.length],
         size: 6,
       },
-      text: item.points.map(
+      hovertext: item.points.map(
         (point) =>
           `${item.name}<br>${point.label}<br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
       ),
-      hovertemplate: "%{text}<extra></extra>",
+      hovertemplate: "%{hovertext}<extra></extra>",
     })) satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
@@ -882,45 +1018,37 @@ export default function AnalyticsPage() {
   }, []);
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading...</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Loading analytics.
-        </CardContent>
-      </Card>
-    );
+    return <AnalyticsSkeleton />;
   }
 
   const summary = analytics?.summary;
+  const groupBy = analytics?.groupBy ?? "month";
   const incomeChart = incomeSpendingPlot(
     analytics?.timeSeries ?? [],
     plotTheme,
     360,
-  );
-  const incomeChartExpanded = incomeSpendingPlot(
-    analytics?.timeSeries ?? [],
-    plotTheme,
-    680,
   );
   const walletTrendChart = trendPlot(
     analytics?.walletSeries ?? [],
     plotTheme,
     360,
   );
-  const walletTrendChartExpanded = trendPlot(
-    analytics?.walletSeries ?? [],
-    plotTheme,
-    680,
-  );
   const fundTrendChart = trendPlot(analytics?.fundSeries ?? [], plotTheme, 360);
-  const fundTrendChartExpanded = trendPlot(
-    analytics?.fundSeries ?? [],
-    plotTheme,
-    680,
-  );
+  const incomeTickAxis = { points: analytics?.timeSeries ?? [], groupBy };
+  const walletTickAxis = {
+    points: analytics?.walletSeries?.[0]?.points ?? [],
+    groupBy,
+  };
+  const fundTickAxis = {
+    points: analytics?.fundSeries?.[0]?.points ?? [],
+    groupBy,
+  };
+  const netTone =
+    summary && summary.net > 0
+      ? "income"
+      : summary && summary.net < 0
+        ? "spending"
+        : "neutral";
   const activeFilterLabel =
     activeFilterCount === 0
       ? "No filters applied"
@@ -1188,46 +1316,54 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Net"
-          value={fmtAmount(summary?.net ?? 0)}
-          detail={`${(summary?.count ?? 0).toLocaleString()} posting rows`}
-          icon={<BarChart3Icon className="size-4" />}
-          tone="neutral"
-        />
-        <StatCard
-          title="Income"
-          value={fmtAmount(summary?.income ?? 0)}
-          detail="Positive movement"
-          icon={<TrendingUpIcon className="size-4" />}
-          tone="income"
-        />
-        <StatCard
-          title="Spending"
-          value={fmtAmount(summary?.spending ?? 0)}
-          detail={`${spendingRate.toFixed(1)}% of income`}
-          icon={<TrendingDownIcon className="size-4" />}
-          tone="spending"
-        />
-        <StatCard
-          title="Pending"
-          value={fmtAmount(summary?.pending ?? 0)}
-          detail={`Cleared ${fmtAmount(summary?.cleared ?? 0)}`}
-          icon={<WalletCardsIcon className="size-4" />}
-          tone="neutral"
-        />
-      </div>
+      <div
+        className={cn(
+          "flex flex-col gap-6 transition-opacity duration-200",
+          pageLoading && "pointer-events-none opacity-60",
+        )}
+        aria-busy={pageLoading}
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title="Net"
+            value={fmtAmount(summary?.net ?? 0)}
+            detail={`${(summary?.count ?? 0).toLocaleString()} posting rows`}
+            icon={<BarChart3Icon className="size-4" />}
+            tone={netTone}
+          />
+          <StatCard
+            title="Income"
+            value={fmtAmount(summary?.income ?? 0)}
+            detail="Positive movement"
+            icon={<TrendingUpIcon className="size-4" />}
+            tone="income"
+          />
+          <StatCard
+            title="Spending"
+            value={fmtAmount(summary?.spending ?? 0)}
+            detail={`${spendingRate.toFixed(1)}% of income`}
+            icon={<TrendingDownIcon className="size-4" />}
+            tone="spending"
+          />
+          <StatCard
+            title="Pending"
+            value={fmtAmount(summary?.pending ?? 0)}
+            detail={`Cleared ${fmtAmount(summary?.cleared ?? 0)}`}
+            icon={<WalletCardsIcon className="size-4" />}
+            tone="neutral"
+          />
+        </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
         <ExpandableChartCard
           title="Income vs Spending"
           description="Positive and negative movement by selected period."
           expandedChildren={
             <PlotlyChart
-              data={incomeChartExpanded.data}
-              layout={incomeChartExpanded.layout}
+              data={incomeChart.data}
+              layout={incomeChart.layout}
               height={680}
+              fill
+              tickAxis={incomeTickAxis}
               ariaLabel="Expanded income and spending chart"
             />
           }
@@ -1236,143 +1372,152 @@ export default function AnalyticsPage() {
             data={incomeChart.data}
             layout={incomeChart.layout}
             height={360}
+            tickAxis={incomeTickAxis}
             ariaLabel="Income and spending chart"
           />
         </ExpandableChartCard>
 
-        <ExpandableChartCard
-          title="Wallet Trend"
-          description="Running net movement for the most active wallets."
-          expandedChildren={
+        <div className="grid gap-6 xl:grid-cols-2">
+          <ExpandableChartCard
+            title="Wallet Trend"
+            description="Running net movement for the most active wallets."
+            expandedChildren={
+              <PlotlyChart
+                data={walletTrendChart.data}
+                layout={walletTrendChart.layout}
+                height={680}
+                fill
+                tickAxis={walletTickAxis}
+                ariaLabel="Expanded wallet trend chart"
+              />
+            }
+          >
             <PlotlyChart
-              data={walletTrendChartExpanded.data}
-              layout={walletTrendChartExpanded.layout}
-              height={680}
-              ariaLabel="Expanded wallet trend chart"
+              data={walletTrendChart.data}
+              layout={walletTrendChart.layout}
+              height={360}
+              tickAxis={walletTickAxis}
+              ariaLabel="Wallet trend chart"
             />
-          }
-        >
-          <PlotlyChart
-            data={walletTrendChart.data}
-            layout={walletTrendChart.layout}
-            height={360}
-            ariaLabel="Wallet trend chart"
-          />
-        </ExpandableChartCard>
+          </ExpandableChartCard>
 
-        <ExpandableChartCard
-          title="Fund Trend"
-          description="Running net movement for the most active funds."
-          expandedChildren={
+          <ExpandableChartCard
+            title="Fund Trend"
+            description="Running net movement for the most active funds."
+            expandedChildren={
+              <PlotlyChart
+                data={fundTrendChart.data}
+                layout={fundTrendChart.layout}
+                height={680}
+                fill
+                tickAxis={fundTickAxis}
+                ariaLabel="Expanded fund trend chart"
+              />
+            }
+          >
             <PlotlyChart
-              data={fundTrendChartExpanded.data}
-              layout={fundTrendChartExpanded.layout}
-              height={680}
-              ariaLabel="Expanded fund trend chart"
+              data={fundTrendChart.data}
+              layout={fundTrendChart.layout}
+              height={360}
+              tickAxis={fundTickAxis}
+              ariaLabel="Fund trend chart"
             />
-          }
-        >
-          <PlotlyChart
-            data={fundTrendChart.data}
-            layout={fundTrendChart.layout}
-            height={360}
-            ariaLabel="Fund trend chart"
-          />
-        </ExpandableChartCard>
+          </ExpandableChartCard>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Categorized Spending</CardTitle>
+              <CardDescription>
+                Funds ranked by outgoing movement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SpendingBars
+                rows={analytics?.categorizedSpending ?? []}
+                emptyLabel="No categorized spending in this selection."
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Wallet Spending</CardTitle>
+              <CardDescription>
+                Wallets ranked by outgoing movement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SpendingBars
+                rows={analytics?.walletSpending ?? []}
+                emptyLabel="No wallet spending in this selection."
+              />
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Categorized Spending</CardTitle>
+            <CardTitle>Wallet and Fund Left</CardTitle>
             <CardDescription>
-              Funds ranked by outgoing movement.
+              Net remaining amount in each wallet and fund combination for the
+              active selection.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <SpendingBars
-              rows={analytics?.categorizedSpending ?? []}
-              emptyLabel="No categorized spending in this selection."
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Wallet Spending</CardTitle>
-            <CardDescription>
-              Wallets ranked by outgoing movement.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SpendingBars
-              rows={analytics?.walletSpending ?? []}
-              emptyLabel="No wallet spending in this selection."
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Wallet and Fund Left</CardTitle>
-          <CardDescription>
-            Net remaining amount in each wallet and fund combination for the
-            active selection.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Wallet</TableHead>
-                  <TableHead>Fund</TableHead>
-                  <TableHead className="text-right">Cleared</TableHead>
-                  <TableHead className="text-right">With pending</TableHead>
-                  <TableHead className="text-right">Income</TableHead>
-                  <TableHead className="text-right">Spending</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(analytics?.walletFund ?? []).length === 0 ? (
+            <div className="overflow-x-auto">
+              <Table className="min-w-[40rem]">
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-muted-foreground py-8 text-center"
-                    >
-                      No wallet/fund activity matches the filters.
-                    </TableCell>
+                    <TableHead>Wallet</TableHead>
+                    <TableHead>Fund</TableHead>
+                    <TableHead className="text-right">Cleared</TableHead>
+                    <TableHead className="text-right">With pending</TableHead>
+                    <TableHead className="text-right">Income</TableHead>
+                    <TableHead className="text-right">Spending</TableHead>
                   </TableRow>
-                ) : (
-                  analytics?.walletFund.map((row) => (
-                    <TableRow
-                      key={`${row.walletId ?? "u"}:${row.fundId ?? "u"}`}
-                    >
-                      <TableCell className="font-medium">
-                        {row.walletName}
-                      </TableCell>
-                      <TableCell>{row.fundName}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtAmount(row.cleared)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtAmount(row.withPending)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtAmount(row.income)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtAmount(row.spending)}
+                </TableHeader>
+                <TableBody>
+                  {(analytics?.walletFund ?? []).length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-muted-foreground py-8 text-center"
+                      >
+                        No wallet/fund activity matches the filters.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                  ) : (
+                    analytics?.walletFund.map((row) => (
+                      <TableRow
+                        key={`${row.walletId ?? "u"}:${row.fundId ?? "u"}`}
+                      >
+                        <TableCell className="font-medium">
+                          {row.walletName}
+                        </TableCell>
+                        <TableCell>{row.fundName}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtAmount(row.cleared)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtAmount(row.withPending)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtAmount(row.income)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {fmtAmount(row.spending)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
