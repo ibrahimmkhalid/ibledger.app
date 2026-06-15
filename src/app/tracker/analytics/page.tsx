@@ -51,14 +51,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 import { AnalyticsSkeleton } from "@/app/tracker/analytics/analytics-skeleton";
@@ -132,14 +124,6 @@ type AnalyticsResponse = {
       name: string;
       isSavings: boolean;
       pullPercentage: number;
-    }
-  >;
-  walletFund: Array<
-    MoneyTotal & {
-      walletId: number | null;
-      walletName: string;
-      fundId: number | null;
-      fundName: string;
     }
   >;
   timeSeries: Array<
@@ -1456,67 +1440,6 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Wallet and Fund Left</CardTitle>
-            <CardDescription>
-              Net remaining amount in each wallet and fund combination for the
-              active selection.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table className="min-w-[40rem]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Wallet</TableHead>
-                    <TableHead>Fund</TableHead>
-                    <TableHead className="text-right">Cleared</TableHead>
-                    <TableHead className="text-right">With pending</TableHead>
-                    <TableHead className="text-right">Income</TableHead>
-                    <TableHead className="text-right">Spending</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(analytics?.walletFund ?? []).length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="text-muted-foreground py-8 text-center"
-                      >
-                        No wallet/fund activity matches the filters.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    analytics?.walletFund.map((row) => (
-                      <TableRow
-                        key={`${row.walletId ?? "u"}:${row.fundId ?? "u"}`}
-                      >
-                        <TableCell className="font-medium">
-                          {row.walletName}
-                        </TableCell>
-                        <TableCell>{row.fundName}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtAmount(row.cleared)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtAmount(row.withPending)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtAmount(row.income)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {fmtAmount(row.spending)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

@@ -372,7 +372,6 @@ export async function GET(request: NextRequest) {
 
     const walletTotals = new Map<string, ReturnType<typeof emptyMoney>>();
     const fundTotals = new Map<string, ReturnType<typeof emptyMoney>>();
-    const matrixTotals = new Map<string, ReturnType<typeof emptyMoney>>();
     const periodTotals = new Map<string, ReturnType<typeof emptyMoney>>();
     const walletPeriodTotals = new Map<
       string,
@@ -397,8 +396,6 @@ export async function GET(request: NextRequest) {
 
       const walletTotal = walletTotals.get(wallet.key) ?? emptyMoney();
       const fundTotal = fundTotals.get(fund.key) ?? emptyMoney();
-      const matrixKey = `${wallet.key}:${fund.key}`;
-      const matrixTotal = matrixTotals.get(matrixKey) ?? emptyMoney();
       const periodTotal = periodTotals.get(period) ?? emptyMoney();
       const walletPeriod =
         walletPeriodTotals.get(wallet.key) ??
@@ -412,14 +409,12 @@ export async function GET(request: NextRequest) {
       applyAmount(summary, row);
       applyAmount(walletTotal, row);
       applyAmount(fundTotal, row);
-      applyAmount(matrixTotal, row);
       applyAmount(periodTotal, row);
       applyAmount(walletPeriodTotal, row);
       applyAmount(fundPeriodTotal, row);
 
       walletTotals.set(wallet.key, walletTotal);
       fundTotals.set(fund.key, fundTotal);
-      matrixTotals.set(matrixKey, matrixTotal);
       periodTotals.set(period, periodTotal);
       walletPeriod.set(period, walletPeriodTotal);
       fundPeriod.set(period, fundPeriodTotal);
@@ -440,29 +435,6 @@ export async function GET(request: NextRequest) {
       pullPercentage: fund.pullPercentage,
       ...(fundTotals.get(String(fund.id)) ?? emptyMoney()),
     }));
-
-    const walletLookup = new Map(
-      walletsForResponse.map((wallet) => [String(wallet.id), wallet.name]),
-    );
-    const fundLookup = new Map(
-      fundsForResponse.map((fund) => [String(fund.id), fund.name]),
-    );
-
-    const walletFund = Array.from(matrixTotals.entries())
-      .map(([key, total]) => {
-        const [walletKey, fundKey] = key.split(":");
-        return {
-          walletId: walletKey === "unassigned" ? null : Number(walletKey),
-          walletName: walletLookup.get(walletKey) ?? "Unassigned wallet",
-          fundId: fundKey === "unassigned" ? null : Number(fundKey),
-          fundName: fundLookup.get(fundKey) ?? "Unassigned fund",
-          ...total,
-        };
-      })
-      .sort((a, b) => {
-        const walletSort = a.walletName.localeCompare(b.walletName);
-        return walletSort || a.fundName.localeCompare(b.fundName);
-      });
 
     const timeSeries = sortedPeriods.map((period) => ({
       period,
@@ -538,7 +510,6 @@ export async function GET(request: NextRequest) {
       summary,
       wallets: walletsForResponse,
       funds: fundsForResponse,
-      walletFund,
       timeSeries,
       walletSeries: buildSeries(walletRows, walletTotals, walletPeriodTotals),
       fundSeries: buildSeries(fundRows, fundTotals, fundPeriodTotals),
