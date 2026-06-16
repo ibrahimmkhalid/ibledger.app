@@ -3,31 +3,14 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import {
+  BadRequestError,
+  parseOccurredAt,
+  parseRequestJsonObject,
+  parseUpdateTransactionLines,
+  type UpdateTransactionLineInput,
+} from "@/app/api/transactions/validation";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
-
-type TransactionLineInput = {
-  transactionId: number | null;
-  walletId: number | null;
-  fundId: number | null;
-  description: string | null;
-  amount: number;
-  isPending: boolean;
-};
-
-function parseOccurredAt(input: unknown): Date {
-  if (input instanceof Date) {
-    return input;
-  }
-
-  if (typeof input === "string") {
-    const parsed = new Date(input);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-  }
-
-  throw new Error("Invalid occurredAt");
-}
 
 function isIncomeLikeEvent(args: {
   eventIsPosting: boolean;
@@ -101,27 +84,26 @@ export async function PATCH(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = await request.json();
+    const body = await parseRequestJsonObject(request);
 
     const occurredAt =
-      body?.occurredAt === undefined
+      body.occurredAt === undefined
         ? event.occurredAt
         : parseOccurredAt(body.occurredAt);
 
     const description =
-      body?.description === undefined
+      body.description === undefined
         ? event.description
         : body.description
           ? String(body.description)
           : null;
 
     const eventIsPending =
-      body?.isPending === undefined
+      body.isPending === undefined
         ? Boolean(event.isPending)
         : Boolean(body.isPending);
 
-    const type = body?.type ? String(body.type) : null;
+    const type = body.type ? String(body.type) : null;
 
     const incomeLike = isIncomeLikeEvent({
       eventIsPosting: Boolean(event.isPosting),
@@ -129,8 +111,8 @@ export async function PATCH(
     });
 
     if (type === "income" || incomeLike) {
-      const nextWalletIdRaw = body?.walletId;
-      const nextAmountRaw = body?.amount;
+      const nextWalletIdRaw = body.walletId;
+      const nextAmountRaw = body.amount;
 
       const nextWalletId =
         nextWalletIdRaw === null || nextWalletIdRaw === undefined
@@ -280,63 +262,8 @@ export async function PATCH(
       return NextResponse.json({ eventId });
     }
 
-    const linesRaw = Array.isArray(body?.lines) ? body.lines : null;
-    const parsedLines: TransactionLineInput[] | null = linesRaw
-      ? linesRaw.map((l: unknown) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const line: any = l;
-          const amount = Number(line.amount);
-          const transactionIdRaw = line.transactionId;
-          const transactionId =
-            transactionIdRaw === null || transactionIdRaw === undefined
-              ? null
-              : Number(transactionIdRaw);
-
-          const walletId =
-            line.walletId === null || line.walletId === undefined
-              ? null
-              : Number(line.walletId);
-          const fundId =
-            line.fundId === null || line.fundId === undefined
-              ? null
-              : Number(line.fundId);
-
-          const isPending =
-            line.isPending === undefined
-              ? eventIsPending
-              : Boolean(line.isPending);
-
-          const lineDesc =
-            line.description === undefined || line.description === null
-              ? null
-              : String(line.description);
-
-          if (Number.isNaN(amount) || amount === 0) {
-            throw new Error("Invalid amount");
-          }
-          if (transactionId !== null && Number.isNaN(transactionId)) {
-            throw new Error("Invalid transactionId");
-          }
-          if (walletId !== null && Number.isNaN(walletId)) {
-            throw new Error("Invalid walletId");
-          }
-          if (fundId !== null && Number.isNaN(fundId)) {
-            throw new Error("Invalid fundId");
-          }
-          if (walletId === null || fundId === null) {
-            throw new Error("Line must include walletId and fundId");
-          }
-
-          return {
-            transactionId,
-            walletId,
-            fundId,
-            description: lineDesc,
-            amount,
-            isPending,
-          };
-        })
-      : null;
+    const parsedLines: UpdateTransactionLineInput[] | null =
+      parseUpdateTransactionLines(body.lines, eventIsPending);
 
     // Metadata-only update.
     if (!parsedLines) {
@@ -617,6 +544,10 @@ export async function PATCH(
 
     return NextResponse.json({ eventId });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
 

@@ -5,8 +5,11 @@ import { db } from "@/db";
 import { transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = new URL(request.url).searchParams;
+    const includeSummary = searchParams.get("summary") !== "false";
+
     const authUser = await currentUser();
     if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +21,20 @@ export async function GET() {
         { error: "User not found. Call POST /api/bootstrap first." },
         { status: 400 },
       );
+    }
+
+    if (!includeSummary) {
+      const userWallets = await db
+        .select({
+          id: wallets.id,
+          name: wallets.name,
+          createdAt: wallets.createdAt,
+          updatedAt: wallets.updatedAt,
+        })
+        .from(wallets)
+        .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)));
+
+      return NextResponse.json({ wallets: userWallets });
     }
 
     const userWallets = await db

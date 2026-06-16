@@ -1,7 +1,7 @@
 import { apiJson } from "@/app/tracker/lib/api";
 import type { EventsResponse, TransactionsPageSize } from "@/app/tracker/types";
 
-export const TRANSACTIONS_PRELOAD_RADIUS = 2;
+export const TRANSACTIONS_PRELOAD_RADIUS = 1;
 
 export type TransactionPendingFilter = "all" | "pending" | "cleared";
 export type TransactionIncomeFilter = "all" | "income" | "not_income";

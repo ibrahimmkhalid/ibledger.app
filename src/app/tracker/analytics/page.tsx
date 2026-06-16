@@ -942,8 +942,8 @@ export default function AnalyticsPage() {
         }
 
         const [walletsRes, fundsRes, analyticsRes] = await Promise.all([
-          apiJson<{ wallets: Wallet[] }>("/api/wallets"),
-          apiJson<{ funds: Fund[] }>("/api/funds"),
+          apiJson<{ wallets: Wallet[] }>("/api/wallets?summary=false"),
+          apiJson<{ funds: Fund[] }>("/api/funds?summary=false"),
           apiJson<AnalyticsResponse>(buildAnalyticsUrl(nextFilters)),
         ]);
 

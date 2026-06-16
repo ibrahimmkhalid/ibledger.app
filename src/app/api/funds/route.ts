@@ -5,8 +5,11 @@ import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = new URL(request.url).searchParams;
+    const includeSummary = searchParams.get("summary") !== "false";
+
     const authUser = await currentUser();
     if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +21,22 @@ export async function GET() {
         { error: "User not found. Call POST /api/bootstrap first." },
         { status: 400 },
       );
+    }
+
+    if (!includeSummary) {
+      const userFunds = await db
+        .select({
+          id: funds.id,
+          name: funds.name,
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+          createdAt: funds.createdAt,
+          updatedAt: funds.updatedAt,
+        })
+        .from(funds)
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+
+      return NextResponse.json({ funds: userFunds });
     }
 
     const userFundsRaw = await db

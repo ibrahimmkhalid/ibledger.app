@@ -619,8 +619,8 @@ export default function TransactionsPage() {
         }
 
         const [walletsRes, fundsRes, eventsRes] = await Promise.all([
-          apiJson<{ wallets: Wallet[] }>("/api/wallets"),
-          apiJson<{ funds: Fund[] }>("/api/funds"),
+          apiJson<{ wallets: Wallet[] }>("/api/wallets?summary=false"),
+          apiJson<{ funds: Fund[] }>("/api/funds?summary=false"),
           fetchTransactionsPage(next),
         ]);
 

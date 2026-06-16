@@ -36,6 +36,8 @@ import type {
   Wallet,
 } from "@/app/tracker/types";
 
+type OverviewResponse = TotalsResponse & EventsResponse;
+
 const TransactionModal = dynamic(
   () =>
     import("@/app/tracker/components/transaction-modal").then(
@@ -115,15 +117,12 @@ export default function TrackerPage() {
         return;
       }
 
-      const [totalsRes, eventsRes] = await Promise.all([
-        apiJson<TotalsResponse>("/api/totals"),
-        apiJson<EventsResponse>("/api/transactions?page=0"),
-      ]);
+      const overview = await apiJson<OverviewResponse>("/api/tracker/overview");
 
-      setWallets(totalsRes.wallets);
-      setFunds(totalsRes.funds);
-      setTotals(totalsRes);
-      setEvents(eventsRes.events);
+      setWallets(overview.wallets);
+      setFunds(overview.funds);
+      setTotals(overview);
+      setEvents(overview.events);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load");
     } finally {

@@ -5,8 +5,7 @@ try {
   moneyFormatter = new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: "USD",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    currencySign: "accounting" as any,
+    currencySign: "accounting",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

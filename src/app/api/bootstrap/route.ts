@@ -44,7 +44,13 @@ export async function POST() {
     const existingByEmail = existingRows.find((row) => row.email === email);
     const existing = existingByClerkId ?? existingByEmail;
 
-    const dbUser = existing
+    const existingNeedsUpdate =
+      existing &&
+      (existing.clerkId !== clerkId ||
+        existing.email !== email ||
+        !existing.username);
+
+    const dbUser = existingNeedsUpdate
       ? await db
           .update(users)
           .set({
@@ -56,7 +62,8 @@ export async function POST() {
           .where(eq(users.id, existing.id))
           .returning()
           .then((res) => res[0])
-      : await db
+      : existing ??
+        (await db
           .insert(users)
           .values({
             clerkId,
@@ -64,7 +71,7 @@ export async function POST() {
             username: usernameCandidate,
           })
           .returning()
-          .then((res) => res[0]);
+          .then((res) => res[0]));
 
     if (!dbUser) {
       return NextResponse.json(

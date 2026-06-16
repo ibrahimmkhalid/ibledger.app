@@ -13,36 +13,18 @@ import {
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import {
+  BadRequestError,
+  parseCreateTransactionLines,
+  parseOccurredAt,
+  parseRequestJsonObject,
+  type CreateTransactionLineInput,
+} from "@/app/api/transactions/validation";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
-
-type TransactionLineInput = {
-  walletId?: number | null;
-  fundId?: number | null;
-  description?: string | null;
-  amount: number;
-  isPending: boolean;
-};
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
 type DirectionFilter = "all" | "in" | "out";
-
-class BadRequestError extends Error {}
-
-function parseOccurredAt(input: unknown): Date {
-  if (input instanceof Date) {
-    return input;
-  }
-
-  if (typeof input === "string") {
-    const parsed = new Date(input);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-  }
-
-  throw new Error("Invalid occurredAt");
-}
 
 function parseIntegerParam(
   searchParams: URLSearchParams,
@@ -359,10 +341,30 @@ export async function GET(request: NextRequest) {
       ...amountFilterConditions,
     );
 
-    const countRows = await db
-      .select({ value: count() })
-      .from(transactions)
-      .where(filters);
+    const [countRows, events] = await Promise.all([
+      db.select({ value: count() }).from(transactions).where(filters),
+      db
+        .select({
+          id: transactions.id,
+          occurredAt: transactions.occurredAt,
+          description: transactions.description,
+          amount: transactions.amount,
+          isPosting: transactions.isPosting,
+          isPending: transactions.isPending,
+          incomePull: transactions.incomePull,
+          walletId: transactions.walletId,
+          walletName: wallets.name,
+          fundId: transactions.fundId,
+          fundName: funds.name,
+        })
+        .from(transactions)
+        .leftJoin(wallets, eq(wallets.id, transactions.walletId))
+        .leftJoin(funds, eq(funds.id, transactions.fundId))
+        .where(filters)
+        .orderBy(desc(transactions.occurredAt), desc(transactions.id))
+        .offset(page * pageSize)
+        .limit(pageSize),
+    ]);
     const countRow = countRows[0];
 
     const totalCount = Number(countRow?.value ?? 0);
@@ -371,28 +373,6 @@ export async function GET(request: NextRequest) {
     if (totalPages > 0 && page >= totalPages) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
     }
-
-    const events = await db
-      .select({
-        id: transactions.id,
-        occurredAt: transactions.occurredAt,
-        description: transactions.description,
-        amount: transactions.amount,
-        isPosting: transactions.isPosting,
-        isPending: transactions.isPending,
-        incomePull: transactions.incomePull,
-        walletId: transactions.walletId,
-        walletName: wallets.name,
-        fundId: transactions.fundId,
-        fundName: funds.name,
-      })
-      .from(transactions)
-      .leftJoin(wallets, eq(wallets.id, transactions.walletId))
-      .leftJoin(funds, eq(funds.id, transactions.fundId))
-      .where(filters)
-      .orderBy(desc(transactions.occurredAt), desc(transactions.id))
-      .offset(page * pageSize)
-      .limit(pageSize);
 
     // when isPosting is false, it means that the event is a parent event
     const parentEventIds = events.filter((e) => !e.isPosting).map((e) => e.id);
@@ -480,19 +460,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const body: any = await request.json();
+    const body = await parseRequestJsonObject(request);
 
-    const occurredAt = parseOccurredAt(body?.occurredAt);
-    const description = body?.description ? String(body.description) : null;
+    const occurredAt = parseOccurredAt(body.occurredAt);
+    const description = body.description ? String(body.description) : null;
     const eventIsPending =
-      body?.isPending === undefined ? true : Boolean(body.isPending);
+      body.isPending === undefined ? true : Boolean(body.isPending);
 
-    const type = body?.type ? String(body.type) : "expense";
+    const type = body.type ? String(body.type) : "expense";
 
     if (type === "income") {
-      const walletId = Number(body?.walletId);
-      const amount = Number(body?.amount);
+      const walletId = Number(body.walletId);
+      const amount = Number(body.amount);
       const isPending = eventIsPending;
 
       if (!walletId || Number.isNaN(walletId)) {
@@ -635,48 +614,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ eventId: parent.id });
     }
 
-    const lines = Array.isArray(body?.lines) ? body.lines : null;
+    const lines = parseCreateTransactionLines(body.lines, eventIsPending);
     if (!lines || lines.length === 0) {
       return NextResponse.json({ error: "Missing lines" }, { status: 400 });
     }
 
-    const parsedLines: TransactionLineInput[] = lines.map((l: unknown) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const line: any = l;
-      const amount = Number(line.amount);
-      const walletId =
-        line.walletId === null || line.walletId === undefined
-          ? null
-          : Number(line.walletId);
-      const fundId =
-        line.fundId === null || line.fundId === undefined
-          ? null
-          : Number(line.fundId);
-      const isPending =
-        line.isPending === undefined ? eventIsPending : Boolean(line.isPending);
-      const description =
-        line.description === undefined || line.description === null
-          ? null
-          : String(line.description);
-
-      if (Number.isNaN(amount) || amount === 0) {
-        throw new Error("Invalid amount");
-      }
-
-      if (walletId !== null && Number.isNaN(walletId)) {
-        throw new Error("Invalid walletId");
-      }
-
-      if (fundId !== null && Number.isNaN(fundId)) {
-        throw new Error("Invalid fundId");
-      }
-
-      if (walletId === null || fundId === null) {
-        throw new Error("Line must include walletId and fundId");
-      }
-
-      return { walletId, fundId, description, amount, isPending };
-    });
+    const parsedLines: CreateTransactionLineInput[] = lines;
 
     const neededWalletIds = Array.from(
       new Set(
@@ -804,6 +747,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ eventId: parent.id });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
     if (

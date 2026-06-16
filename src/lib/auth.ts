@@ -4,17 +4,20 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq, or } from "drizzle-orm";
 
+type AuthUser = {
+  id?: string | null;
+  emailAddresses?: Array<{ emailAddress?: string | null }>;
+};
+
 export async function currentUser() {
   if (process.env.DEV_TESTING === "true") {
-    // Return test user with minimal type casting for dev mode
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return testUser as any;
+    return testUser satisfies AuthUser;
   }
+
   return await clerkCurrentUser();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function currentUserWithDB(user: any) {
+export async function currentUserWithDB(user: AuthUser | null | undefined) {
   const clerkId = user?.id;
   const email = user?.emailAddresses?.[0]?.emailAddress;
 
