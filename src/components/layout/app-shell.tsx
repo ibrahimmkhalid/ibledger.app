@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Inter, Merriweather } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["600"],
+});
+
+const merriweather = Merriweather({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
 
 import {
   SignedIn,
@@ -40,8 +51,14 @@ export function AppShell(args: {
       <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-base font-semibold tracking-tight">
-              Ledger
+            <Link
+              href="/"
+              className={`${inter.className} text-base font-semibold tracking-tighter`}
+            >
+              ib
+              <span className={`${merriweather.className} tracking-normal`}>
+                Ledger
+              </span>
             </Link>
             {inTracker && (
               <nav className="hidden items-center gap-1 sm:flex">
