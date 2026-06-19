@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
@@ -786,16 +787,7 @@ export default function TransactionsPage() {
   );
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading…</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Loading transactions.
-        </CardContent>
-      </Card>
-    );
+    return <TransactionsSkeleton />;
   }
 
   const paginationProps = {

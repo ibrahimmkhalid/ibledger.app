@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { OverviewSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
@@ -142,16 +143,7 @@ export default function TrackerPage() {
   }, [refresh]);
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading…</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Loading wallets, funds, totals, and recent events.
-        </CardContent>
-      </Card>
-    );
+    return <OverviewSkeleton />;
   }
 
   return (

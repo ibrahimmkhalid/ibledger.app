@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
@@ -364,16 +365,7 @@ export default function OnboardingPage() {
   }
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Setting things up…</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Create your wallets and funds to start tracking.
-        </CardContent>
-      </Card>
-    );
+    return <OnboardingSkeleton />;
   }
 
   return (

@@ -27,6 +27,7 @@ import {
 
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
+import { MigrationSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 const TOLERANCE = 0.005;
 
@@ -352,16 +353,7 @@ export default function MigrateStartingBalancesPage() {
   }
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading migration</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Checking legacy balances.
-        </CardContent>
-      </Card>
-    );
+    return <MigrationSkeleton />;
   }
 
   if (!data) {

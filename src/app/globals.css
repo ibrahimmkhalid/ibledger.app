@@ -125,3 +125,62 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes tracker-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes tracker-skeleton-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  .tracker-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--muted);
+  }
+
+  .tracker-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.55),
+      transparent
+    );
+    animation: tracker-shimmer 1.65s ease-in-out infinite;
+  }
+
+  .dark .tracker-skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.08),
+      transparent
+    );
+  }
+
+  .tracker-skeleton-panel {
+    animation: tracker-skeleton-enter 280ms ease-out both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracker-skeleton::after,
+  .tracker-skeleton-panel {
+    animation: none;
+  }
+}

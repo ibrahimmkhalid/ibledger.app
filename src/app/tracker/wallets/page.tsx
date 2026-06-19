@@ -26,6 +26,7 @@ import {
 
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
+import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
 
 type WalletFormState = {
@@ -175,16 +176,7 @@ export default function WalletsPage() {
   }
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading…</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Loading wallets.
-        </CardContent>
-      </Card>
-    );
+    return <WalletsSkeleton />;
   }
 
   return (

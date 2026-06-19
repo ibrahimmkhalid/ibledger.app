@@ -28,6 +28,7 @@ import {
   keyToColorIndex,
   segmentColor,
 } from "@/components/ui/multi-fund-slider";
+import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 /* ═══════════════════════════════════════════════════════════════════
    Types
@@ -372,16 +373,7 @@ export default function FundsPage() {
   // ── render ───────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Loading…</CardTitle>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Loading funds.
-        </CardContent>
-      </Card>
-    );
+    return <FundsSkeleton />;
   }
 
   return (
