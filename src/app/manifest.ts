@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Ibrahim's Ledger App",
-    short_name: "ibledger",
+    name: "ibLedger",
+    short_name: "ibLedger",
     icons: [
       {
         src: "/android-chrome-192x192.png",

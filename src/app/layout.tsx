@@ -1,4 +1,4 @@
-import { type Metadata } from "next";
+import { type Metadata, type Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/utils/auth-provider";
 import { ThemeProvider } from "@/components/utils/theme-provider";
@@ -6,7 +6,12 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Ibrahim's Ledger App",
+  title: "ibLedger",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

@@ -79,7 +79,7 @@ export default function Home() {
                   href="/tracker"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition"
                 >
-                  Open tracker
+                  Open ledger overview
                 </Link>
               ) : (
                 <>
@@ -88,7 +88,7 @@ export default function Home() {
                       href="/tracker"
                       className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition"
                     >
-                      Open tracker
+                      Open ledger overview
                     </Link>
                   </SignedIn>
                   <SignedOut>

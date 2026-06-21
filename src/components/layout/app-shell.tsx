@@ -27,8 +27,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 function navLinkClassName(args: { href: string; pathname: string }) {
   const active = args.pathname === args.href;
   return [
-    "text-sm",
-    "px-2",
+    "text-xs",
+    "sm:text-sm",
+    "px-1.5",
+    "sm:px-2",
     "py-1",
     "rounded-md",
     active
@@ -134,7 +136,7 @@ export function AppShell(args: {
                         size: "sm",
                       })}
                     >
-                      Open tracker
+                      Open ledger overview
                     </Link>
                   )}
                   <UserButton afterSignOutUrl="/" />
@@ -146,7 +148,7 @@ export function AppShell(args: {
 
         {inTracker && (
           <div className="border-t sm:hidden">
-            <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-4 py-2">
+            <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 px-4 py-2">
               <Link
                 href="/tracker"
                 className={navLinkClassName({ href: "/tracker", pathname })}
@@ -200,7 +202,7 @@ export function AppShell(args: {
         <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6 text-xs">
           <div>{year}</div>
           <Link href="/" className="hover:text-foreground">
-            Ibrahim&apos;s Ledger
+            ibLedger
           </Link>
         </div>
       </footer>
