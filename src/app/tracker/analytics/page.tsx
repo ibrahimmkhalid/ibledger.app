@@ -840,7 +840,6 @@ function SpendingBars({
   emptyLabel: string;
 }) {
   const visible = rows.slice(0, 10);
-  const max = Math.max(1, ...visible.map((row) => row.spending));
 
   if (visible.length === 0) {
     return <div className="text-muted-foreground text-xs">{emptyLabel}</div>;
@@ -859,7 +858,7 @@ function SpendingBars({
           <div className="bg-muted h-2 overflow-hidden rounded-full">
             <div
               className="bg-destructive/75 h-full rounded-full"
-              style={{ width: `${Math.max(3, (row.spending / max) * 100)}%` }}
+              style={{ width: `${Math.min(100, Math.max(0, row.share))}%` }}
             />
           </div>
           <div className="text-muted-foreground flex justify-between gap-3 text-[11px]">
