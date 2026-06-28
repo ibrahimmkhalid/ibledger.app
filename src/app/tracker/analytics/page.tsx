@@ -68,6 +68,8 @@ import {
 import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
 import type { PlotParams } from "react-plotly.js";
 
+type PlotData = NonNullable<PlotParams["data"]>[number];
+
 const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), {
   ssr: false,
   loading: () => (
@@ -187,6 +189,23 @@ const CHART_COLORS = [
   "#10b981",
   "#64748b",
 ];
+
+const ROLLING_AVERAGE_WINDOWS: Record<GroupBy, number> = {
+  day: 10,
+  week: 5,
+  month: 3,
+};
+
+function rollingAverageValues(values: number[], windowSize: number) {
+  let sum = 0;
+
+  return values.map((value, index) => {
+    sum += value;
+    if (index >= windowSize) sum -= values[index - windowSize];
+
+    return index >= windowSize - 1 ? sum / windowSize : null;
+  });
+}
 
 function parseFilterAmount(value: string, label: string) {
   const trimmed = value.trim();
@@ -781,6 +800,7 @@ function incomeSpendingPlot(
 
 function trendPlot(
   series: TrendSeries[],
+  groupBy: GroupBy,
   theme: ReturnType<typeof usePlotTheme>,
   height: number,
 ) {
@@ -789,35 +809,76 @@ function trendPlot(
     return { data: [], layout: basePlotLayout(theme, height) };
   }
 
+  const rollingWindow = ROLLING_AVERAGE_WINDOWS[groupBy];
+
   return {
-    data: visible.map((item, index) => ({
-      type: "scatter",
-      mode: "lines+markers",
-      name: item.name,
-      x: item.points.map((point) => point.label),
-      y: item.points.map((point) => point.cumulative),
-      line: {
-        color: CHART_COLORS[index % CHART_COLORS.length],
-        width: 2.5,
-      },
-      marker: {
-        color: CHART_COLORS[index % CHART_COLORS.length],
-        size: 6,
-      },
-      hovertext: item.points.map(
-        (point) =>
-          `${item.name}<br>${point.label}<br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
-      ),
-      hovertemplate: "%{hovertext}<extra></extra>",
-    })) satisfies PlotParams["data"],
+    data: visible.flatMap((item, index) => {
+      const color = CHART_COLORS[index % CHART_COLORS.length];
+      const x = item.points.map((point) => point.label);
+      const cumulativeValues = item.points.map((point) => point.cumulative);
+      const rollingValues = rollingAverageValues(
+        cumulativeValues,
+        rollingWindow,
+      );
+      const hasRollingAverageLine =
+        rollingValues.filter((value) => value !== null).length >= 2;
+
+      const averageTrace = {
+        type: "scatter" as const,
+        mode: "lines" as const,
+        name: `${item.name} rolling average`,
+        x,
+        y: rollingValues,
+        legendgroup: item.name,
+        showlegend: false,
+        hoverinfo: "skip" as const,
+        line: {
+          color,
+          width: 1.75,
+          dash: "dot" as const,
+        },
+        opacity: 0.55,
+        connectgaps: false,
+      } satisfies PlotData;
+
+      const mainTrace = {
+        type: "scatter" as const,
+        mode: "lines" as const,
+        name: item.name,
+        x,
+        y: cumulativeValues,
+        legendgroup: item.name,
+        line: {
+          color,
+          width: 2.75,
+        },
+        hovertext: item.points.map(
+          (point) =>
+            `${item.name}<br>${point.label}<br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
+        ),
+        hovertemplate: "%{hovertext}<extra></extra>",
+      } satisfies PlotData;
+
+      return hasRollingAverageLine ? [averageTrace, mainTrace] : [mainTrace];
+    }) satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
+      margin: { t: 10, r: 22, b: visible.length > 1 ? 62 : 40, l: 74 },
+      showlegend: visible.length > 1,
+      legend: {
+        orientation: "h",
+        x: 0,
+        y: -0.18,
+        yanchor: "top",
+        font: { color: theme.muted, size: 11 },
+      },
       xaxis: {
         title: { text: "" },
         automargin: true,
         tickangle: visible[0].points.length > 6 ? -35 : 0,
         tickfont: { color: theme.muted, size: 10 },
-        gridcolor: theme.border,
+        showgrid: false,
+        zeroline: false,
       },
       yaxis: {
         title: { text: "Cumulative net" },
@@ -826,7 +887,8 @@ function trendPlot(
         separatethousands: true,
         gridcolor: theme.border,
         zeroline: true,
-        zerolinecolor: theme.border,
+        zerolinecolor: theme.muted,
+        zerolinewidth: 1,
       },
     } satisfies PlotParams["layout"],
   };
@@ -1013,10 +1075,16 @@ export default function AnalyticsPage() {
   );
   const walletTrendChart = trendPlot(
     analytics?.walletSeries ?? [],
+    groupBy,
     plotTheme,
     360,
   );
-  const fundTrendChart = trendPlot(analytics?.fundSeries ?? [], plotTheme, 360);
+  const fundTrendChart = trendPlot(
+    analytics?.fundSeries ?? [],
+    groupBy,
+    plotTheme,
+    360,
+  );
   const incomeTickAxis = { points: analytics?.timeSeries ?? [], groupBy };
   const walletTickAxis = {
     points: analytics?.walletSeries?.[0]?.points ?? [],
