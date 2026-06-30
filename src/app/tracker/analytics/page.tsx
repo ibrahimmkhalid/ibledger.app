@@ -190,6 +190,8 @@ const CHART_COLORS = [
   "#64748b",
 ];
 
+const CASHFLOW_SYMLOG_SCALE = 100;
+
 const ROLLING_AVERAGE_WINDOWS: Record<GroupBy, number> = {
   day: 10,
   week: 5,
@@ -649,7 +651,11 @@ function PlotlyChart({
 
     if (!tickAxis) return base;
 
-    const ticks = buildAxisTicks(tickAxis.points, tickAxis.groupBy, width);
+    const ticks = buildAxisTicks(
+      tickAxis.points,
+      tickAxis.groupBy,
+      width,
+    );
     if (!ticks) return base;
 
     return {
@@ -691,7 +697,7 @@ function ExpandableChartCard({
   expandedChildren,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children: React.ReactNode;
   expandedChildren: React.ReactNode;
 }) {
@@ -702,7 +708,7 @@ function ExpandableChartCard({
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          {description ? <CardDescription>{description}</CardDescription> : null}
           <CardAction>
             <Button
               type="button"
@@ -722,7 +728,9 @@ function ExpandableChartCard({
         <DialogContent className="h-[min(88vh,54rem)] max-w-[calc(100vw-2rem)] grid-rows-[auto_1fr] sm:max-w-[min(96rem,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
+            {description ? (
+              <DialogDescription>{description}</DialogDescription>
+            ) : null}
           </DialogHeader>
           <div className="h-full min-h-0">{expandedChildren}</div>
         </DialogContent>
@@ -731,7 +739,54 @@ function ExpandableChartCard({
   );
 }
 
-function incomeSpendingPlot(
+function symlogAmount(value: number) {
+  if (value === 0) return 0;
+  return (
+    Math.sign(value) *
+    Math.log10(1 + Math.abs(value) / CASHFLOW_SYMLOG_SCALE)
+  );
+}
+
+function compactAxisAmount(value: number) {
+  const absolute = Math.abs(value);
+  const formatted =
+    absolute >= 1000
+      ? `$${(absolute / 1000).toFixed(absolute >= 10000 ? 0 : 1)}k`
+      : `$${absolute.toFixed(0)}`;
+
+  return value < 0 ? `(${formatted})` : formatted;
+}
+
+function cashflowAxisTicks(maxAmount: number) {
+  const candidates = [
+    100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000,
+    500000, 1000000,
+  ].filter((amount) => amount <= maxAmount);
+  const step = Math.max(1, Math.ceil(candidates.length / 4));
+  const selected = candidates.filter(
+    (_, index) => index % step === 0 || index === candidates.length - 1,
+  );
+  const unique = Array.from(new Set(selected));
+
+  return {
+    tickvals: [
+      ...[...unique].reverse().map((amount) => symlogAmount(-amount)),
+      0,
+      ...unique.map((amount) => symlogAmount(amount)),
+    ],
+    ticktext: [
+      ...[...unique].reverse().map((amount) => compactAxisAmount(-amount)),
+      "$0",
+      ...unique.map((amount) => compactAxisAmount(amount)),
+    ],
+  };
+}
+
+function cashflowPulseHoverText(point: AnalyticsResponse["timeSeries"][number]) {
+  return `${point.label}<br>Income: ${formatHoverAmount(point.income)}<br>Spending: ${formatHoverAmount(point.spending)}<br>Net: ${formatHoverAmount(point.net)}<br>Rows: ${point.count.toLocaleString()}`;
+}
+
+function cashflowPulsePlot(
   data: AnalyticsResponse["timeSeries"],
   theme: ReturnType<typeof usePlotTheme>,
   height: number,
@@ -741,58 +796,113 @@ function incomeSpendingPlot(
   }
 
   const labels = data.map((point) => point.label);
-  const incomeText = data.map(
-    (point) =>
-      `${point.label}<br>Income: ${formatHoverAmount(point.income)}<br>Net: ${formatHoverAmount(point.net)}`,
+  const maxAmount = Math.max(
+    1,
+    ...data.flatMap((point) => [point.income, point.spending]),
   );
-  const spendingText = data.map(
-    (point) =>
-      `${point.label}<br>Spending: ${formatHoverAmount(point.spending)}<br>Net: ${formatHoverAmount(point.net)}`,
+  const yMax = Math.max(1, symlogAmount(maxAmount));
+  const binCount = height >= 600 ? 65 : 49;
+  const binStep = (yMax * 2) / (binCount - 1);
+  const yValues = Array.from(
+    { length: binCount },
+    (_, index) => -yMax + index * binStep,
   );
+  const minPulseHeight = binStep * 0.8;
+  const hoverText = yValues.map(() => data.map(cashflowPulseHoverText));
+  const incomeZ = yValues.map((y) =>
+    data.map((point) => {
+      if (point.income <= 0 || y <= 0) return null;
+      const level = Math.max(symlogAmount(point.income), minPulseHeight);
+      if (y > level) return null;
+      return Math.max(0.22, Math.abs(y) / yMax);
+    }),
+  );
+  const spendingZ = yValues.map((y) =>
+    data.map((point) => {
+      if (point.spending <= 0 || y >= 0) return null;
+      const level = -Math.max(symlogAmount(point.spending), minPulseHeight);
+      if (y < level) return null;
+      return Math.max(0.22, Math.abs(y) / yMax);
+    }),
+  );
+  const yTicks = cashflowAxisTicks(maxAmount);
 
   return {
     data: [
       {
-        type: "bar",
+        type: "heatmap",
         name: "Income",
         x: labels,
-        y: data.map((point) => point.income),
-        marker: { color: CHART_COLORS[0], line: { width: 0 } },
-        text: undefined,
-        textposition: "none",
-        hovertext: incomeText,
-        hovertemplate: "%{hovertext}<extra></extra>",
+        y: yValues,
+        z: incomeZ,
+        text: hoverText as unknown as string[],
+        hovertemplate: "%{text}<extra></extra>",
+        colorscale: [
+          [0, "rgba(5,150,105,0.08)"],
+          [0.55, "rgba(5,150,105,0.48)"],
+          [1, "rgba(5,150,105,0.92)"],
+        ],
+        zmin: 0,
+        zmax: 1,
+        showscale: false,
+        hoverongaps: false,
+        zsmooth: false,
       },
       {
-        type: "bar",
+        type: "heatmap",
         name: "Spending",
         x: labels,
-        y: data.map((point) => point.spending),
-        marker: { color: CHART_COLORS[1], line: { width: 0 } },
-        text: undefined,
-        textposition: "none",
-        hovertext: spendingText,
-        hovertemplate: "%{hovertext}<extra></extra>",
+        y: yValues,
+        z: spendingZ,
+        text: hoverText as unknown as string[],
+        hovertemplate: "%{text}<extra></extra>",
+        colorscale: [
+          [0, "rgba(224,82,96,0.08)"],
+          [0.55, "rgba(224,82,96,0.5)"],
+          [1, "rgba(224,82,96,0.94)"],
+        ],
+        zmin: 0,
+        zmax: 1,
+        showscale: false,
+        hoverongaps: false,
+        zsmooth: false,
       },
     ] satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
-      barmode: "group",
-      bargap: 0.28,
+      hovermode: "closest",
+      margin: { t: 10, r: 20, b: 52, l: 74 },
+      showlegend: false,
+      shapes: [
+        {
+          type: "line",
+          xref: "paper",
+          x0: 0,
+          x1: 1,
+          yref: "y",
+          y0: 0,
+          y1: 0,
+          line: { color: theme.muted, width: 1.25 },
+        },
+      ],
       xaxis: {
         title: { text: "" },
         automargin: true,
-        tickangle: data.length > 6 ? -35 : 0,
+        tickangle: 0,
         tickfont: { color: theme.muted, size: 10 },
-        gridcolor: theme.border,
+        showgrid: false,
+        zeroline: false,
       },
       yaxis: {
-        title: { text: "Amount" },
+        title: { text: "" },
         automargin: true,
-        tickprefix: "$",
-        separatethousands: true,
+        range: [-yMax, yMax],
+        tickmode: "array",
+        tickvals: yTicks.tickvals,
+        ticktext: yTicks.ticktext,
+        tickfont: { color: theme.muted, size: 10 },
         gridcolor: theme.border,
-        zerolinecolor: theme.border,
+        zeroline: false,
       },
     } satisfies PlotParams["layout"],
   };
@@ -1068,8 +1178,9 @@ export default function AnalyticsPage() {
 
   const summary = analytics?.summary;
   const groupBy = analytics?.groupBy ?? "month";
-  const incomeChart = incomeSpendingPlot(
-    analytics?.timeSeries ?? [],
+  const timeSeries = analytics?.timeSeries ?? [];
+  const cashflowPulseChart = cashflowPulsePlot(
+    timeSeries,
     plotTheme,
     360,
   );
@@ -1085,7 +1196,7 @@ export default function AnalyticsPage() {
     plotTheme,
     360,
   );
-  const incomeTickAxis = { points: analytics?.timeSeries ?? [], groupBy };
+  const cashflowPulseTickAxis = { points: timeSeries, groupBy };
   const walletTickAxis = {
     points: analytics?.walletSeries?.[0]?.points ?? [],
     groupBy,
@@ -1406,32 +1517,30 @@ export default function AnalyticsPage() {
         </div>
 
         <ExpandableChartCard
-          title="Income vs Spending"
-          description="Positive and negative movement by selected period."
+          title="Cashflow"
           expandedChildren={
             <PlotlyChart
-              data={incomeChart.data}
-              layout={incomeChart.layout}
+              data={cashflowPulseChart.data}
+              layout={cashflowPulseChart.layout}
               height={680}
               fill
-              tickAxis={incomeTickAxis}
-              ariaLabel="Expanded income and spending chart"
+              tickAxis={cashflowPulseTickAxis}
+              ariaLabel="Expanded cashflow chart"
             />
           }
         >
           <PlotlyChart
-            data={incomeChart.data}
-            layout={incomeChart.layout}
+            data={cashflowPulseChart.data}
+            layout={cashflowPulseChart.layout}
             height={360}
-            tickAxis={incomeTickAxis}
-            ariaLabel="Income and spending chart"
+            tickAxis={cashflowPulseTickAxis}
+            ariaLabel="Cashflow chart"
           />
         </ExpandableChartCard>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <ExpandableChartCard
             title="Wallet Trend"
-            description="Running net movement for the most active wallets."
             expandedChildren={
               <PlotlyChart
                 data={walletTrendChart.data}
@@ -1454,7 +1563,6 @@ export default function AnalyticsPage() {
 
           <ExpandableChartCard
             title="Fund Trend"
-            description="Running net movement for the most active funds."
             expandedChildren={
               <PlotlyChart
                 data={fundTrendChart.data}
@@ -1480,9 +1588,6 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Categorized Spending</CardTitle>
-              <CardDescription>
-                Funds ranked by outgoing movement.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <SpendingBars
@@ -1495,9 +1600,6 @@ export default function AnalyticsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Wallet Spending</CardTitle>
-              <CardDescription>
-                Wallets ranked by outgoing movement.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <SpendingBars
