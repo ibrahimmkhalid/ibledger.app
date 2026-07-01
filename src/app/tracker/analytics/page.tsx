@@ -549,23 +549,39 @@ function useElementWidth() {
   return { ref, width };
 }
 
+const DEFAULT_PLOT_THEME = {
+  foreground: "#27272a",
+  muted: "#78716c",
+  border: "#e7e5e4",
+  card: "#ffffff",
+};
+
 function usePlotTheme() {
-  const [theme, setTheme] = useState({
-    foreground: "#27272a",
-    muted: "#78716c",
-    border: "#e7e5e4",
-    card: "rgba(0,0,0,0)",
-  });
+  const [theme, setTheme] = useState(DEFAULT_PLOT_THEME);
 
   useEffect(() => {
+    // Theme tokens are authored as oklch(), which Plotly's color parser cannot
+    // read. Bounce each value through a probe element so the browser resolves
+    // it to a concrete rgb()/rgba() string that Plotly understands.
+    const probe = document.createElement("span");
+    probe.style.position = "absolute";
+    probe.style.opacity = "0";
+    probe.style.pointerEvents = "none";
+    document.body.appendChild(probe);
+
+    function resolve(cssVar: string, fallback: string) {
+      probe.style.color = fallback;
+      probe.style.color = `var(${cssVar})`;
+      const computed = getComputedStyle(probe).color;
+      return computed?.startsWith("rgb") ? computed : fallback;
+    }
+
     function readTheme() {
-      const styles = getComputedStyle(document.documentElement);
       setTheme({
-        foreground: styles.getPropertyValue("--foreground").trim() || "#27272a",
-        muted:
-          styles.getPropertyValue("--muted-foreground").trim() || "#78716c",
-        border: styles.getPropertyValue("--border").trim() || "#e7e5e4",
-        card: styles.getPropertyValue("--card").trim() || "rgba(0,0,0,0)",
+        foreground: resolve("--foreground", DEFAULT_PLOT_THEME.foreground),
+        muted: resolve("--muted-foreground", DEFAULT_PLOT_THEME.muted),
+        border: resolve("--border", DEFAULT_PLOT_THEME.border),
+        card: resolve("--popover", DEFAULT_PLOT_THEME.card),
       });
     }
 
@@ -575,7 +591,10 @@ function usePlotTheme() {
       attributes: true,
       attributeFilter: ["class"],
     });
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      probe.remove();
+    };
   }, []);
 
   return theme;
@@ -605,7 +624,8 @@ function basePlotLayout(
     hoverlabel: {
       bgcolor: theme.card,
       bordercolor: theme.border,
-      font: { color: theme.foreground, family: "inherit" },
+      font: { color: theme.foreground, family: "inherit", size: 12 },
+      align: "left",
     },
     hovermode: "x unified",
   };
@@ -657,11 +677,7 @@ function PlotlyChart({
 
     if (!tickAxis) return base;
 
-    const ticks = buildAxisTicks(
-      tickAxis.points,
-      tickAxis.groupBy,
-      width,
-    );
+    const ticks = buildAxisTicks(tickAxis.points, tickAxis.groupBy, width);
     if (!ticks) return base;
 
     return {
@@ -714,7 +730,9 @@ function ExpandableChartCard({
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription>{description}</CardDescription> : null}
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : null}
           <CardAction>
             <Button
               type="button"
@@ -745,11 +763,27 @@ function ExpandableChartCard({
   );
 }
 
+// Shared axis tick styling so every chart on the page reads the same way.
+function mutedTickFont(theme: ReturnType<typeof usePlotTheme>) {
+  return { color: theme.muted, size: 10 };
+}
+
+// Shared time (x) axis config. Every chart plots periods along x, so they all
+// use the same muted ticks, no gridlines, and the same hover spike behaviour.
+function timeAxis(theme: ReturnType<typeof usePlotTheme>) {
+  return {
+    title: { text: "" },
+    automargin: true,
+    tickfont: mutedTickFont(theme),
+    showgrid: false,
+    zeroline: false,
+  };
+}
+
 function symlogAmount(value: number) {
   if (value === 0) return 0;
   return (
-    Math.sign(value) *
-    Math.log10(1 + Math.abs(value) / CASHFLOW_SYMLOG_SCALE)
+    Math.sign(value) * Math.log10(1 + Math.abs(value) / CASHFLOW_SYMLOG_SCALE)
   );
 }
 
@@ -788,14 +822,21 @@ function cashflowAxisTicks(maxAmount: number) {
   };
 }
 
-function cashflowNetHoverText(point: AnalyticsResponse["timeSeries"][number]) {
-  const heading = point.net >= 0 ? "Net gain" : "Net loss";
+// The period (x value) is supplied automatically as the unified hover header,
+// so the body starts with the colored net accent to match the trend tooltip's
+// colored series accents.
+function cashflowNetHoverText(
+  point: AnalyticsResponse["timeSeries"][number],
+  theme: ReturnType<typeof usePlotTheme>,
+) {
+  const positive = point.net >= 0;
+  const accent = positive ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE;
+  const heading = positive ? "Net gain" : "Net loss";
   return [
-    `<b>${point.label}</b>`,
-    `${heading}: ${formatHoverAmount(point.net)}`,
+    `<b><span style="color:${accent}">${heading}: ${formatHoverAmount(point.net)}</span></b>`,
     `Income: ${formatHoverAmount(point.income)}`,
     `Spending: ${formatHoverAmount(-point.spending)}`,
-    `${point.count.toLocaleString()} posting rows`,
+    `<span style="color:${theme.muted}">${point.count.toLocaleString()} posting rows</span>`,
   ].join("<br>");
 }
 
@@ -818,7 +859,7 @@ function cashflowNetPlot(
   const barColors = data.map((point) =>
     point.net >= 0 ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE,
   );
-  const hoverText = data.map(cashflowNetHoverText);
+  const hoverText = data.map((point) => cashflowNetHoverText(point, theme));
 
   const maxAbsNet = Math.max(1, ...data.map((point) => Math.abs(point.net)));
   const yMax = symlogAmount(maxAbsNet);
@@ -844,30 +885,10 @@ function cashflowNetPlot(
     ] satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
-      hovermode: "closest",
       bargap: 0.2,
       margin: { t: 10, r: 20, b: 52, l: 74 },
       showlegend: false,
-      shapes: [
-        {
-          type: "line",
-          xref: "paper",
-          x0: 0,
-          x1: 1,
-          yref: "y",
-          y0: 0,
-          y1: 0,
-          line: { color: theme.muted, width: 1 },
-        },
-      ],
-      xaxis: {
-        title: { text: "" },
-        automargin: true,
-        tickangle: 0,
-        tickfont: { color: theme.muted, size: 10 },
-        showgrid: false,
-        zeroline: false,
-      },
+      xaxis: timeAxis(theme),
       yaxis: {
         title: { text: "" },
         automargin: true,
@@ -875,9 +896,11 @@ function cashflowNetPlot(
         tickmode: "array",
         tickvals: yTicks.tickvals,
         ticktext: yTicks.ticktext,
-        tickfont: { color: theme.muted, size: 10 },
+        tickfont: mutedTickFont(theme),
         gridcolor: theme.border,
-        zeroline: false,
+        zeroline: true,
+        zerolinecolor: theme.muted,
+        zerolinewidth: 1,
       },
     } satisfies PlotParams["layout"],
   };
@@ -939,7 +962,7 @@ function trendPlot(
         },
         hovertext: item.points.map(
           (point) =>
-            `${item.name}<br>${point.label}<br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
+            `<b><span style="color:${color}">${item.name}</span></b><br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
         ),
         hovertemplate: "%{hovertext}<extra></extra>",
       } satisfies PlotData;
@@ -948,7 +971,7 @@ function trendPlot(
     }) satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
-      margin: { t: 10, r: 22, b: visible.length > 1 ? 62 : 40, l: 74 },
+      margin: { t: 10, r: 20, b: visible.length > 1 ? 62 : 40, l: 74 },
       showlegend: visible.length > 1,
       legend: {
         orientation: "h",
@@ -957,19 +980,13 @@ function trendPlot(
         yanchor: "top",
         font: { color: theme.muted, size: 11 },
       },
-      xaxis: {
-        title: { text: "" },
-        automargin: true,
-        tickangle: visible[0].points.length > 6 ? -35 : 0,
-        tickfont: { color: theme.muted, size: 10 },
-        showgrid: false,
-        zeroline: false,
-      },
+      xaxis: timeAxis(theme),
       yaxis: {
         title: { text: "Cumulative net" },
         automargin: true,
         tickprefix: "$",
         separatethousands: true,
+        tickfont: mutedTickFont(theme),
         gridcolor: theme.border,
         zeroline: true,
         zerolinecolor: theme.muted,
@@ -1489,7 +1506,6 @@ export default function AnalyticsPage() {
 
         <ExpandableChartCard
           title="Cashflow"
-          description={`Net movement per ${groupBy}. Offsetting transfers cancel out; hover for the income and spending behind each bar.`}
           expandedChildren={
             <PlotlyChart
               data={cashflowNetChart.data}
