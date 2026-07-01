@@ -66,6 +66,7 @@ import {
   type TransactionsPageFilters,
 } from "@/app/tracker/lib/transactions-page-cache";
 import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
+import type { PlotMarker } from "plotly.js";
 import type { PlotParams } from "react-plotly.js";
 
 type PlotData = NonNullable<PlotParams["data"]>[number];
@@ -191,6 +192,11 @@ const CHART_COLORS = [
 ];
 
 const CASHFLOW_SYMLOG_SCALE = 100;
+
+// Diverging colors for the net cashflow bars: emerald for net gain, rose for
+// net loss. Kept in sync with the income/spending tones used elsewhere.
+const CASHFLOW_POSITIVE = "#059669";
+const CASHFLOW_NEGATIVE = "#e05260";
 
 const ROLLING_AVERAGE_WINDOWS: Record<GroupBy, number> = {
   day: 10,
@@ -782,11 +788,23 @@ function cashflowAxisTicks(maxAmount: number) {
   };
 }
 
-function cashflowPulseHoverText(point: AnalyticsResponse["timeSeries"][number]) {
-  return `${point.label}<br>Income: ${formatHoverAmount(point.income)}<br>Spending: ${formatHoverAmount(point.spending)}<br>Net: ${formatHoverAmount(point.net)}<br>Rows: ${point.count.toLocaleString()}`;
+function cashflowNetHoverText(point: AnalyticsResponse["timeSeries"][number]) {
+  const heading = point.net >= 0 ? "Net gain" : "Net loss";
+  return [
+    `<b>${point.label}</b>`,
+    `${heading}: ${formatHoverAmount(point.net)}`,
+    `Income: ${formatHoverAmount(point.income)}`,
+    `Spending: ${formatHoverAmount(-point.spending)}`,
+    `${point.count.toLocaleString()} posting rows`,
+  ].join("<br>");
 }
 
-function cashflowPulsePlot(
+// Cashflow chart: one diverging bar per period showing the *net* movement.
+// Because it plots net, equal-and-opposite flows within a period (e.g. a
+// transfer that lands and leaves the same wallet) cancel out and no longer
+// each claim their own slab of vertical space. Bar heights use a signed
+// symlog transform so a $50 day and a $5k day are both legible.
+function cashflowNetPlot(
   data: AnalyticsResponse["timeSeries"],
   theme: ReturnType<typeof usePlotTheme>,
   height: number,
@@ -796,81 +814,38 @@ function cashflowPulsePlot(
   }
 
   const labels = data.map((point) => point.label);
-  const maxAmount = Math.max(
-    1,
-    ...data.flatMap((point) => [point.income, point.spending]),
+  const barValues = data.map((point) => symlogAmount(point.net));
+  const barColors = data.map((point) =>
+    point.net >= 0 ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE,
   );
-  const yMax = Math.max(1, symlogAmount(maxAmount));
-  const binCount = height >= 600 ? 65 : 49;
-  const binStep = (yMax * 2) / (binCount - 1);
-  const yValues = Array.from(
-    { length: binCount },
-    (_, index) => -yMax + index * binStep,
-  );
-  const minPulseHeight = binStep * 0.8;
-  const hoverText = yValues.map(() => data.map(cashflowPulseHoverText));
-  const incomeZ = yValues.map((y) =>
-    data.map((point) => {
-      if (point.income <= 0 || y <= 0) return null;
-      const level = Math.max(symlogAmount(point.income), minPulseHeight);
-      if (y > level) return null;
-      return Math.max(0.22, Math.abs(y) / yMax);
-    }),
-  );
-  const spendingZ = yValues.map((y) =>
-    data.map((point) => {
-      if (point.spending <= 0 || y >= 0) return null;
-      const level = -Math.max(symlogAmount(point.spending), minPulseHeight);
-      if (y < level) return null;
-      return Math.max(0.22, Math.abs(y) / yMax);
-    }),
-  );
-  const yTicks = cashflowAxisTicks(maxAmount);
+  const hoverText = data.map(cashflowNetHoverText);
+
+  const maxAbsNet = Math.max(1, ...data.map((point) => Math.abs(point.net)));
+  const yMax = symlogAmount(maxAbsNet);
+  const yTicks = cashflowAxisTicks(maxAbsNet);
 
   return {
     data: [
       {
-        type: "heatmap",
-        name: "Income",
+        type: "bar",
+        name: "Net",
         x: labels,
-        y: yValues,
-        z: incomeZ,
-        text: hoverText as unknown as string[],
-        hovertemplate: "%{text}<extra></extra>",
-        colorscale: [
-          [0, "rgba(5,150,105,0.08)"],
-          [0.55, "rgba(5,150,105,0.48)"],
-          [1, "rgba(5,150,105,0.92)"],
-        ],
-        zmin: 0,
-        zmax: 1,
-        showscale: false,
-        hoverongaps: false,
-        zsmooth: false,
-      },
-      {
-        type: "heatmap",
-        name: "Spending",
-        x: labels,
-        y: yValues,
-        z: spendingZ,
-        text: hoverText as unknown as string[],
-        hovertemplate: "%{text}<extra></extra>",
-        colorscale: [
-          [0, "rgba(224,82,96,0.08)"],
-          [0.55, "rgba(224,82,96,0.5)"],
-          [1, "rgba(224,82,96,0.94)"],
-        ],
-        zmin: 0,
-        zmax: 1,
-        showscale: false,
-        hoverongaps: false,
-        zsmooth: false,
+        y: barValues,
+        // cornerradius is supported by plotly.js >= 2.20 but missing from the
+        // shipped type defs, so we widen the marker type just for this prop.
+        marker: {
+          color: barColors,
+          line: { width: 0 },
+          cornerradius: 4,
+        } as Partial<PlotMarker> & { cornerradius: number },
+        hovertext: hoverText,
+        hovertemplate: "%{hovertext}<extra></extra>",
       },
     ] satisfies PlotParams["data"],
     layout: {
       ...basePlotLayout(theme, height),
       hovermode: "closest",
+      bargap: 0.2,
       margin: { t: 10, r: 20, b: 52, l: 74 },
       showlegend: false,
       shapes: [
@@ -882,7 +857,7 @@ function cashflowPulsePlot(
           yref: "y",
           y0: 0,
           y1: 0,
-          line: { color: theme.muted, width: 1.25 },
+          line: { color: theme.muted, width: 1 },
         },
       ],
       xaxis: {
@@ -896,7 +871,7 @@ function cashflowPulsePlot(
       yaxis: {
         title: { text: "" },
         automargin: true,
-        range: [-yMax, yMax],
+        range: [-yMax * 1.08, yMax * 1.08],
         tickmode: "array",
         tickvals: yTicks.tickvals,
         ticktext: yTicks.ticktext,
@@ -1179,11 +1154,7 @@ export default function AnalyticsPage() {
   const summary = analytics?.summary;
   const groupBy = analytics?.groupBy ?? "month";
   const timeSeries = analytics?.timeSeries ?? [];
-  const cashflowPulseChart = cashflowPulsePlot(
-    timeSeries,
-    plotTheme,
-    360,
-  );
+  const cashflowNetChart = cashflowNetPlot(timeSeries, plotTheme, 360);
   const walletTrendChart = trendPlot(
     analytics?.walletSeries ?? [],
     groupBy,
@@ -1196,7 +1167,7 @@ export default function AnalyticsPage() {
     plotTheme,
     360,
   );
-  const cashflowPulseTickAxis = { points: timeSeries, groupBy };
+  const cashflowNetTickAxis = { points: timeSeries, groupBy };
   const walletTickAxis = {
     points: analytics?.walletSeries?.[0]?.points ?? [],
     groupBy,
@@ -1518,22 +1489,23 @@ export default function AnalyticsPage() {
 
         <ExpandableChartCard
           title="Cashflow"
+          description={`Net movement per ${groupBy}. Offsetting transfers cancel out; hover for the income and spending behind each bar.`}
           expandedChildren={
             <PlotlyChart
-              data={cashflowPulseChart.data}
-              layout={cashflowPulseChart.layout}
+              data={cashflowNetChart.data}
+              layout={cashflowNetChart.layout}
               height={680}
               fill
-              tickAxis={cashflowPulseTickAxis}
+              tickAxis={cashflowNetTickAxis}
               ariaLabel="Expanded cashflow chart"
             />
           }
         >
           <PlotlyChart
-            data={cashflowPulseChart.data}
-            layout={cashflowPulseChart.layout}
+            data={cashflowNetChart.data}
+            layout={cashflowNetChart.layout}
             height={360}
-            tickAxis={cashflowPulseTickAxis}
+            tickAxis={cashflowNetTickAxis}
             ariaLabel="Cashflow chart"
           />
         </ExpandableChartCard>
