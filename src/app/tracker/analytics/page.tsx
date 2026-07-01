@@ -82,6 +82,17 @@ const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), {
 
 type GroupBy = "day" | "week" | "month";
 
+type GranularityLevel = "fine" | "medium" | "coarse";
+
+type DateRangePreset =
+  | "all"
+  | "last_week"
+  | "last_month"
+  | "last_3_months"
+  | "last_6_months"
+  | "last_year"
+  | "ytd";
+
 type AnalyticsFilters = TransactionsPageFilters & {
   startDate: string;
   endDate: string;
@@ -94,6 +105,8 @@ type AnalyticsFilterDraft = Omit<
 > & {
   minAmount: string;
   maxAmount: string;
+  datePreset: DateRangePreset;
+  granularityLevel: GranularityLevel;
 };
 
 type MoneyTotal = {
@@ -180,7 +193,275 @@ const DEFAULT_FILTER_DRAFT: AnalyticsFilterDraft = {
   ...DEFAULT_ANALYTICS_FILTERS,
   minAmount: "",
   maxAmount: "",
+  datePreset: "all",
+  granularityLevel: "medium",
 };
+
+const GRANULARITY_LEVELS: ReadonlyArray<{
+  value: GranularityLevel;
+  label: string;
+}> = [
+  { value: "fine", label: "Fine" },
+  { value: "medium", label: "Medium" },
+  { value: "coarse", label: "Coarse" },
+];
+
+// Base (range, zoom) → bucket size before data-span capping.
+const GRANULARITY_SLOT_MAP: Record<
+  DateRangePreset,
+  Record<GranularityLevel, GroupBy | null>
+> = {
+  all: { fine: "day", medium: "week", coarse: "month" },
+  last_week: { fine: "day", medium: null, coarse: null },
+  last_month: { fine: "day", medium: null, coarse: "week" },
+  last_3_months: { fine: "day", medium: "week", coarse: "month" },
+  last_6_months: { fine: "week", medium: null, coarse: "month" },
+  last_year: { fine: "week", medium: "month", coarse: null },
+  ytd: { fine: "day", medium: "week", coarse: "month" },
+};
+
+const DATE_RANGE_PRESETS: ReadonlyArray<{
+  value: DateRangePreset;
+  label: string;
+}> = [
+  { value: "all", label: "All time" },
+  { value: "last_week", label: "Last week" },
+  { value: "last_month", label: "Last month" },
+  { value: "last_3_months", label: "Last 3 months" },
+  { value: "last_6_months", label: "Last 6 months" },
+  { value: "last_year", label: "Last year" },
+  { value: "ytd", label: "Year to date" },
+];
+
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Resolves a relative range preset into concrete start/end dates (inclusive of
+// today). "all" clears the range so analytics span every transaction.
+function dateRangeForPreset(preset: DateRangePreset): {
+  startDate: string;
+  endDate: string;
+} {
+  if (preset === "all") return { startDate: "", endDate: "" };
+
+  const today = new Date();
+  const start = new Date(today);
+
+  switch (preset) {
+    case "last_week":
+      start.setDate(start.getDate() - 7);
+      break;
+    case "last_month":
+      start.setMonth(start.getMonth() - 1);
+      break;
+    case "last_3_months":
+      start.setMonth(start.getMonth() - 3);
+      break;
+    case "last_6_months":
+      start.setMonth(start.getMonth() - 6);
+      break;
+    case "last_year":
+      start.setFullYear(start.getFullYear() - 1);
+      break;
+    case "ytd":
+      start.setMonth(0, 1);
+      break;
+  }
+
+  return { startDate: toISODate(start), endDate: toISODate(today) };
+}
+
+function daysInclusive(start: Date, end: Date) {
+  const startUtc = Date.UTC(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+  );
+  const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.max(1, Math.floor((endUtc - startUtc) / 86_400_000) + 1);
+}
+
+function parseLocalDate(isoDate: string) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+function effectiveSpanDays(args: {
+  preset: DateRangePreset;
+  startDate: string;
+  endDate: string;
+  firstTransactionAt: string | null;
+  lastTransactionAt: string | null;
+}) {
+  const presetRange = dateRangeForPreset(args.preset);
+  const today = new Date();
+
+  let start = args.startDate
+    ? parseLocalDate(args.startDate)
+    : presetRange.startDate
+      ? parseLocalDate(presetRange.startDate)
+      : args.firstTransactionAt
+        ? new Date(args.firstTransactionAt)
+        : null;
+  let end = args.endDate
+    ? parseLocalDate(args.endDate)
+    : presetRange.endDate
+      ? parseLocalDate(presetRange.endDate)
+      : today;
+
+  if (args.firstTransactionAt) {
+    const first = new Date(args.firstTransactionAt);
+    if (!start || first > start) start = first;
+  }
+  if (args.lastTransactionAt) {
+    const last = new Date(args.lastTransactionAt);
+    if (last < end) end = last;
+  }
+
+  if (!start) return 365;
+
+  return daysInclusive(start, end);
+}
+
+function estimatedBars(groupBy: GroupBy, spanDays: number) {
+  if (groupBy === "day") return spanDays;
+  if (groupBy === "week") return Math.ceil(spanDays / 7);
+  return Math.max(1, Math.ceil(spanDays / 30));
+}
+
+function isGranularityValid(groupBy: GroupBy, spanDays: number) {
+  const bars = estimatedBars(groupBy, spanDays);
+  return bars >= 2 && bars <= 120;
+}
+
+function dynamicGranularitySlots(spanDays: number) {
+  if (spanDays <= 14) {
+    return { fine: "day" as const, medium: null, coarse: null };
+  }
+  if (spanDays <= 45) {
+    return { fine: "day" as const, medium: null, coarse: "week" as const };
+  }
+  if (spanDays <= 120) {
+    return {
+      fine: "day" as const,
+      medium: "week" as const,
+      coarse: "month" as const,
+    };
+  }
+  if (spanDays <= 210) {
+    return {
+      fine: "week" as const,
+      medium: null,
+      coarse: "month" as const,
+    };
+  }
+  return {
+    fine: "week" as const,
+    medium: "month" as const,
+    coarse: null,
+  };
+}
+
+type GranularitySlotState = {
+  groupBy: GroupBy | null;
+  disabled: boolean;
+};
+
+function resolveGranularitySlots(
+  preset: DateRangePreset,
+  spanDays: number,
+): Record<GranularityLevel, GranularitySlotState> {
+  const raw =
+    preset === "all" || preset === "ytd"
+      ? dynamicGranularitySlots(spanDays)
+      : GRANULARITY_SLOT_MAP[preset];
+
+  const slots: Record<GranularityLevel, GroupBy | null> = { ...raw };
+
+  if (slots.medium === slots.fine) slots.medium = null;
+  if (slots.coarse === slots.medium || slots.coarse === slots.fine) {
+    slots.coarse = null;
+  }
+
+  return (["fine", "medium", "coarse"] as const).reduce(
+    (acc, level) => {
+      const groupBy = slots[level];
+      const disabled =
+        groupBy === null || !isGranularityValid(groupBy, spanDays);
+      acc[level] = { groupBy, disabled };
+      return acc;
+    },
+    {} as Record<GranularityLevel, GranularitySlotState>,
+  );
+}
+
+function pickGranularityLevel(
+  slots: Record<GranularityLevel, GranularitySlotState>,
+  preferred: GranularityLevel = "medium",
+): GranularityLevel {
+  if (!slots[preferred].disabled && slots[preferred].groupBy !== null) {
+    return preferred;
+  }
+
+  for (const level of ["medium", "fine", "coarse"] as const) {
+    if (!slots[level].disabled && slots[level].groupBy !== null) {
+      return level;
+    }
+  }
+
+  return "fine";
+}
+
+function groupByForGranularity(
+  preset: DateRangePreset,
+  startDate: string,
+  endDate: string,
+  granularityLevel: GranularityLevel,
+  firstTransactionAt: string | null,
+  lastTransactionAt: string | null,
+) {
+  const spanDays = effectiveSpanDays({
+    preset,
+    startDate,
+    endDate,
+    firstTransactionAt,
+    lastTransactionAt,
+  });
+  const slots = resolveGranularitySlots(preset, spanDays);
+  const level = pickGranularityLevel(slots, granularityLevel);
+  return {
+    granularityLevel: level,
+    groupBy: slots[level].groupBy ?? "month",
+    slots,
+    spanDays,
+  };
+}
+
+function syncGranularityDraft(
+  draft: AnalyticsFilterDraft,
+  firstTransactionAt: string | null,
+  lastTransactionAt: string | null,
+  options?: { preferLevel?: GranularityLevel },
+): AnalyticsFilterDraft {
+  const resolved = groupByForGranularity(
+    draft.datePreset,
+    draft.startDate,
+    draft.endDate,
+    options?.preferLevel ?? draft.granularityLevel,
+    firstTransactionAt,
+    lastTransactionAt,
+  );
+
+  return {
+    ...draft,
+    granularityLevel: resolved.granularityLevel,
+    groupBy: resolved.groupBy,
+  };
+}
 
 const CHART_COLORS = [
   "#06b6d4",
@@ -270,7 +551,6 @@ function countActiveFilters(filters: AnalyticsFilters) {
   if (filters.income !== "all") count += 1;
   if (filters.direction !== "all") count += 1;
   if (filters.startDate || filters.endDate) count += 1;
-  if (filters.groupBy !== "month") count += 1;
   return count;
 }
 
@@ -418,6 +698,54 @@ function MultiSelectDropdown(args: {
           </PopoverPrimitive.Content>
         </PopoverPrimitive.Portal>
       </PopoverPrimitive.Root>
+    </div>
+  );
+}
+
+// Compact segmented toggle for mutually-exclusive filter values.
+function SegmentedControl<T extends string>(args: {
+  label: string;
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string; disabled?: boolean }>;
+  onChange: (value: T) => void;
+  hint?: string;
+}) {
+  const { label, value, options, onChange, hint } = args;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label>{label}</Label>
+      <div className="border-input bg-input/20 dark:bg-input/30 flex h-7 items-center gap-0.5 rounded-md border p-0.5">
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              disabled={option.disabled}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-xs font-medium transition-colors",
+                option.disabled
+                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  : active
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="truncate">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {hint ? (
+        <span className="text-muted-foreground text-[11px]">{hint}</span>
+      ) : (
+        <span className="invisible text-[11px]" aria-hidden>
+          &nbsp;
+        </span>
+      )}
     </div>
   );
 }
@@ -1040,12 +1368,7 @@ export default function AnalyticsPage() {
   const searchId = useId();
   const minAmountId = useId();
   const maxAmountId = useId();
-  const startDateId = useId();
-  const endDateId = useId();
-  const pendingStatusId = useId();
-  const incomeFilterId = useId();
-  const directionFilterId = useId();
-  const groupById = useId();
+  const dateRangeId = useId();
 
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
@@ -1062,6 +1385,34 @@ export default function AnalyticsPage() {
   const [funds, setFunds] = useState<Fund[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const plotTheme = usePlotTheme();
+
+  const dataBounds = useMemo(
+    () => ({
+      first: analytics?.range.firstTransactionAt ?? null,
+      last: analytics?.range.lastTransactionAt ?? null,
+    }),
+    [analytics?.range.firstTransactionAt, analytics?.range.lastTransactionAt],
+  );
+
+  const granularityState = useMemo(
+    () =>
+      groupByForGranularity(
+        filterDraft.datePreset,
+        filterDraft.startDate,
+        filterDraft.endDate,
+        filterDraft.granularityLevel,
+        dataBounds.first,
+        dataBounds.last,
+      ),
+    [
+      filterDraft.datePreset,
+      filterDraft.startDate,
+      filterDraft.endDate,
+      filterDraft.granularityLevel,
+      dataBounds.first,
+      dataBounds.last,
+    ],
+  );
 
   const activeFilterCount = useMemo(
     () => countActiveFilters(filters),
@@ -1130,13 +1481,19 @@ export default function AnalyticsPage() {
 
   const applyFilters = useCallback(async () => {
     try {
-      const nextFilters = draftToFilters(filterDraft);
+      const syncedDraft = syncGranularityDraft(
+        filterDraft,
+        dataBounds.first,
+        dataBounds.last,
+      );
+      setFilterDraft(syncedDraft);
+      const nextFilters = draftToFilters(syncedDraft);
       setFilters(nextFilters);
       await loadAnalytics(nextFilters);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Invalid filters");
     }
-  }, [filterDraft, loadAnalytics]);
+  }, [dataBounds.first, dataBounds.last, filterDraft, loadAnalytics]);
 
   const resetFilters = useCallback(async () => {
     setFilters(DEFAULT_ANALYTICS_FILTERS);
@@ -1146,10 +1503,45 @@ export default function AnalyticsPage() {
 
   const patchFilterDraft = useCallback(
     (patch: Partial<AnalyticsFilterDraft>) => {
-      setFilterDraft((prev) => ({ ...prev, ...patch }));
+      setFilterDraft((prev) => {
+        const next = { ...prev, ...patch };
+        if (
+          "datePreset" in patch ||
+          "startDate" in patch ||
+          "endDate" in patch ||
+          "granularityLevel" in patch
+        ) {
+          return syncGranularityDraft(next, dataBounds.first, dataBounds.last, {
+            preferLevel:
+              "granularityLevel" in patch
+                ? (patch.granularityLevel ?? next.granularityLevel)
+                : next.granularityLevel,
+          });
+        }
+        return next;
+      });
     },
-    [],
+    [dataBounds.first, dataBounds.last],
   );
+
+  useEffect(() => {
+    if (!dataBounds.first && !dataBounds.last) return;
+
+    setFilterDraft((prev) => {
+      const synced = syncGranularityDraft(
+        prev,
+        dataBounds.first,
+        dataBounds.last,
+      );
+      if (
+        synced.granularityLevel === prev.granularityLevel &&
+        synced.groupBy === prev.groupBy
+      ) {
+        return prev;
+      }
+      return synced;
+    });
+  }, [dataBounds.first, dataBounds.last]);
 
   useEffect(() => {
     router.prefetch("/tracker");
@@ -1269,8 +1661,8 @@ export default function AnalyticsPage() {
             )}
           >
             <div className="overflow-hidden">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                <div className="flex min-w-0 flex-col gap-1.5 xl:col-span-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex min-w-0 flex-col gap-1.5">
                   <Label htmlFor={searchId}>Search</Label>
                   <div className="relative">
                     <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
@@ -1286,156 +1678,124 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={pendingStatusId}>Status</Label>
-                  <Select
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor={dateRangeId}>Date range</Label>
+                    <Select
+                      value={filterDraft.datePreset}
+                      onValueChange={(value) =>
+                        patchFilterDraft({
+                          datePreset: value as DateRangePreset,
+                          ...dateRangeForPreset(value as DateRangePreset),
+                        })
+                      }
+                    >
+                      <SelectTrigger id={dateRangeId} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DATE_RANGE_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <SegmentedControl<GranularityLevel>
+                    label="Detail"
+                    value={filterDraft.granularityLevel}
+                    onChange={(granularityLevel) =>
+                      patchFilterDraft({ granularityLevel })
+                    }
+                    options={GRANULARITY_LEVELS.map((level) => ({
+                      value: level.value,
+                      label: level.label,
+                      disabled: granularityState.slots[level.value].disabled,
+                    }))}
+                  />
+
+                  <SegmentedControl<TransactionPendingFilter>
+                    label="Status"
                     value={filterDraft.pendingStatus}
-                    onValueChange={(value) =>
-                      patchFilterDraft({
-                        pendingStatus: value as TransactionPendingFilter,
-                      })
+                    onChange={(pendingStatus) =>
+                      patchFilterDraft({ pendingStatus })
                     }
-                  >
-                    <SelectTrigger id={pendingStatusId} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="cleared">Cleared</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={incomeFilterId}>Type</Label>
-                  <Select
+                    options={[
+                      { value: "all", label: "All" },
+                      { value: "pending", label: "Pending" },
+                      { value: "cleared", label: "Cleared" },
+                    ]}
+                  />
+                  <SegmentedControl<TransactionIncomeFilter>
+                    label="Type"
                     value={filterDraft.income}
-                    onValueChange={(value) =>
-                      patchFilterDraft({
-                        income: value as TransactionIncomeFilter,
-                      })
-                    }
-                  >
-                    <SelectTrigger id={incomeFilterId} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="income">Income</SelectItem>
-                      <SelectItem value="not_income">Not income</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={directionFilterId}>Direction</Label>
-                  <Select
+                    onChange={(income) => patchFilterDraft({ income })}
+                    options={[
+                      { value: "all", label: "All" },
+                      { value: "income", label: "Income" },
+                      { value: "not_income", label: "Expense" },
+                    ]}
+                  />
+                  <SegmentedControl<TransactionDirectionFilter>
+                    label="Direction"
                     value={filterDraft.direction}
-                    onValueChange={(value) =>
-                      patchFilterDraft({
-                        direction: value as TransactionDirectionFilter,
-                      })
-                    }
-                  >
-                    <SelectTrigger id={directionFilterId} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="in">In</SelectItem>
-                      <SelectItem value="out">Out</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={groupById}>Group</Label>
-                  <Select
-                    value={filterDraft.groupBy}
-                    onValueChange={(value) =>
-                      patchFilterDraft({ groupBy: value as GroupBy })
-                    }
-                  >
-                    <SelectTrigger id={groupById} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="day">Day</SelectItem>
-                      <SelectItem value="week">Week</SelectItem>
-                      <SelectItem value="month">Month</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={minAmountId}>Minimum</Label>
-                  <Input
-                    id={minAmountId}
-                    inputMode="decimal"
-                    value={filterDraft.minAmount}
-                    onChange={(event) =>
-                      patchFilterDraft({ minAmount: event.target.value })
-                    }
-                    placeholder="$0"
+                    onChange={(direction) => patchFilterDraft({ direction })}
+                    options={[
+                      { value: "all", label: "All" },
+                      { value: "in", label: "In" },
+                      { value: "out", label: "Out" },
+                    ]}
                   />
                 </div>
 
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={maxAmountId}>Maximum</Label>
-                  <Input
-                    id={maxAmountId}
-                    inputMode="decimal"
-                    value={filterDraft.maxAmount}
-                    onChange={(event) =>
-                      patchFilterDraft({ maxAmount: event.target.value })
-                    }
-                    placeholder="Any"
-                  />
-                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor={minAmountId}>Minimum</Label>
+                    <Input
+                      id={minAmountId}
+                      inputMode="decimal"
+                      value={filterDraft.minAmount}
+                      onChange={(event) =>
+                        patchFilterDraft({ minAmount: event.target.value })
+                      }
+                      placeholder="$0"
+                    />
+                  </div>
 
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={startDateId}>Start</Label>
-                  <Input
-                    id={startDateId}
-                    type="date"
-                    value={filterDraft.startDate}
-                    onChange={(event) =>
-                      patchFilterDraft({ startDate: event.target.value })
-                    }
-                  />
-                </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label htmlFor={maxAmountId}>Maximum</Label>
+                    <Input
+                      id={maxAmountId}
+                      inputMode="decimal"
+                      value={filterDraft.maxAmount}
+                      onChange={(event) =>
+                        patchFilterDraft({ maxAmount: event.target.value })
+                      }
+                      placeholder="Any"
+                    />
+                  </div>
 
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={endDateId}>End</Label>
-                  <Input
-                    id={endDateId}
-                    type="date"
-                    value={filterDraft.endDate}
-                    onChange={(event) =>
-                      patchFilterDraft({ endDate: event.target.value })
-                    }
-                  />
-                </div>
+                  <div className="xl:col-span-2">
+                    <MultiSelectDropdown
+                      label="Funds"
+                      allLabel="All funds"
+                      options={funds}
+                      selectedIds={filterDraft.fundIds}
+                      onChange={(fundIds) => patchFilterDraft({ fundIds })}
+                    />
+                  </div>
 
-                <div className="sm:col-span-2">
-                  <MultiSelectDropdown
-                    label="Funds"
-                    allLabel="All funds"
-                    options={funds}
-                    selectedIds={filterDraft.fundIds}
-                    onChange={(fundIds) => patchFilterDraft({ fundIds })}
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <MultiSelectDropdown
-                    label="Wallets"
-                    allLabel="All wallets"
-                    options={wallets}
-                    selectedIds={filterDraft.walletIds}
-                    onChange={(walletIds) => patchFilterDraft({ walletIds })}
-                  />
+                  <div className="xl:col-span-2">
+                    <MultiSelectDropdown
+                      label="Wallets"
+                      allLabel="All wallets"
+                      options={wallets}
+                      selectedIds={filterDraft.walletIds}
+                      onChange={(walletIds) => patchFilterDraft({ walletIds })}
+                    />
+                  </div>
                 </div>
               </div>
 
