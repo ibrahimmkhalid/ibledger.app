@@ -69,9 +69,12 @@ type Props = {
 export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const fundsRef = useRef(funds);
-  fundsRef.current = funds;
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    fundsRef.current = funds;
+    onChangeRef.current = onChange;
+  });
 
   const [dragging, setDragging] = useState<number | null>(null);
 

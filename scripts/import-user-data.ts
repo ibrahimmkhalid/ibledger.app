@@ -86,7 +86,7 @@ function toNumber(input: unknown, field: string): number {
   return n;
 }
 
-function toBoolean(input: unknown, field: string): boolean {
+function toBoolean(input: unknown): boolean {
   if (typeof input === "boolean") return input;
   if (typeof input === "number") return input !== 0;
   if (input === "true") return true;
@@ -225,7 +225,7 @@ async function main() {
     for (const f of fundsIn) {
       const psuedoId = toPsuedoId(f.psuedo_id, "fund.psuedo_id");
       const name = String(f.name);
-      const isSavings = toBoolean(f.is_savings, "fund.is_savings");
+      const isSavings = toBoolean(f.is_savings);
       const pullPercentage = isSavings
         ? 0
         : toNumber(f.pull_percentage, "fund.pull_percentage");
@@ -366,7 +366,7 @@ async function main() {
       const isPending =
         isPendingRaw === undefined
           ? true
-          : toBoolean(isPendingRaw, "transaction.is_pending");
+          : toBoolean(isPendingRaw);
 
       const incomePullRaw = (root.root as ImportTransactionLine).income_pull;
       const incomePull =
@@ -434,7 +434,7 @@ async function main() {
       const isPending =
         isPendingRaw === undefined
           ? true
-          : toBoolean(isPendingRaw, "child.is_pending");
+          : toBoolean(isPendingRaw);
 
       const incomePullRaw = e.child.income_pull;
       const incomePull =

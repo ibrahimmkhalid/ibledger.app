@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "export": "tsx scripts/export-user-data.ts",
     "import": "tsx scripts/import-user-data.ts"
   },
@@ -39,7 +39,6 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -47,7 +46,7 @@
     "@types/react-plotly.js": "^2.6.4",
     "drizzle-kit": "^0.31.1",
     "eslint": "^9",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "^16.2.10",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^4.1.18",

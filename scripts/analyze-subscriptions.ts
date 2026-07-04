@@ -909,7 +909,9 @@ Flags:
 `);
 }
 
-async function loadTransactions(db: any, userId: number) {
+type Db = Awaited<typeof import("../src/db")>["db"];
+
+async function loadTransactions(db: Db, userId: number) {
   return db
     .select({
       id: transactions.id,
