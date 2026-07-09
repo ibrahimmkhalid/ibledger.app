@@ -33,6 +33,12 @@ type PostingRow = {
   fundName: string | null;
 };
 
+type StartingBalanceRow = {
+  amount: number;
+  walletId: number | null;
+  fundId: number | null;
+};
+
 class BadRequestError extends Error {}
 
 function parseEnumParam<T extends string>(
@@ -282,93 +288,111 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const conditions: SQL<unknown>[] = [
+    const baseConditions: SQL<unknown>[] = [
       eq(transactions.userId, user.id),
       eq(transactions.isPosting, true),
       isNull(transactions.deletedAt),
     ];
 
     if (pendingStatus === "pending") {
-      conditions.push(eq(transactions.isPending, true));
+      baseConditions.push(eq(transactions.isPending, true));
     } else if (pendingStatus === "cleared") {
-      conditions.push(eq(transactions.isPending, false));
+      baseConditions.push(eq(transactions.isPending, false));
     }
 
     if (fundIds.length > 0) {
-      conditions.push(inArray(transactions.fundId, fundIds));
+      baseConditions.push(inArray(transactions.fundId, fundIds));
     }
 
     if (walletIds.length > 0) {
-      conditions.push(inArray(transactions.walletId, walletIds));
+      baseConditions.push(inArray(transactions.walletId, walletIds));
     }
 
     if (incomeFilter === "income") {
-      conditions.push(sql`${transactions.incomePull} is not null`);
+      baseConditions.push(sql`${transactions.incomePull} is not null`);
     } else if (incomeFilter === "not_income") {
-      conditions.push(sql`${transactions.incomePull} is null`);
+      baseConditions.push(sql`${transactions.incomePull} is null`);
     }
 
     if (direction === "in") {
-      conditions.push(sql`${transactions.amount} > 0`);
+      baseConditions.push(sql`${transactions.amount} > 0`);
     } else if (direction === "out") {
-      conditions.push(sql`${transactions.amount} < 0`);
+      baseConditions.push(sql`${transactions.amount} < 0`);
     }
 
     if (minAmount !== null) {
-      conditions.push(sql`abs(${transactions.amount}) >= ${minAmount}`);
+      baseConditions.push(sql`abs(${transactions.amount}) >= ${minAmount}`);
     }
 
     if (maxAmount !== null) {
-      conditions.push(sql`abs(${transactions.amount}) <= ${maxAmount}`);
-    }
-
-    if (startDate) {
-      conditions.push(gte(transactions.occurredAt, startDate));
-    }
-
-    if (endDate) {
-      conditions.push(lt(transactions.occurredAt, addDays(endDate, 1)));
+      baseConditions.push(sql`abs(${transactions.amount}) <= ${maxAmount}`);
     }
 
     for (const pattern of fuzzyLikePatterns(search)) {
-      conditions.push(textSearchSql(user.id, pattern));
+      baseConditions.push(textSearchSql(user.id, pattern));
     }
 
-    const [walletRows, fundRows, postingRows] = await Promise.all([
-      db
-        .select({ id: wallets.id, name: wallets.name })
-        .from(wallets)
-        .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
-        .orderBy(asc(wallets.name)),
-      db
-        .select({
-          id: funds.id,
-          name: funds.name,
-          isSavings: funds.isSavings,
-          pullPercentage: funds.pullPercentage,
-        })
-        .from(funds)
-        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-        .orderBy(asc(funds.name)),
-      db
-        .select({
-          id: transactions.id,
-          occurredAt: transactions.occurredAt,
-          description: transactions.description,
-          isPending: transactions.isPending,
-          amount: transactions.amount,
-          incomePull: transactions.incomePull,
-          walletId: transactions.walletId,
-          walletName: wallets.name,
-          fundId: transactions.fundId,
-          fundName: funds.name,
-        })
-        .from(transactions)
-        .leftJoin(wallets, eq(wallets.id, transactions.walletId))
-        .leftJoin(funds, eq(funds.id, transactions.fundId))
-        .where(and(...conditions))
-        .orderBy(asc(transactions.occurredAt), asc(transactions.id)),
-    ]);
+    const rangedConditions = [...baseConditions];
+
+    if (startDate) {
+      rangedConditions.push(gte(transactions.occurredAt, startDate));
+    }
+
+    if (endDate) {
+      rangedConditions.push(lt(transactions.occurredAt, addDays(endDate, 1)));
+    }
+
+    const startingRowsPromise: Promise<StartingBalanceRow[]> = startDate
+      ? db
+          .select({
+            amount: transactions.amount,
+            walletId: transactions.walletId,
+            fundId: transactions.fundId,
+          })
+          .from(transactions)
+          .leftJoin(wallets, eq(wallets.id, transactions.walletId))
+          .leftJoin(funds, eq(funds.id, transactions.fundId))
+          .where(and(...baseConditions, lt(transactions.occurredAt, startDate)))
+      : Promise.resolve([]);
+
+    const [walletRows, fundRows, postingRows, startingRows] = await Promise.all(
+      [
+        db
+          .select({ id: wallets.id, name: wallets.name })
+          .from(wallets)
+          .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+          .orderBy(asc(wallets.name)),
+        db
+          .select({
+            id: funds.id,
+            name: funds.name,
+            isSavings: funds.isSavings,
+            pullPercentage: funds.pullPercentage,
+          })
+          .from(funds)
+          .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
+          .orderBy(asc(funds.name)),
+        db
+          .select({
+            id: transactions.id,
+            occurredAt: transactions.occurredAt,
+            description: transactions.description,
+            isPending: transactions.isPending,
+            amount: transactions.amount,
+            incomePull: transactions.incomePull,
+            walletId: transactions.walletId,
+            walletName: wallets.name,
+            fundId: transactions.fundId,
+            fundName: funds.name,
+          })
+          .from(transactions)
+          .leftJoin(wallets, eq(wallets.id, transactions.walletId))
+          .leftJoin(funds, eq(funds.id, transactions.fundId))
+          .where(and(...rangedConditions))
+          .orderBy(asc(transactions.occurredAt), asc(transactions.id)),
+        startingRowsPromise,
+      ],
+    );
 
     const walletTotals = new Map<string, ReturnType<typeof emptyMoney>>();
     const fundTotals = new Map<string, ReturnType<typeof emptyMoney>>();
@@ -383,6 +407,29 @@ export async function GET(request: NextRequest) {
     >();
     const summary = emptyMoney();
     const periods = new Set<string>();
+    const walletStartingBalances = new Map<string, number>();
+    const fundStartingBalances = new Map<string, number>();
+
+    for (const row of startingRows) {
+      const amount = Number(row.amount);
+      if (!Number.isFinite(amount)) continue;
+
+      if (row.walletId !== null) {
+        const key = String(row.walletId);
+        walletStartingBalances.set(
+          key,
+          (walletStartingBalances.get(key) ?? 0) + amount,
+        );
+      }
+
+      if (row.fundId !== null) {
+        const key = String(row.fundId);
+        fundStartingBalances.set(
+          key,
+          (fundStartingBalances.get(key) ?? 0) + amount,
+        );
+      }
+    }
 
     for (const row of postingRows) {
       const wallet = entityKey(
@@ -446,12 +493,14 @@ export async function GET(request: NextRequest) {
       sourceRows: Array<{ id: number; name: string }>,
       sourceTotals: Map<string, ReturnType<typeof emptyMoney>>,
       periodSource: Map<string, Map<string, ReturnType<typeof emptyMoney>>>,
+      startingSource: Map<string, number>,
     ) {
       return sourceRows
         .map((row) => {
           const key = String(row.id);
           const totals = sourceTotals.get(key) ?? emptyMoney();
           const periodMap = periodSource.get(key) ?? new Map();
+          const startingValue = startingSource.get(key) ?? 0;
           let cumulative = 0;
           return {
             id: row.id,
@@ -467,11 +516,14 @@ export async function GET(request: NextRequest) {
                 label: periodLabel(period, groupBy),
                 value: total.net,
                 cumulative,
+                raw: startingValue + cumulative,
               };
             }),
           };
         })
-        .filter((series) => series.points.some((point) => point.value !== 0))
+        .filter((series) =>
+          series.points.some((point) => point.value !== 0 || point.raw !== 0),
+        )
         .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
     }
 
@@ -511,8 +563,18 @@ export async function GET(request: NextRequest) {
       wallets: walletsForResponse,
       funds: fundsForResponse,
       timeSeries,
-      walletSeries: buildSeries(walletRows, walletTotals, walletPeriodTotals),
-      fundSeries: buildSeries(fundRows, fundTotals, fundPeriodTotals),
+      walletSeries: buildSeries(
+        walletRows,
+        walletTotals,
+        walletPeriodTotals,
+        walletStartingBalances,
+      ),
+      fundSeries: buildSeries(
+        fundRows,
+        fundTotals,
+        fundPeriodTotals,
+        fundStartingBalances,
+      ),
       categorizedSpending: byFundSpending,
       walletSpending: byWalletSpending,
     });

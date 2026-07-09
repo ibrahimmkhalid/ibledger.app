@@ -82,6 +82,8 @@ const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), {
 
 type GroupBy = "day" | "week" | "month";
 
+type TrendMode = "cumulative" | "raw";
+
 type GranularityLevel = "fine" | "medium" | "coarse";
 
 type DateRangePreset =
@@ -165,6 +167,7 @@ type TrendSeries = {
     label: string;
     value: number;
     cumulative: number;
+    raw: number;
   }>;
 };
 
@@ -204,6 +207,14 @@ const GRANULARITY_LEVELS: ReadonlyArray<{
   { value: "fine", label: "Fine" },
   { value: "medium", label: "Medium" },
   { value: "coarse", label: "Coarse" },
+];
+
+const TREND_MODE_OPTIONS: ReadonlyArray<{
+  value: TrendMode;
+  label: string;
+}> = [
+  { value: "cumulative", label: "Change" },
+  { value: "raw", label: "Value" },
 ];
 
 // Base (range, zoom) → bucket size before data-span capping.
@@ -750,6 +761,47 @@ function SegmentedControl<T extends string>(args: {
   );
 }
 
+function TrendModeToggle({
+  value,
+  onChange,
+}: {
+  value: TrendMode;
+  onChange: (value: TrendMode) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <span className="text-muted-foreground text-[11px] font-medium">
+        View
+      </span>
+      <div
+        role="group"
+        aria-label="Trend view"
+        className="border-input bg-input/20 dark:bg-input/30 inline-flex h-6 items-center gap-0.5 rounded-md border p-0.5"
+      >
+        {TREND_MODE_OPTIONS.map((option) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex h-full items-center rounded-sm px-2 text-[11px] font-medium transition-colors",
+                active
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StatCard(args: {
   title: string;
   value: React.ReactNode;
@@ -1239,23 +1291,30 @@ function trendPlot(
   groupBy: GroupBy,
   theme: ReturnType<typeof usePlotTheme>,
   height: number,
+  mode: TrendMode,
 ) {
-  const visible = series.slice(0, 6);
+  const visible = series
+    .filter((item) =>
+      item.points.some((point) =>
+        mode === "raw" ? point.raw !== 0 : point.value !== 0,
+      ),
+    )
+    .slice(0, 6);
   if (visible.length === 0 || (visible[0]?.points.length ?? 0) === 0) {
     return { data: [], layout: basePlotLayout(theme, height) };
   }
 
   const rollingWindow = ROLLING_AVERAGE_WINDOWS[groupBy];
+  const valueLabel = mode === "raw" ? "Value" : "Cumulative change";
 
   return {
     data: visible.flatMap((item, index) => {
       const color = CHART_COLORS[index % CHART_COLORS.length];
       const x = item.points.map((point) => point.label);
-      const cumulativeValues = item.points.map((point) => point.cumulative);
-      const rollingValues = rollingAverageValues(
-        cumulativeValues,
-        rollingWindow,
+      const values = item.points.map((point) =>
+        mode === "raw" ? point.raw : point.cumulative,
       );
+      const rollingValues = rollingAverageValues(values, rollingWindow);
       const hasRollingAverageLine =
         rollingValues.filter((value) => value !== null).length >= 2;
 
@@ -1282,7 +1341,7 @@ function trendPlot(
         mode: "lines" as const,
         name: item.name,
         x,
-        y: cumulativeValues,
+        y: values,
         legendgroup: item.name,
         line: {
           color,
@@ -1290,7 +1349,7 @@ function trendPlot(
         },
         hovertext: item.points.map(
           (point) =>
-            `<b><span style="color:${color}">${item.name}</span></b><br>Period net: ${formatHoverAmount(point.value)}<br>Cumulative: ${formatHoverAmount(point.cumulative)}`,
+            `<b><span style="color:${color}">${item.name}</span></b><br>Period net: ${formatHoverAmount(point.value)}<br>${valueLabel}: ${formatHoverAmount(mode === "raw" ? point.raw : point.cumulative)}`,
         ),
         hovertemplate: "%{hovertext}<extra></extra>",
       } satisfies PlotData;
@@ -1310,7 +1369,7 @@ function trendPlot(
       },
       xaxis: timeAxis(theme),
       yaxis: {
-        title: { text: "Cumulative net" },
+        title: { text: mode === "raw" ? "Value" : "Cumulative net" },
         automargin: true,
         tickprefix: "$",
         separatethousands: true,
@@ -1384,6 +1443,7 @@ export default function AnalyticsPage() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [trendMode, setTrendMode] = useState<TrendMode>("cumulative");
   const plotTheme = usePlotTheme();
 
   const dataBounds = useMemo(
@@ -1569,12 +1629,14 @@ export default function AnalyticsPage() {
     groupBy,
     plotTheme,
     360,
+    trendMode,
   );
   const fundTrendChart = trendPlot(
     analytics?.fundSeries ?? [],
     groupBy,
     plotTheme,
     360,
+    trendMode,
   );
   const cashflowNetTickAxis = { points: timeSeries, groupBy };
   const walletTickAxis = {
@@ -1886,65 +1948,58 @@ export default function AnalyticsPage() {
           />
         </ExpandableChartCard>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <ExpandableChartCard
-            title="Wallet Trend"
-            expandedChildren={
+        <section className="space-y-2">
+          <div className="flex justify-end">
+            <TrendModeToggle value={trendMode} onChange={setTrendMode} />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ExpandableChartCard
+              title="Wallet Trend"
+              expandedChildren={
+                <PlotlyChart
+                  data={walletTrendChart.data}
+                  layout={walletTrendChart.layout}
+                  height={680}
+                  fill
+                  tickAxis={walletTickAxis}
+                  ariaLabel="Expanded wallet trend chart"
+                />
+              }
+            >
               <PlotlyChart
                 data={walletTrendChart.data}
                 layout={walletTrendChart.layout}
-                height={680}
-                fill
+                height={360}
                 tickAxis={walletTickAxis}
-                ariaLabel="Expanded wallet trend chart"
+                ariaLabel="Wallet trend chart"
               />
-            }
-          >
-            <PlotlyChart
-              data={walletTrendChart.data}
-              layout={walletTrendChart.layout}
-              height={360}
-              tickAxis={walletTickAxis}
-              ariaLabel="Wallet trend chart"
-            />
-          </ExpandableChartCard>
+            </ExpandableChartCard>
 
-          <ExpandableChartCard
-            title="Fund Trend"
-            expandedChildren={
+            <ExpandableChartCard
+              title="Fund Trend"
+              expandedChildren={
+                <PlotlyChart
+                  data={fundTrendChart.data}
+                  layout={fundTrendChart.layout}
+                  height={680}
+                  fill
+                  tickAxis={fundTickAxis}
+                  ariaLabel="Expanded fund trend chart"
+                />
+              }
+            >
               <PlotlyChart
                 data={fundTrendChart.data}
                 layout={fundTrendChart.layout}
-                height={680}
-                fill
+                height={360}
                 tickAxis={fundTickAxis}
-                ariaLabel="Expanded fund trend chart"
+                ariaLabel="Fund trend chart"
               />
-            }
-          >
-            <PlotlyChart
-              data={fundTrendChart.data}
-              layout={fundTrendChart.layout}
-              height={360}
-              tickAxis={fundTickAxis}
-              ariaLabel="Fund trend chart"
-            />
-          </ExpandableChartCard>
-        </div>
+            </ExpandableChartCard>
+          </div>
+        </section>
 
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Categorized Spending</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SpendingBars
-                rows={analytics?.categorizedSpending ?? []}
-                emptyLabel="No categorized spending in this selection."
-              />
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Wallet Spending</CardTitle>
@@ -1953,6 +2008,18 @@ export default function AnalyticsPage() {
               <SpendingBars
                 rows={analytics?.walletSpending ?? []}
                 emptyLabel="No wallet spending in this selection."
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Fund Spending</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SpendingBars
+                rows={analytics?.categorizedSpending ?? []}
+                emptyLabel="No fund spending in this selection."
               />
             </CardContent>
           </Card>
