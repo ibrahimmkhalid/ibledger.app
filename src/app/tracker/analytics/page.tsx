@@ -185,20 +185,36 @@ type MultiSelectOption = {
   name: string;
 };
 
-const DEFAULT_ANALYTICS_FILTERS: AnalyticsFilters = {
-  ...DEFAULT_TRANSACTIONS_FILTERS,
-  startDate: "",
-  endDate: "",
-  groupBy: "month",
-};
+const DEFAULT_DATE_PRESET: DateRangePreset = "last_6_months";
+const DEFAULT_GRANULARITY_LEVEL: GranularityLevel = "fine";
 
-const DEFAULT_FILTER_DRAFT: AnalyticsFilterDraft = {
-  ...DEFAULT_ANALYTICS_FILTERS,
-  minAmount: "",
-  maxAmount: "",
-  datePreset: "all",
-  granularityLevel: "medium",
-};
+function createDefaultAnalyticsFilters(): AnalyticsFilters {
+  const { startDate, endDate } = dateRangeForPreset(DEFAULT_DATE_PRESET);
+  return {
+    ...DEFAULT_TRANSACTIONS_FILTERS,
+    startDate,
+    endDate,
+    groupBy:
+      GRANULARITY_SLOT_MAP[DEFAULT_DATE_PRESET][DEFAULT_GRANULARITY_LEVEL] ??
+      "week",
+  };
+}
+
+function createDefaultFilterDraft(): AnalyticsFilterDraft {
+  const { startDate, endDate } = dateRangeForPreset(DEFAULT_DATE_PRESET);
+  return {
+    ...DEFAULT_TRANSACTIONS_FILTERS,
+    startDate,
+    endDate,
+    groupBy:
+      GRANULARITY_SLOT_MAP[DEFAULT_DATE_PRESET][DEFAULT_GRANULARITY_LEVEL] ??
+      "week",
+    minAmount: "",
+    maxAmount: "",
+    datePreset: DEFAULT_DATE_PRESET,
+    granularityLevel: DEFAULT_GRANULARITY_LEVEL,
+  };
+}
 
 const GRANULARITY_LEVELS: ReadonlyArray<{
   value: GranularityLevel;
@@ -552,7 +568,19 @@ function analyticsFiltersKey(filters: AnalyticsFilters) {
   });
 }
 
+function isDefaultAnalyticsFilters(filters: AnalyticsFilters) {
+  try {
+    return (
+      analyticsFiltersKey(filters) ===
+      analyticsFiltersKey(createDefaultAnalyticsFilters())
+    );
+  } catch {
+    return false;
+  }
+}
+
 function countActiveFilters(filters: AnalyticsFilters) {
+  const defaults = createDefaultAnalyticsFilters();
   let count = 0;
   if (filters.search.trim()) count += 1;
   if (filters.fundIds.length > 0) count += 1;
@@ -561,7 +589,13 @@ function countActiveFilters(filters: AnalyticsFilters) {
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
   if (filters.direction !== "all") count += 1;
-  if (filters.startDate || filters.endDate) count += 1;
+  if (
+    (filters.startDate || filters.endDate) &&
+    (filters.startDate !== defaults.startDate ||
+      filters.endDate !== defaults.endDate)
+  ) {
+    count += 1;
+  }
   return count;
 }
 
@@ -1435,11 +1469,12 @@ export default function AnalyticsPage() {
     if (typeof window === "undefined") return true;
     return window.matchMedia("(min-width: 640px)").matches;
   });
-  const [filters, setFilters] = useState<AnalyticsFilters>(
-    DEFAULT_ANALYTICS_FILTERS,
+  const [filters, setFilters] = useState<AnalyticsFilters>(() =>
+    createDefaultAnalyticsFilters(),
   );
-  const [filterDraft, setFilterDraft] =
-    useState<AnalyticsFilterDraft>(DEFAULT_FILTER_DRAFT);
+  const [filterDraft, setFilterDraft] = useState<AnalyticsFilterDraft>(() =>
+    createDefaultFilterDraft(),
+  );
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
@@ -1556,9 +1591,11 @@ export default function AnalyticsPage() {
   }, [dataBounds.first, dataBounds.last, filterDraft, loadAnalytics]);
 
   const resetFilters = useCallback(async () => {
-    setFilters(DEFAULT_ANALYTICS_FILTERS);
-    setFilterDraft(DEFAULT_FILTER_DRAFT);
-    await loadAnalytics(DEFAULT_ANALYTICS_FILTERS);
+    const defaults = createDefaultAnalyticsFilters();
+    const defaultDraft = createDefaultFilterDraft();
+    setFilters(defaults);
+    setFilterDraft(defaultDraft);
+    await loadAnalytics(defaults);
   }, [loadAnalytics]);
 
   const patchFilterDraft = useCallback(
@@ -1611,7 +1648,7 @@ export default function AnalyticsPage() {
   }, [router]);
 
   useEffect(() => {
-    void loadAnalytics(DEFAULT_ANALYTICS_FILTERS, { fullScreen: true });
+    void loadAnalytics(createDefaultAnalyticsFilters(), { fullScreen: true });
     // Mount-only initial load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1872,7 +1909,8 @@ export default function AnalyticsPage() {
                     variant="outline"
                     onClick={() => void resetFilters()}
                     disabled={
-                      pageLoading || (activeFilterCount === 0 && !filtersDirty)
+                      pageLoading ||
+                      (isDefaultAnalyticsFilters(filters) && !filtersDirty)
                     }
                   >
                     <XIcon />
