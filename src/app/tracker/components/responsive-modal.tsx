@@ -54,6 +54,7 @@ export function ResponsiveModal(args: {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent
+          aria-describedby={undefined}
           className={cn(
             "data-[vaul-drawer-direction=bottom]:max-h-[92dvh]",
             mobileContentClassName,
@@ -93,7 +94,10 @@ export function ResponsiveModal(args: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={desktopContentClassName}>
+      <DialogContent
+        aria-describedby={undefined}
+        className={desktopContentClassName}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

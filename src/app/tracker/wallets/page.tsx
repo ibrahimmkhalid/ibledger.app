@@ -51,7 +51,10 @@ function WalletModal(args: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[min(40rem,calc(100vw-2rem))]">
+      <DialogContent
+        aria-describedby={undefined}
+        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

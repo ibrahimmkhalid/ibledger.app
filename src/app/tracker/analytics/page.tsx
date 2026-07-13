@@ -974,7 +974,10 @@ function ExpandableChartCard({
       </Card>
 
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent className="h-[min(88vh,54rem)] max-w-[calc(100vw-2rem)] grid-rows-[auto_1fr] sm:max-w-[min(96rem,calc(100vw-2rem))]">
+        <DialogContent
+          {...(description ? {} : { "aria-describedby": undefined })}
+          className="h-[min(88vh,54rem)] max-w-[calc(100vw-2rem)] grid-rows-[auto_1fr] sm:max-w-[min(96rem,calc(100vw-2rem))]"
+        >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? (
