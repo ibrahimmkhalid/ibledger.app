@@ -55,12 +55,12 @@ export function ResponsiveModal(args: {
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent
           className={cn(
-            "data-[vaul-drawer-direction=bottom]:max-h-[92vh]",
+            "data-[vaul-drawer-direction=bottom]:max-h-[92dvh]",
             mobileContentClassName,
           )}
         >
-          <div className="flex max-h-[92vh] flex-col">
-            <DrawerHeader className="p-3 pb-2">
+          <div className="flex min-h-0 flex-col">
+            <DrawerHeader className="shrink-0 p-3 pb-2">
               <div className="flex items-start justify-between gap-2">
                 <DrawerTitle>{title}</DrawerTitle>
                 <DrawerClose
@@ -74,13 +74,13 @@ export function ResponsiveModal(args: {
               </div>
             </DrawerHeader>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-3">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
               {renderBody({ isMobile })}
             </div>
 
             {renderFooter && (
               <DrawerFooter
-                className={cn("border-t p-3", mobileFooterClassName)}
+                className={cn("shrink-0 border-t p-3", mobileFooterClassName)}
               >
                 {renderFooter({ isMobile })}
               </DrawerFooter>
