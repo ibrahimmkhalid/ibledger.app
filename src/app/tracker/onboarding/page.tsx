@@ -33,7 +33,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { CircleHelpIcon } from "lucide-react";
+import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
 
 type WalletFormState = {
   name: string;
@@ -57,7 +57,10 @@ function WalletModal(args: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
+      <DialogContent
+        aria-describedby={undefined}
+        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -119,7 +122,10 @@ function FundModal(args: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
+      <DialogContent
+        aria-describedby={undefined}
+        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -478,7 +484,7 @@ export default function OnboardingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[200px]"></TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -492,21 +498,28 @@ export default function OnboardingPage() {
                 wallets.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.name}</TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditWallet(w)}
-                        disabled={busy}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => void deleteWallet(w)}
-                        disabled={busy || wallets.length <= 1}
-                      >
-                        Delete
-                      </Button>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditWallet(w)}
+                          disabled={busy}
+                          aria-label={`Edit ${w.name}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void deleteWallet(w)}
+                          disabled={busy || wallets.length <= 1}
+                          aria-label={`Delete ${w.name}`}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -533,9 +546,9 @@ export default function OnboardingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[110px]">Savings</TableHead>
-                <TableHead className="w-[130px] text-right">Pull %</TableHead>
-                <TableHead className="w-[220px]"></TableHead>
+                <TableHead>Savings</TableHead>
+                <TableHead className="text-right">Pull %</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -553,40 +566,47 @@ export default function OnboardingPage() {
                     <TableCell className="text-right tabular-nums">
                       {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
                     </TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditFund(f)}
-                        disabled={busy}
-                      >
-                        Edit
-                      </Button>
-                      {f.isSavings
-                        ? null
-                        : (() => {
-                            const rawWithPending = Number(
-                              f.rawBalanceWithPending ?? f.balanceWithPending,
-                            );
-                            const deleteBlocked =
-                              Number.isFinite(rawWithPending) &&
-                              Math.abs(rawWithPending) > 0.005;
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditFund(f)}
+                          disabled={busy}
+                          aria-label={`Edit ${f.name}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {f.isSavings
+                          ? null
+                          : (() => {
+                              const rawWithPending = Number(
+                                f.rawBalanceWithPending ?? f.balanceWithPending,
+                              );
+                              const deleteBlocked =
+                                Number.isFinite(rawWithPending) &&
+                                Math.abs(rawWithPending) > 0.005;
 
-                            const title = deleteBlocked
-                              ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
-                              : undefined;
+                              const title = deleteBlocked
+                                ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
+                                : undefined;
 
-                            return (
-                              <span title={title}>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => void deleteFund(f)}
-                                  disabled={busy || deleteBlocked}
-                                >
-                                  Delete
-                                </Button>
-                              </span>
-                            );
-                          })()}
+                              return (
+                                <span title={title}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => void deleteFund(f)}
+                                    disabled={busy || deleteBlocked}
+                                    aria-label={`Delete ${f.name}`}
+                                    className="text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </span>
+                              );
+                            })()}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
