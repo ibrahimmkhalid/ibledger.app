@@ -148,7 +148,7 @@ export function AppShell(args: {
 
         {inTracker && (
           <div className="border-t sm:hidden">
-            <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 px-4 py-2">
+            <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto px-4 py-2 whitespace-nowrap">
               <Link
                 href="/tracker"
                 className={navLinkClassName({ href: "/tracker", pathname })}
