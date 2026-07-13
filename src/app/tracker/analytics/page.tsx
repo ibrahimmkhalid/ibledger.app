@@ -1,10 +1,8 @@
 "use client";
 
-import * as PopoverPrimitive from "@radix-ui/react-popover";
 import dynamic from "next/dynamic";
 import {
   BarChart3Icon,
-  CheckIcon,
   ChevronDownIcon,
   ListFilterIcon,
   Maximize2Icon,
@@ -54,6 +52,13 @@ import {
 import { cn } from "@/lib/utils";
 
 import { AnalyticsSkeleton } from "@/app/tracker/analytics/analytics-skeleton";
+import {
+  FilterSearchField,
+  MultiSelectDropdown,
+  SegmentedControl,
+  countActiveTransactionFilters,
+  parseFilterAmount,
+} from "@/app/tracker/components/filter-controls";
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import {
@@ -178,11 +183,6 @@ type SpendingRow = {
   income: number;
   net: number;
   share: number;
-};
-
-type MultiSelectOption = {
-  id: number;
-  name: string;
 };
 
 const DEFAULT_DATE_PRESET: DateRangePreset = "last_6_months";
@@ -523,18 +523,6 @@ function rollingAverageValues(values: number[], windowSize: number) {
   });
 }
 
-function parseFilterAmount(value: string, label: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const parsed = Number(trimmed.replace(/[$,]/g, ""));
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`${label} amount must be zero or greater`);
-  }
-
-  return parsed;
-}
-
 function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
   const minAmount = parseFilterAmount(draft.minAmount, "Minimum");
   const maxAmount = parseFilterAmount(draft.maxAmount, "Maximum");
@@ -581,14 +569,7 @@ function isDefaultAnalyticsFilters(filters: AnalyticsFilters) {
 
 function countActiveFilters(filters: AnalyticsFilters) {
   const defaults = createDefaultAnalyticsFilters();
-  let count = 0;
-  if (filters.search.trim()) count += 1;
-  if (filters.fundIds.length > 0) count += 1;
-  if (filters.walletIds.length > 0) count += 1;
-  if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
-  if (filters.pendingStatus !== "all") count += 1;
-  if (filters.income !== "all") count += 1;
-  if (filters.direction !== "all") count += 1;
+  let count = countActiveTransactionFilters(filters);
   if (
     (filters.startDate || filters.endDate) &&
     (filters.startDate !== defaults.startDate ||
@@ -623,176 +604,6 @@ function buildAnalyticsUrl(filters: AnalyticsFilters) {
 
   const query = params.toString();
   return `/api/analytics${query ? `?${query}` : ""}`;
-}
-
-function toggleSelectedId(ids: number[], id: number) {
-  return ids.includes(id)
-    ? ids.filter((current) => current !== id)
-    : [...ids, id];
-}
-
-function MultiSelectDropdown(args: {
-  label: string;
-  allLabel: string;
-  options: MultiSelectOption[];
-  selectedIds: number[];
-  onChange: (ids: number[]) => void;
-}) {
-  const { label, allLabel, options, selectedIds, onChange } = args;
-  const searchId = useId();
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const filteredOptions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return options;
-    return options.filter((option) =>
-      option.name.toLowerCase().includes(query),
-    );
-  }, [options, search]);
-
-  const summary = useMemo(() => {
-    if (selectedIds.length === 0) return allLabel;
-    if (selectedIds.length === 1) {
-      return (
-        options.find((option) => option.id === selectedIds[0])?.name ??
-        "1 selected"
-      );
-    }
-    return `${selectedIds.length} selected`;
-  }, [allLabel, options, selectedIds]);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label>{label}</Label>
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-        <PopoverPrimitive.Trigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between px-2 font-normal"
-          >
-            <span className="min-w-0 truncate">{summary}</span>
-            <ChevronDownIcon className="text-muted-foreground" />
-          </Button>
-        </PopoverPrimitive.Trigger>
-        <PopoverPrimitive.Portal>
-          <PopoverPrimitive.Content
-            align="start"
-            sideOffset={4}
-            className="bg-popover text-popover-foreground ring-foreground/10 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-lg p-2 shadow-md ring-1"
-          >
-            <div className="relative">
-              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
-              <Input
-                id={searchId}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={`Search ${label.toLowerCase()}`}
-                className="pl-7"
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => onChange([])}
-                disabled={selectedIds.length === 0}
-              >
-                Clear
-              </Button>
-              <div className="text-muted-foreground text-xs">
-                {selectedIds.length === 0
-                  ? allLabel
-                  : `${selectedIds.length} selected`}
-              </div>
-            </div>
-            <div className="mt-2 max-h-56 overflow-y-auto pr-1">
-              {filteredOptions.length === 0 ? (
-                <div className="text-muted-foreground px-2 py-4 text-center text-xs">
-                  No matches.
-                </div>
-              ) : (
-                filteredOptions.map((option) => {
-                  const selected = selectedSet.has(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={selected}
-                      onClick={() =>
-                        onChange(toggleSelectedId(selectedIds, option.id))
-                      }
-                      className="hover:bg-muted flex min-h-7 w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs/relaxed"
-                    >
-                      <span className="min-w-0 truncate">{option.name}</span>
-                      <CheckIcon
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          selected ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </PopoverPrimitive.Content>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
-    </div>
-  );
-}
-
-// Compact segmented toggle for mutually-exclusive filter values.
-function SegmentedControl<T extends string>(args: {
-  label: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; label: string; disabled?: boolean }>;
-  onChange: (value: T) => void;
-  hint?: string;
-}) {
-  const { label, value, options, onChange, hint } = args;
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label>{label}</Label>
-      <div className="border-input bg-input/20 dark:bg-input/30 flex h-7 items-center gap-0.5 rounded-md border p-0.5">
-        {options.map((option) => {
-          const active = option.value === value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={active}
-              disabled={option.disabled}
-              onClick={() => onChange(option.value)}
-              className={cn(
-                "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-xs font-medium transition-colors",
-                option.disabled
-                  ? "text-muted-foreground/40 cursor-not-allowed"
-                  : active
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <span className="truncate">{option.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      {hint ? (
-        <span className="text-muted-foreground text-[11px]">{hint}</span>
-      ) : (
-        <span className="invisible text-[11px]" aria-hidden>
-          &nbsp;
-        </span>
-      )}
-    </div>
-  );
 }
 
 function TrendModeToggle({
@@ -1761,21 +1572,11 @@ export default function AnalyticsPage() {
           >
             <div className="overflow-hidden">
               <div className="flex flex-col gap-3">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <Label htmlFor={searchId}>Search</Label>
-                  <div className="relative">
-                    <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
-                    <Input
-                      id={searchId}
-                      value={filterDraft.search}
-                      onChange={(event) =>
-                        patchFilterDraft({ search: event.target.value })
-                      }
-                      placeholder="Description, fund, wallet"
-                      className="pl-7"
-                    />
-                  </div>
-                </div>
+                <FilterSearchField
+                  id={searchId}
+                  value={filterDraft.search}
+                  onChange={(search) => patchFilterDraft({ search })}
+                />
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   <div className="flex min-w-0 flex-col gap-1.5">

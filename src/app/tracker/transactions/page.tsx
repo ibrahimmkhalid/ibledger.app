@@ -13,9 +13,7 @@ import {
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
 import {
-  CheckIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
   CircleDollarSignIcon,
@@ -46,6 +44,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+import {
+  FilterSearchField,
+  MultiSelectDropdown,
+  SegmentedControl,
+  countActiveTransactionFilters,
+  parseFilterAmount,
+} from "@/app/tracker/components/filter-controls";
 import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
@@ -64,7 +69,6 @@ import {
   type TransactionsPageFilters,
   type TransactionsPageQuery,
 } from "@/app/tracker/lib/transactions-page-cache";
-import { fmtAmount } from "@/app/tracker/lib/format";
 import type {
   BootstrapResponse,
   EventsResponse,
@@ -119,20 +123,6 @@ function filtersToDraft(
   };
 }
 
-function parseFilterAmount(value: string, label: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const parsed = Number(trimmed.replace(/[$,]/g, ""));
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`${label} amount must be zero or greater`);
-  }
-
-  return parsed;
-}
-
 function draftToFilters(
   draft: TransactionsFilterDraft,
 ): TransactionsPageFilters {
@@ -148,282 +138,6 @@ function draftToFilters(
     minAmount,
     maxAmount,
   });
-}
-
-function toggleSelectedId(ids: number[], id: number) {
-  return ids.includes(id)
-    ? ids.filter((current) => current !== id)
-    : [...ids, id];
-}
-
-function countActiveFilters(filters: TransactionsPageFilters) {
-  let count = 0;
-  if (filters.search.trim()) count += 1;
-  if (filters.fundIds.length > 0) count += 1;
-  if (filters.walletIds.length > 0) count += 1;
-  if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
-  if (filters.pendingStatus !== "all") count += 1;
-  if (filters.income !== "all") count += 1;
-  if (filters.direction !== "all") count += 1;
-  return count;
-}
-
-type MultiSelectOption = {
-  id: number;
-  name: string;
-};
-
-const AMOUNT_SLIDER_UI_MAX = 5_000;
-
-function amountSliderScaleMax(parsedMin: number | null, parsedMax: number | null) {
-  const highest = Math.max(parsedMin ?? 0, parsedMax ?? 0);
-  if (highest <= AMOUNT_SLIDER_UI_MAX) {
-    return AMOUNT_SLIDER_UI_MAX;
-  }
-
-  return amountSliderCeiling(highest);
-}
-
-function amountSliderCeiling(maxAmount: number) {
-  if (!Number.isFinite(maxAmount) || maxAmount <= 0) {
-    return 100;
-  }
-
-  if (maxAmount <= 100) return 100;
-  if (maxAmount <= 500) return Math.ceil(maxAmount / 25) * 25;
-  if (maxAmount <= 1000) return Math.ceil(maxAmount / 50) * 50;
-  if (maxAmount <= 5000) return Math.ceil(maxAmount / 250) * 250;
-  if (maxAmount <= 10000) return Math.ceil(maxAmount / 500) * 500;
-  return Math.ceil(maxAmount / 1000) * 1000;
-}
-
-function amountSliderStep(maxAmount: number) {
-  if (maxAmount <= 500) return 5;
-  if (maxAmount <= 5000) return 25;
-  return 100;
-}
-
-function parseDraftAmountValue(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function toDraftAmount(value: number, zeroIsEmpty = false) {
-  if (zeroIsEmpty && value <= 0) {
-    return "";
-  }
-  return String(value);
-}
-
-function MultiSelectDropdown(args: {
-  label: string;
-  allLabel: string;
-  options: MultiSelectOption[];
-  selectedIds: number[];
-  onChange: (ids: number[]) => void;
-}) {
-  const { label, allLabel, options, selectedIds, onChange } = args;
-  const searchId = useId();
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const filteredOptions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return options;
-    return options.filter((option) =>
-      option.name.toLowerCase().includes(query),
-    );
-  }, [options, search]);
-
-  const summary = useMemo(() => {
-    if (selectedIds.length === 0) return allLabel;
-    if (selectedIds.length === 1) {
-      return (
-        options.find((option) => option.id === selectedIds[0])?.name ??
-        "1 selected"
-      );
-    }
-    return `${selectedIds.length} selected`;
-  }, [allLabel, options, selectedIds]);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label>{label}</Label>
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-        <PopoverPrimitive.Trigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between px-2 font-normal"
-          >
-            <span className="min-w-0 truncate">{summary}</span>
-            <ChevronDownIcon className="text-muted-foreground" />
-          </Button>
-        </PopoverPrimitive.Trigger>
-        <PopoverPrimitive.Portal>
-          <PopoverPrimitive.Content
-            align="start"
-            sideOffset={4}
-            className="bg-popover text-popover-foreground ring-foreground/10 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-lg p-2 shadow-md ring-1"
-          >
-            <div className="relative">
-              <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
-              <Input
-                id={searchId}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={`Search ${label.toLowerCase()}`}
-                className="pl-7"
-              />
-            </div>
-
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => onChange([])}
-                disabled={selectedIds.length === 0}
-              >
-                Clear
-              </Button>
-              <div className="text-muted-foreground text-xs">
-                {selectedIds.length === 0
-                  ? allLabel
-                  : `${selectedIds.length} selected`}
-              </div>
-            </div>
-
-            <div className="mt-2 max-h-56 overflow-y-auto pr-1">
-              {filteredOptions.length === 0 ? (
-                <div className="text-muted-foreground px-2 py-4 text-center text-xs">
-                  No matches.
-                </div>
-              ) : (
-                filteredOptions.map((option) => {
-                  const selected = selectedSet.has(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={selected}
-                      onClick={() =>
-                        onChange(toggleSelectedId(selectedIds, option.id))
-                      }
-                      className="hover:bg-muted flex min-h-7 w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs/relaxed"
-                    >
-                      <span className="min-w-0 truncate">{option.name}</span>
-                      <CheckIcon
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          selected ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </PopoverPrimitive.Content>
-        </PopoverPrimitive.Portal>
-      </PopoverPrimitive.Root>
-    </div>
-  );
-}
-
-const RANGE_INPUT_CLASS =
-  "pointer-events-none absolute inset-x-0 top-1/2 h-4 w-full -translate-y-1/2 appearance-none bg-transparent [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-primary [&::-moz-range-thumb]:bg-background [&::-moz-range-thumb]:shadow-sm [&::-moz-range-track]:h-1 [&::-moz-range-track]:border-none [&::-moz-range-track]:bg-transparent [&::-webkit-slider-runnable-track]:mt-1.5 [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:appearance-none [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-primary [&::-webkit-slider-thumb]:bg-background [&::-webkit-slider-thumb]:shadow-sm";
-
-function AmountRangeSlider(args: {
-  minId: string;
-  maxId: string;
-  minAmount: string;
-  maxAmount: string;
-  onChange: (
-    patch: Pick<TransactionsFilterDraft, "minAmount" | "maxAmount">,
-  ) => void;
-}) {
-  const { minId, maxId, minAmount, maxAmount, onChange } = args;
-  const parsedMin = parseDraftAmountValue(minAmount);
-  const parsedMax = parseDraftAmountValue(maxAmount);
-  const sliderMax = amountSliderScaleMax(parsedMin, parsedMax);
-  const step = amountSliderStep(sliderMax);
-  const minValue = Math.min(Math.max(parsedMin ?? 0, 0), sliderMax);
-  const maxIsOpen = !maxAmount;
-  const maxValue = maxIsOpen
-    ? sliderMax
-    : Math.min(Math.max(parsedMax ?? sliderMax, minValue), sliderMax);
-  const minPercent = (minValue / sliderMax) * 100;
-  const maxPercent = (maxValue / sliderMax) * 100;
-  const minLabel = minAmount ? fmtAmount(minValue) : fmtAmount(0);
-  const maxLabel = maxIsOpen ? `${fmtAmount(sliderMax)}+` : fmtAmount(maxValue);
-  const minThumbOnTop = minValue > sliderMax * 0.5;
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 xl:col-span-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label>Amount</Label>
-        <div className="text-muted-foreground text-xs tabular-nums">
-          {minLabel} - {maxLabel}
-        </div>
-      </div>
-
-      <div className="relative h-8 px-1">
-        <div className="bg-muted absolute top-1/2 right-1 left-1 h-1 -translate-y-1/2 rounded-full" />
-        <div
-          className="bg-primary absolute top-1/2 h-1 -translate-y-1/2 rounded-full"
-          style={{
-            left: `calc(${minPercent}% + 0.25rem)`,
-            right: `calc(${100 - maxPercent}% + 0.25rem)`,
-          }}
-        />
-        <input
-          id={minId}
-          aria-label="Minimum amount"
-          type="range"
-          min={0}
-          max={sliderMax}
-          step={step}
-          value={minValue}
-          onChange={(event) => {
-            const nextMin = Math.min(Number(event.target.value), maxValue);
-            onChange({
-              minAmount: toDraftAmount(nextMin, true),
-              maxAmount,
-            });
-          }}
-          style={{ zIndex: minThumbOnTop ? 3 : 2 }}
-          className={RANGE_INPUT_CLASS}
-        />
-        <input
-          id={maxId}
-          aria-label="Maximum amount"
-          type="range"
-          min={0}
-          max={sliderMax}
-          step={step}
-          value={maxValue}
-          onChange={(event) => {
-            const nextMax = Math.max(Number(event.target.value), minValue);
-            onChange({
-              minAmount,
-              maxAmount:
-                nextMax >= sliderMax ? "" : toDraftAmount(nextMax),
-            });
-          }}
-          style={{ zIndex: minThumbOnTop ? 2 : 3 }}
-          className={RANGE_INPUT_CLASS}
-        />
-      </div>
-
-      <div className="text-muted-foreground flex items-center justify-between text-[11px] tabular-nums">
-        <span>{fmtAmount(0)}</span>
-        <span>{fmtAmount(sliderMax)}+</span>
-      </div>
-    </div>
-  );
 }
 
 function applyEventsResponse(
@@ -449,9 +163,6 @@ export default function TransactionsPage() {
   const searchId = useId();
   const minAmountId = useId();
   const maxAmountId = useId();
-  const pendingStatusId = useId();
-  const incomeFilterId = useId();
-  const directionFilterId = useId();
 
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
@@ -487,7 +198,7 @@ export default function TransactionsPage() {
 
   const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
   const activeFilterCount = useMemo(
-    () => countActiveFilters(filters),
+    () => countActiveTransactionFilters(filters),
     [filters],
   );
   const filtersDirty = useMemo(() => {
@@ -965,111 +676,95 @@ export default function TransactionsPage() {
             >
               <div className="overflow-hidden">
                 <div className="space-y-3 p-3 pt-2">
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-                    <div className="flex min-w-0 flex-col gap-1.5 xl:col-span-2">
-                      <Label htmlFor={searchId}>Search</Label>
-                      <div className="relative">
-                        <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
-                        <Input
-                          id={searchId}
-                          value={filterDraft.search}
-                          onChange={(event) =>
-                            patchFilterDraft({ search: event.target.value })
-                          }
-                          placeholder="Description, fund, wallet"
-                          className="pl-7"
-                        />
-                      </div>
-                    </div>
+                  <FilterSearchField
+                    id={searchId}
+                    value={filterDraft.search}
+                    onChange={(search) => patchFilterDraft({ search })}
+                  />
 
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                      <Label htmlFor={pendingStatusId}>Status</Label>
-                      <Select
-                        value={filterDraft.pendingStatus}
-                        onValueChange={(value) =>
-                          patchFilterDraft({
-                            pendingStatus: value as TransactionPendingFilter,
-                          })
-                        }
-                      >
-                        <SelectTrigger id={pendingStatusId} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="cleared">Cleared</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                      <Label htmlFor={incomeFilterId}>Type</Label>
-                      <Select
-                        value={filterDraft.income}
-                        onValueChange={(value) =>
-                          patchFilterDraft({
-                            income: value as TransactionIncomeFilter,
-                          })
-                        }
-                      >
-                        <SelectTrigger id={incomeFilterId} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="income">Income</SelectItem>
-                          <SelectItem value="not_income">Not income</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex min-w-0 flex-col gap-1.5">
-                      <Label htmlFor={directionFilterId}>Direction</Label>
-                      <Select
-                        value={filterDraft.direction}
-                        onValueChange={(value) =>
-                          patchFilterDraft({
-                            direction: value as TransactionDirectionFilter,
-                          })
-                        }
-                      >
-                        <SelectTrigger id={directionFilterId} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="in">In</SelectItem>
-                          <SelectItem value="out">Out</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <AmountRangeSlider
-                      minId={minAmountId}
-                      maxId={maxAmountId}
-                      minAmount={filterDraft.minAmount}
-                      maxAmount={filterDraft.maxAmount}
-                      onChange={patchFilterDraft}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <SegmentedControl<TransactionPendingFilter>
+                      label="Status"
+                      value={filterDraft.pendingStatus}
+                      onChange={(pendingStatus) =>
+                        patchFilterDraft({ pendingStatus })
+                      }
+                      options={[
+                        { value: "all", label: "All" },
+                        { value: "pending", label: "Pending" },
+                        { value: "cleared", label: "Cleared" },
+                      ]}
+                    />
+                    <SegmentedControl<TransactionIncomeFilter>
+                      label="Type"
+                      value={filterDraft.income}
+                      onChange={(income) => patchFilterDraft({ income })}
+                      options={[
+                        { value: "all", label: "All" },
+                        { value: "income", label: "Income" },
+                        { value: "not_income", label: "Expense" },
+                      ]}
+                    />
+                    <SegmentedControl<TransactionDirectionFilter>
+                      label="Direction"
+                      value={filterDraft.direction}
+                      onChange={(direction) => patchFilterDraft({ direction })}
+                      options={[
+                        { value: "all", label: "All" },
+                        { value: "in", label: "In" },
+                        { value: "out", label: "Out" },
+                      ]}
                     />
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <MultiSelectDropdown
-                      label="Funds"
-                      allLabel="All funds"
-                      options={funds}
-                      selectedIds={filterDraft.fundIds}
-                      onChange={(fundIds) => patchFilterDraft({ fundIds })}
-                    />
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <Label htmlFor={minAmountId}>Minimum</Label>
+                      <Input
+                        id={minAmountId}
+                        inputMode="decimal"
+                        value={filterDraft.minAmount}
+                        onChange={(event) =>
+                          patchFilterDraft({ minAmount: event.target.value })
+                        }
+                        placeholder="$0"
+                      />
+                    </div>
 
-                    <MultiSelectDropdown
-                      label="Wallets"
-                      allLabel="All wallets"
-                      options={wallets}
-                      selectedIds={filterDraft.walletIds}
-                      onChange={(walletIds) => patchFilterDraft({ walletIds })}
-                    />
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <Label htmlFor={maxAmountId}>Maximum</Label>
+                      <Input
+                        id={maxAmountId}
+                        inputMode="decimal"
+                        value={filterDraft.maxAmount}
+                        onChange={(event) =>
+                          patchFilterDraft({ maxAmount: event.target.value })
+                        }
+                        placeholder="Any"
+                      />
+                    </div>
+
+                    <div className="xl:col-span-2">
+                      <MultiSelectDropdown
+                        label="Funds"
+                        allLabel="All funds"
+                        options={funds}
+                        selectedIds={filterDraft.fundIds}
+                        onChange={(fundIds) => patchFilterDraft({ fundIds })}
+                      />
+                    </div>
+
+                    <div className="xl:col-span-2">
+                      <MultiSelectDropdown
+                        label="Wallets"
+                        allLabel="All wallets"
+                        options={wallets}
+                        selectedIds={filterDraft.walletIds}
+                        onChange={(walletIds) =>
+                          patchFilterDraft({ walletIds })
+                        }
+                      />
+                    </div>
                   </div>
 
                   <div className="border-border flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
