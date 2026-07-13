@@ -55,6 +55,7 @@ import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
@@ -70,7 +71,6 @@ import {
   type TransactionsPageQuery,
 } from "@/app/tracker/lib/transactions-page-cache";
 import type {
-  BootstrapResponse,
   EventsResponse,
   Fund,
   TransactionEvent,
@@ -316,10 +316,7 @@ export default function TransactionsPage() {
       }
 
       try {
-        const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-          method: "POST",
-          body: "{}",
-        });
+        const boot = await checkBootstrap();
         if (boot.migration?.required) {
           router.replace(boot.migration.redirectTo);
           return;

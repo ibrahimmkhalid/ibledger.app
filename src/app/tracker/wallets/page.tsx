@@ -26,9 +26,10 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
-import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
+import type { Wallet } from "@/app/tracker/types";
 
 type WalletFormState = {
   name: string;
@@ -94,10 +95,7 @@ export default function WalletsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
+      const boot = await checkBootstrap();
       if (boot.migration?.required) {
         router.replace(boot.migration.redirectTo);
         return;

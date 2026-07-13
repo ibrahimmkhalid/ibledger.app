@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
-import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
+import type { Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
   Tooltip,
@@ -198,10 +199,7 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
+      const boot = await checkBootstrap();
 
       if (boot.migration?.required) {
         router.replace(boot.migration.redirectTo);

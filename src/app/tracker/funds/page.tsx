@@ -20,9 +20,10 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import type { BootstrapResponse, Fund } from "@/app/tracker/types";
+import type { Fund } from "@/app/tracker/types";
 import {
   MultiFundSlider,
   type SliderFund,
@@ -229,10 +230,7 @@ export default function FundsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
+      const boot = await checkBootstrap();
       if (boot.migration?.required) {
         router.replace(boot.migration.redirectTo);
         return;

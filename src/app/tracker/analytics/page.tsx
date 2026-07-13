@@ -60,6 +60,7 @@ import {
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
@@ -70,7 +71,7 @@ import {
   type TransactionPendingFilter,
   type TransactionsPageFilters,
 } from "@/app/tracker/lib/transactions-page-cache";
-import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
+import type { Fund, Wallet } from "@/app/tracker/types";
 import type { PlotMarker } from "plotly.js";
 import type { PlotParams } from "react-plotly.js";
 
@@ -1350,10 +1351,7 @@ export default function AnalyticsPage() {
       }
 
       try {
-        const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-          method: "POST",
-          body: "{}",
-        });
+        const boot = await checkBootstrap();
         if (boot.migration?.required) {
           router.replace(boot.migration.redirectTo);
           return;
