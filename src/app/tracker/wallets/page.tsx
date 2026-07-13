@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount } from "@/app/tracker/lib/format";
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
 
@@ -231,38 +232,42 @@ export default function WalletsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[140px] text-right">Balance</TableHead>
-                <TableHead className="w-[160px] text-right">
-                  With pending
-                </TableHead>
-                <TableHead className="w-[220px]"></TableHead>
+                <TableHead className="text-right">Balance</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {wallets.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtAmount(w.balance)}
+                  <TableCell className="text-right tabular-nums whitespace-normal">
+                    <ClearedWithPending
+                      cleared={w.balance}
+                      withPending={w.balanceWithPending}
+                    />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtAmount(w.balanceWithPending)}
-                  </TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditWallet(w)}
-                      disabled={busy}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => void deleteWallet(w)}
-                      disabled={busy || wallets.length <= 1}
-                    >
-                      Delete
-                    </Button>
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditWallet(w)}
+                        disabled={busy}
+                        aria-label={`Edit ${w.name}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void deleteWallet(w)}
+                        disabled={busy || wallets.length <= 1}
+                        aria-label={`Delete ${w.name}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

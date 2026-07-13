@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import type { BootstrapResponse, Fund } from "@/app/tracker/types";
 import {
@@ -453,10 +454,7 @@ export default function FundsPage() {
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[120px] text-right">Balance</TableHead>
-                <TableHead className="w-[140px] text-right">
-                  w/ Pending
-                </TableHead>
+                <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="w-[48px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -508,12 +506,14 @@ export default function FundsPage() {
 
                     {/* Balance */}
                     <TableCell className="text-right tabular-nums">
-                      {f.id ? fmtAmount(f.balance) : "-"}
-                    </TableCell>
-
-                    {/* Balance w/ pending */}
-                    <TableCell className="text-right tabular-nums">
-                      {f.id ? fmtAmount(f.balanceWithPending) : "-"}
+                      {f.id ? (
+                        <ClearedWithPending
+                          cleared={f.balance}
+                          withPending={f.balanceWithPending}
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
 
                     {/* Delete */}

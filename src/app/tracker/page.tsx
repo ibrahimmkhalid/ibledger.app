@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { OverviewSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
@@ -60,24 +61,6 @@ function overspentBadge(args: { raw: number; label?: string }) {
     <span className="bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
       Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
     </span>
-  );
-}
-
-function renderClearedWithPending(cleared: number, withPending: number) {
-  const c = Number(cleared);
-  const p = Number(withPending);
-  const delta = p - c;
-
-  const sign = delta > 0 ? "+" : "-";
-  return (
-    <>
-      <span className="font-semibold">{fmtAmount(c)}</span>
-      {delta !== 0 && (
-        <span className="text-muted-foreground ml-2">
-          [{sign}${fmtAmount(delta, "plain")}]
-        </span>
-      )}
-    </>
   );
 }
 
@@ -230,10 +213,10 @@ export default function TrackerPage() {
         <CardContent className="text-sm">
           {totals ? (
             <div className="text-lg">
-              {renderClearedWithPending(
-                totals.grandTotal,
-                totals.grandTotalWithPending,
-              )}
+              <ClearedWithPending
+                cleared={totals.grandTotal}
+                withPending={totals.grandTotalWithPending}
+              />
             </div>
           ) : (
             <div className="text-muted-foreground">-</div>
@@ -259,10 +242,10 @@ export default function TrackerPage() {
                   <TableRow key={w.id}>
                     <TableCell>{w.name}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {renderClearedWithPending(
-                        w.balance,
-                        w.balanceWithPending,
-                      )}
+                      <ClearedWithPending
+                        cleared={w.balance}
+                        withPending={w.balanceWithPending}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -302,10 +285,10 @@ export default function TrackerPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {renderClearedWithPending(
-                        f.balance,
-                        f.balanceWithPending,
-                      )}
+                      <ClearedWithPending
+                        cleared={f.balance}
+                        withPending={f.balanceWithPending}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
