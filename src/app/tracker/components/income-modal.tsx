@@ -166,7 +166,7 @@ export function IncomeModal(args: {
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      desktopContentClassName="sm:max-w-2xl sm:min-w-[40rem]"
+      desktopContentClassName="sm:max-w-[min(40rem,calc(100vw-2rem))]"
       desktopFooterClassName="flex items-center justify-between gap-2"
       renderBody={({ isMobile }) => (
         <>

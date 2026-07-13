@@ -697,7 +697,7 @@ export function TransactionModal(args: {
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      desktopContentClassName="sm:max-w-5xl sm:min-w-[56rem]"
+      desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
       desktopFooterClassName="flex items-center justify-between gap-2"
       renderBody={({ isMobile }) => (
         <>

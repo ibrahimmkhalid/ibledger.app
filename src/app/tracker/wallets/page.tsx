@@ -51,7 +51,7 @@ function WalletModal(args: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
+      <DialogContent className="sm:max-w-[min(40rem,calc(100vw-2rem))]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
