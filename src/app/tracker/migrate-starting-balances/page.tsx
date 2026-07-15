@@ -375,9 +375,8 @@ export default function MigrateStartingBalancesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Convert legacy balances</h1>
           <div className="text-muted-foreground max-w-2xl text-sm">
-            Assign each legacy balance to both a wallet and a fund. Completing
-            this creates cleared transactions and removes the legacy values from
-            future calculations.
+            Give each legacy balance a wallet and a fund. This turns them into
+            cleared transactions and retires the old values for good.
           </div>
         </div>
         <Button
@@ -395,9 +394,10 @@ export default function MigrateStartingBalancesPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3 text-sm">
             <div>
-              Legacy wallet total is {fmtAmount(data.walletTotal)} and legacy
-              fund total is {fmtAmount(data.fundTotal)}. A valid ledger needs
-              one total, so choose which side the transaction lines must match.
+              Your legacy wallets add up to {fmtAmount(data.walletTotal)}, but
+              your legacy funds add up to {fmtAmount(data.fundTotal)}. A ledger
+              can only have one total — pick the side your transaction lines
+              should match.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button

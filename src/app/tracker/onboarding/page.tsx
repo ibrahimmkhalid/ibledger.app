@@ -148,8 +148,8 @@ function FundModal(args: {
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
-                      What percentage of an income transaction to save into this
-                      fund. The rest will be saved in the savings fund.
+                      The share of each paycheck that flows into this fund.
+                      Whatever&apos;s left lands in savings.
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -378,10 +378,10 @@ export default function OnboardingPage() {
         <div>
           <h1 className="text-2xl font-semibold">Welcome</h1>
           <div className="text-muted-foreground text-sm">
-            To get started, add your own wallets and funds! We have already
-            started you off with a default savings fund and bank wallet. Take a
-            look or go straight to the tracker! You can always modify these
-            later.
+            Set up the wallets your money sits in and the funds it&apos;s set
+            aside for. We&apos;ve started you with a Bank wallet and a Savings
+            fund — rename them, add your own, or head straight to the tracker.
+            Nothing here is permanent.
           </div>
         </div>
         <div className="flex flex-row flex-wrap items-center gap-2">
@@ -400,7 +400,7 @@ export default function OnboardingPage() {
             }}
             disabled={!canFinish}
           >
-            Complete onboarding
+            Finish setup
           </Button>
         </div>
       </div>
@@ -470,8 +470,8 @@ export default function OnboardingPage() {
         <CardContent>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-muted-foreground text-sm">
-              We have set up a default &quot;Bank&quot; wallet for you. Add more
-              if you need!
+              Add every account your money actually sits in — checking, cash, a
+              card. We started you with a Bank wallet.
             </div>
             <Button onClick={() => setCreateWalletOpen(true)}>
               New wallet
@@ -534,8 +534,8 @@ export default function OnboardingPage() {
         <CardContent>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-muted-foreground text-sm">
-              We have set up a default &quot;Savings&quot; fund for you. Add
-              more if you need!
+              Add a fund for each thing you set money aside for. Savings catches
+              whatever the others don&apos;t claim.
             </div>
             <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
           </div>
@@ -586,7 +586,7 @@ export default function OnboardingPage() {
                                 Math.abs(rawWithPending) > 0.005;
 
                               const title = deleteBlocked
-                                ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
+                                ? "This fund still holds money (including pending). Move it out and clear pending transactions before deleting."
                                 : undefined;
 
                               return (

@@ -205,7 +205,7 @@ export default function TrackerPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Grand Total</CardTitle>
+          <CardTitle>Total balance</CardTitle>
         </CardHeader>
         <CardContent className="text-sm">
           {totals ? (

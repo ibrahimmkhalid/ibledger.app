@@ -194,7 +194,7 @@ export function TransactionModal(args: {
     const parsed = lines.map((l) => {
       const abs = Number(l.amount) / 100;
       if (Number.isNaN(abs) || abs <= 0) {
-        throw new Error("Each line must have an amount > 0");
+        throw new Error("Every line needs an amount above $0");
       }
 
       const walletId = l.walletId ? Number(l.walletId) : null;
@@ -202,7 +202,7 @@ export function TransactionModal(args: {
       const transactionId = l.transactionId ? Number(l.transactionId) : null;
 
       if (walletId === null || fundId === null) {
-        throw new Error("Each line must include a wallet and a fund.");
+        throw new Error("Every line needs a wallet and a fund.");
       }
 
       const signedAmount = l.direction === "out" ? -abs : abs;

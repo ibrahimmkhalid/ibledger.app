@@ -81,7 +81,7 @@ const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), {
   ssr: false,
   loading: () => (
     <div className="border-border bg-muted/20 text-muted-foreground flex h-72 items-center justify-center rounded-md border text-xs">
-      Loading chart.
+      Loading chart…
     </div>
   ),
 });
@@ -685,7 +685,7 @@ function StatCard(args: {
 function EmptyChart() {
   return (
     <div className="border-border bg-muted/20 text-muted-foreground flex h-72 items-center justify-center rounded-md border text-xs">
-      No matching activity.
+      Nothing to chart for this selection.
     </div>
   );
 }
@@ -1065,7 +1065,7 @@ function cashflowNetHoverText(
     `<b><span style="color:${accent}">${heading}: ${formatHoverAmount(point.net)}</span></b>`,
     `Income: ${formatHoverAmount(point.income)}`,
     `Spending: ${formatHoverAmount(-point.spending)}`,
-    `<span style="color:${theme.muted}">${point.count.toLocaleString()} posting rows</span>`,
+    `<span style="color:${theme.muted}">${point.count.toLocaleString()} line items</span>`,
   ].join("<br>");
 }
 
@@ -1516,10 +1516,6 @@ export default function AnalyticsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Analytics</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Trends, subtotals, and categorized movement from existing
-            transactions.
-          </p>
         </div>
         <Button
           variant="outline"
@@ -1739,14 +1735,14 @@ export default function AnalyticsPage() {
           <StatCard
             title="Net"
             value={fmtAmount(summary?.net ?? 0)}
-            detail={`${(summary?.count ?? 0).toLocaleString()} posting rows`}
+            detail={`${(summary?.count ?? 0).toLocaleString()} line items`}
             icon={<BarChart3Icon className="size-4" />}
             tone={netTone}
           />
           <StatCard
             title="Income"
             value={fmtAmount(summary?.income ?? 0)}
-            detail="Positive movement"
+            detail="Money coming in"
             icon={<TrendingUpIcon className="size-4" />}
             tone="income"
           />

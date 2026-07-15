@@ -136,7 +136,7 @@ export function AppShell(args: {
                         size: "sm",
                       })}
                     >
-                      Open ledger overview
+                      Open ledger
                     </Link>
                   )}
                   <UserButton afterSignOutUrl="/" />

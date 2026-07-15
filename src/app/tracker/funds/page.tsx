@@ -166,13 +166,13 @@ function buildSliderFunds(drafts: DraftFund[]): SliderFund[] {
 }
 
 function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
-  if (d.isSavings) return { ok: false, reason: "Cannot delete savings fund" };
+  if (d.isSavings) return { ok: false, reason: "Savings can't be deleted" };
   if (!d.id) return { ok: true };
   const raw = Number(d.rawBalanceWithPending ?? d.balanceWithPending);
   if (Number.isFinite(raw) && Math.abs(raw) >= 0.005) {
     return {
       ok: false,
-      reason: "Non-zero balance (including pending). Move money out first.",
+      reason: "Still holds money (including pending). Move it out first.",
     };
   }
   return { ok: true };
@@ -419,7 +419,8 @@ export default function FundsPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
-              Decide what percentage of your income should go to each fund.
+              Set how each paycheck splits across your funds. Savings keeps
+              whatever&apos;s left over.
             </p>
             <MultiFundSlider
               funds={sliderFunds}

@@ -445,7 +445,7 @@ export default function TransactionsPage() {
 
   const clearAllPending = useCallback(async () => {
     const ok = window.confirm(
-      "Mark ALL transactions as no longer pending? This will affect totals immediately.",
+      "Mark every pending transaction as cleared? This updates your totals right away.",
     );
     if (!ok) return;
 

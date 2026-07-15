@@ -246,7 +246,7 @@ export function IncomeModal(args: {
             <div className="flex flex-col">
               <div className="text-sm font-medium">Pending</div>
               <div className="text-muted-foreground text-xs">
-                Controls whether this income counts in cleared totals
+                While pending, this income stays out of your cleared balance
               </div>
             </div>
             <Switch
@@ -266,7 +266,7 @@ export function IncomeModal(args: {
             >
               <div className="text-sm font-medium">Breakdown</div>
               <div className="text-muted-foreground text-xs">
-                Auto-allocated by pulls
+                Split across your funds by pull %
               </div>
 
               {isMobile ? (
