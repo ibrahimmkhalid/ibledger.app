@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import {
   useCallback,
   useEffect,
@@ -50,12 +49,12 @@ import {
   countActiveTransactionFilters,
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
+import { EventModals } from "@/app/tracker/components/event-modals";
 import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
-import { isIncomeLike } from "@/app/tracker/lib/events";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
   fetchTransactionsPage,
@@ -74,20 +73,6 @@ import type {
   Wallet,
 } from "@/app/tracker/types";
 import { TRANSACTIONS_PAGE_SIZE_OPTIONS } from "@/app/tracker/types";
-
-const TransactionModal = dynamic(
-  () =>
-    import("@/app/tracker/components/transaction-modal").then(
-      (m) => m.TransactionModal,
-    ),
-  { ssr: false },
-);
-
-const IncomeModal = dynamic(
-  () =>
-    import("@/app/tracker/components/income-modal").then((m) => m.IncomeModal),
-  { ssr: false },
-);
 
 const DEFAULT_PAGE_SIZE: TransactionsPageSize = 20;
 
@@ -192,7 +177,6 @@ export default function TransactionsPage() {
   const pageCacheRef = useRef(new Map<string, EventsResponse>());
   const preloadInFlightRef = useRef(new Set<string>());
 
-  const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
   const activeFilterCount = useMemo(
     () => countActiveTransactionFilters(filters),
     [filters],
@@ -522,65 +506,18 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <TransactionModal
-        open={createTransactionOpen}
-        onOpenChange={setCreateTransactionOpen}
+      <EventModals
         wallets={wallets}
         funds={funds}
-        onSaved={async () => {
-          toast.success("Transaction saved");
-          await handleSaved();
-        }}
+        createTransactionOpen={createTransactionOpen}
+        onCreateTransactionOpenChange={setCreateTransactionOpen}
+        createIncomeOpen={createIncomeOpen}
+        onCreateIncomeOpenChange={setCreateIncomeOpen}
+        detailsEvent={detailsEvent}
+        onDetailsEventChange={setDetailsEvent}
+        onSaved={handleSaved}
       />
 
-      <IncomeModal
-        open={createIncomeOpen}
-        onOpenChange={setCreateIncomeOpen}
-        wallets={wallets}
-        onSaved={async () => {
-          toast.success("Income saved");
-          await handleSaved();
-        }}
-      />
-
-      <TransactionModal
-        open={Boolean(detailsEvent) && !detailsIsIncome}
-        onOpenChange={(open: boolean) => {
-          if (!open) setDetailsEvent(null);
-        }}
-        wallets={wallets}
-        funds={funds}
-        initialEvent={detailsEvent}
-        onSaved={async () => {
-          toast.success("Transaction updated");
-          await handleSaved();
-          setDetailsEvent(null);
-        }}
-        onDeleted={async () => {
-          toast.success("Transaction deleted");
-          await handleSaved();
-          setDetailsEvent(null);
-        }}
-      />
-
-      <IncomeModal
-        open={Boolean(detailsEvent) && detailsIsIncome}
-        onOpenChange={(open: boolean) => {
-          if (!open) setDetailsEvent(null);
-        }}
-        wallets={wallets}
-        initialEvent={detailsEvent}
-        onSaved={async () => {
-          toast.success("Income updated");
-          await handleSaved();
-          setDetailsEvent(null);
-        }}
-        onDeleted={async () => {
-          toast.success("Income deleted");
-          await handleSaved();
-          setDetailsEvent(null);
-        }}
-      />
 
       <Card>
         <CardHeader>
