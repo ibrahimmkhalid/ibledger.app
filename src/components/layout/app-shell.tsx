@@ -24,6 +24,14 @@ import {
 
 import { Button, buttonVariants } from "@/components/ui/button";
 
+const NAV_ITEMS = [
+  { href: "/tracker", label: "Overview" },
+  { href: "/tracker/transactions", label: "Transactions" },
+  { href: "/tracker/analytics", label: "Analytics" },
+  { href: "/tracker/funds", label: "Funds" },
+  { href: "/tracker/wallets", label: "Wallets" },
+] as const;
+
 function navLinkClassName(args: { href: string; pathname: string }) {
   const active = args.pathname === args.href;
   return [
@@ -37,6 +45,18 @@ function navLinkClassName(args: { href: string; pathname: string }) {
       ? "bg-muted font-semibold"
       : "text-muted-foreground hover:text-foreground",
   ].join(" ");
+}
+
+function NavLinks({ pathname }: { pathname: string }) {
+  return NAV_ITEMS.map((item) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={navLinkClassName({ href: item.href, pathname })}
+    >
+      {item.label}
+    </Link>
+  ));
 }
 
 export function AppShell(args: {
@@ -64,48 +84,7 @@ export function AppShell(args: {
             </Link>
             {inTracker && (
               <nav className="hidden items-center gap-1 sm:flex">
-                <Link
-                  href="/tracker"
-                  className={navLinkClassName({ href: "/tracker", pathname })}
-                >
-                  Overview
-                </Link>
-                <Link
-                  href="/tracker/transactions"
-                  className={navLinkClassName({
-                    href: "/tracker/transactions",
-                    pathname,
-                  })}
-                >
-                  Transactions
-                </Link>
-                <Link
-                  href="/tracker/analytics"
-                  className={navLinkClassName({
-                    href: "/tracker/analytics",
-                    pathname,
-                  })}
-                >
-                  Analytics
-                </Link>
-                <Link
-                  href="/tracker/funds"
-                  className={navLinkClassName({
-                    href: "/tracker/funds",
-                    pathname,
-                  })}
-                >
-                  Funds
-                </Link>
-                <Link
-                  href="/tracker/wallets"
-                  className={navLinkClassName({
-                    href: "/tracker/wallets",
-                    pathname,
-                  })}
-                >
-                  Wallets
-                </Link>
+                <NavLinks pathname={pathname} />
               </nav>
             )}
           </div>
@@ -149,48 +128,7 @@ export function AppShell(args: {
         {inTracker && (
           <div className="border-t sm:hidden">
             <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto px-4 py-2 whitespace-nowrap">
-              <Link
-                href="/tracker"
-                className={navLinkClassName({ href: "/tracker", pathname })}
-              >
-                Overview
-              </Link>
-              <Link
-                href="/tracker/transactions"
-                className={navLinkClassName({
-                  href: "/tracker/transactions",
-                  pathname,
-                })}
-              >
-                Transactions
-              </Link>
-              <Link
-                href="/tracker/analytics"
-                className={navLinkClassName({
-                  href: "/tracker/analytics",
-                  pathname,
-                })}
-              >
-                Analytics
-              </Link>
-              <Link
-                href="/tracker/funds"
-                className={navLinkClassName({
-                  href: "/tracker/funds",
-                  pathname,
-                })}
-              >
-                Funds
-              </Link>
-              <Link
-                href="/tracker/wallets"
-                className={navLinkClassName({
-                  href: "/tracker/wallets",
-                  pathname,
-                })}
-              >
-                Wallets
-              </Link>
+              <NavLinks pathname={pathname} />
             </nav>
           </div>
         )}
