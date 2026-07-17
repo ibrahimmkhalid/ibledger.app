@@ -211,6 +211,11 @@ export async function PATCH(
         // Income split fully across non-savings funds carries no savings
         // posting (see the create path). Anything short of a full split must
         // have one, and its absence means the event is corrupt.
+        //
+        // Not a BadRequestError: nothing the caller sent caused this, so it has
+        // to reach the catch as a 500 and get logged. It used to be caught by a
+        // message.includes("Missing") test and handed back as a 400, which
+        // blamed the user for a broken ledger.
         const nonSavingsPct = nonSavingsPostings.reduce(
           (acc, p) => acc + Number(p.incomePull ?? 0),
           0,
@@ -543,18 +548,6 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-
-    if (
-      message.startsWith("Invalid") ||
-      message.includes("Line must") ||
-      message.includes("Missing") ||
-      message.includes("Fund not found")
-    ) {
-      return NextResponse.json({ error: message }, { status: 400 });
     }
 
     console.error("API: Error updating transaction", error);
