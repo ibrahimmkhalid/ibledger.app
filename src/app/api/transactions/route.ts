@@ -550,68 +550,73 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const parent = await db
-        .insert(transactions)
-        .values({
-          userId: user.id,
-          parentId: null,
-          occurredAt,
-          description,
-          isPosting: false,
-          isPending: eventIsPending,
-          incomePull: null,
-          fundId: null,
-          walletId: null,
-          amount: 0,
-        })
-        .returning()
-        .then((res) => res[0]);
+      const eventId = await db.transaction(async (tx) => {
+        const parent = await tx
+          .insert(transactions)
+          .values({
+            userId: user.id,
+            parentId: null,
+            occurredAt,
+            description,
+            isPosting: false,
+            isPending: eventIsPending,
+            incomePull: null,
+            fundId: null,
+            walletId: null,
+            amount: 0,
+          })
+          .returning()
+          .then((res) => res[0]);
 
-      if (!parent) {
-        return NextResponse.json(
-          { error: "Failed to create event" },
-          { status: 500 },
-        );
-      }
+        if (!parent) {
+          throw new Error("Failed to create event");
+        }
 
-      let allocatedTotal = 0;
-      const postingRows: Array<typeof transactions.$inferInsert> = [];
+        let allocatedTotal = 0;
+        const postingRows: Array<typeof transactions.$inferInsert> = [];
 
-      for (const pull of normalizedPulls) {
-        const allocated = (amount * pull.percentage) / 100;
-        allocatedTotal += allocated;
-        postingRows.push({
-          userId: user.id,
-          parentId: parent.id,
-          occurredAt,
-          description: null,
-          isPosting: true,
-          isPending,
-          incomePull: pull.percentage,
-          walletId,
-          fundId: pull.destFundId,
-          amount: allocated,
-        });
-      }
+        for (const pull of normalizedPulls) {
+          const allocated = (amount * pull.percentage) / 100;
+          allocatedTotal += allocated;
+          postingRows.push({
+            userId: user.id,
+            parentId: parent.id,
+            occurredAt,
+            description: null,
+            isPosting: true,
+            isPending,
+            incomePull: pull.percentage,
+            walletId,
+            fundId: pull.destFundId,
+            amount: allocated,
+          });
+        }
 
-      const savingsPullPct = 100 - pullSum;
-      const savingsAllocated = amount - allocatedTotal;
-      postingRows.push({
-        userId: user.id,
-        parentId: parent.id,
-        occurredAt,
-        description: null,
-        isPosting: true,
-        isPending,
-        incomePull: savingsPullPct,
-        walletId,
-        fundId: savingsFundId,
-        amount: savingsAllocated,
+        // A full 100% split leaves nothing for savings. A zero-amount child
+        // there fails isIncomeLike(), so the UI would open the expense modal
+        // for an income event and the PATCH would 400 -- making the event
+        // permanently uneditable. Omit the child instead.
+        if (pullSum < 100) {
+          postingRows.push({
+            userId: user.id,
+            parentId: parent.id,
+            occurredAt,
+            description: null,
+            isPosting: true,
+            isPending,
+            incomePull: 100 - pullSum,
+            walletId,
+            fundId: savingsFundId,
+            amount: amount - allocatedTotal,
+          });
+        }
+
+        await tx.insert(transactions).values(postingRows);
+
+        return parent.id;
       });
 
-      await db.insert(transactions).values(postingRows);
-
-      return NextResponse.json({ eventId: parent.id });
+      return NextResponse.json({ eventId });
     }
 
     const lines = parseCreateTransactionLines(body.lines, eventIsPending);
@@ -706,46 +711,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ eventId: posting.id });
     }
 
-    const parent = await db
-      .insert(transactions)
-      .values({
-        userId: user.id,
-        parentId: null,
-        occurredAt,
-        description,
-        isPosting: false,
-        isPending: eventIsPending,
-        incomePull: null,
-        fundId: null,
-        walletId: null,
-        amount: 0,
-      })
-      .returning()
-      .then((res) => res[0]);
+    const eventId = await db.transaction(async (tx) => {
+      const parent = await tx
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          parentId: null,
+          occurredAt,
+          description,
+          isPosting: false,
+          isPending: eventIsPending,
+          incomePull: null,
+          fundId: null,
+          walletId: null,
+          amount: 0,
+        })
+        .returning()
+        .then((res) => res[0]);
 
-    if (!parent) {
-      return NextResponse.json(
-        { error: "Failed to create event" },
-        { status: 500 },
+      if (!parent) {
+        throw new Error("Failed to create event");
+      }
+
+      await tx.insert(transactions).values(
+        parsedLines.map((line) => ({
+          userId: user.id,
+          parentId: parent.id,
+          occurredAt,
+          description: line.description ?? null,
+          isPosting: true,
+          isPending: line.isPending,
+          incomePull: null,
+          walletId: line.walletId ?? null,
+          fundId: line.fundId ?? null,
+          amount: line.amount,
+        })),
       );
-    }
 
-    await db.insert(transactions).values(
-      parsedLines.map((line) => ({
-        userId: user.id,
-        parentId: parent.id,
-        occurredAt,
-        description: line.description ?? null,
-        isPosting: true,
-        isPending: line.isPending,
-        incomePull: null,
-        walletId: line.walletId ?? null,
-        fundId: line.fundId ?? null,
-        amount: line.amount,
-      })),
-    );
+      return parent.id;
+    });
 
-    return NextResponse.json({ eventId: parent.id });
+    return NextResponse.json({ eventId });
   } catch (error) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -214,15 +214,22 @@ export async function PATCH(
           (p) => p.fundId === savingsFundId,
         );
 
-        if (!savingsPosting) {
+        const nonSavingsPostings = allocationPostings.filter(
+          (p) => p.id !== savingsPosting?.id,
+        );
+
+        // Income split fully across non-savings funds carries no savings
+        // posting (see the create path). Anything short of a full split must
+        // have one, and its absence means the event is corrupt.
+        const nonSavingsPct = nonSavingsPostings.reduce(
+          (acc, p) => acc + Number(p.incomePull ?? 0),
+          0,
+        );
+        if (!savingsPosting && nonSavingsPct < 100) {
           throw new Error(
             "Missing savings allocation posting for this income event",
           );
         }
-
-        const nonSavingsPostings = allocationPostings.filter(
-          (p) => p.id !== savingsPosting.id,
-        );
 
         let nonSavingsAllocated = 0;
         for (const p of nonSavingsPostings) {
@@ -242,21 +249,21 @@ export async function PATCH(
             );
         }
 
-        const savingsAmount = nextTotal - nonSavingsAllocated;
-
-        await tx
-          .update(transactions)
-          .set({
-            walletId: nextWalletId,
-            amount: savingsAmount,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(transactions.userId, user.id),
-              eq(transactions.id, savingsPosting.id),
-            ),
-          );
+        if (savingsPosting) {
+          await tx
+            .update(transactions)
+            .set({
+              walletId: nextWalletId,
+              amount: nextTotal - nonSavingsAllocated,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(transactions.userId, user.id),
+                eq(transactions.id, savingsPosting.id),
+              ),
+            );
+        }
       });
 
       return NextResponse.json({ eventId });

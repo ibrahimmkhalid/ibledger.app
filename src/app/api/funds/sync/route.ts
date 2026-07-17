@@ -103,35 +103,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const touchedFundIds = Array.from(
-      new Set([
-        ...deletedFundIds,
-        ...updateInputs.map((fund) => Number(fund.id)),
-      ]),
-    );
-
-    // ── Apply inside a transaction ───────────────────────────────────
-
     await db.transaction(async (tx) => {
       const now = new Date();
 
-      const existingFunds =
-        touchedFundIds.length === 0
-          ? []
-          : await tx
-              .select({ id: funds.id, isSavings: funds.isSavings })
-              .from(funds)
-              .where(
-                and(
-                  eq(funds.userId, user.id),
-                  inArray(funds.id, touchedFundIds),
-                  isNull(funds.deletedAt),
-                ),
-              );
+      const activeFunds = await tx
+        .select({
+          id: funds.id,
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+        })
+        .from(funds)
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
 
-      const existingById = new Map(
-        existingFunds.map((fund) => [fund.id, fund]),
-      );
+      const existingById = new Map(activeFunds.map((fund) => [fund.id, fund]));
 
       for (const id of deletedFundIds) {
         const target = existingById.get(id);
@@ -142,6 +126,30 @@ export async function PUT(request: NextRequest) {
       for (const fund of updateInputs) {
         const id = Number(fund.id);
         if (!existingById.has(id)) throw new Error(`Fund ${id} not found`);
+      }
+
+      // Income allocation reads these percentages back and rejects a sum over
+      // 100, so a sync that pushes them past it would lock the user out of
+      // recording income with no way to see why. Check the state this sync
+      // would leave behind, not just the funds it names.
+      const updateById = new Map(
+        updateInputs.map((fund) => [Number(fund.id), fund]),
+      );
+
+      let resultingPullSum = 0;
+      for (const fund of activeFunds) {
+        if (fund.isSavings || deletedFundIdSet.has(fund.id)) continue;
+        const update = updateById.get(fund.id);
+        resultingPullSum += Number(
+          update ? update.pullPercentage : (fund.pullPercentage ?? 0),
+        );
+      }
+      for (const fund of createInputs) {
+        resultingPullSum += Number(fund.pullPercentage);
+      }
+
+      if (resultingPullSum > 100) {
+        throw new Error("Invalid fund pulls: sum exceeds 100");
       }
 
       // Verify zero balance for all deletions in one grouped read.
