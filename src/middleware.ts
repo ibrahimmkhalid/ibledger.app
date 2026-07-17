@@ -1,16 +1,17 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import { isDevTestingEnabled } from "@/lib/dev-testing";
+
 const isPublicRoute = createRouteMatcher(["/"]);
 
-const middleware =
-  process.env.DEV_TESTING === "true"
-    ? () => NextResponse.next()
-    : clerkMiddleware(async (auth, req) => {
-        if (!isPublicRoute(req)) {
-          await auth.protect();
-        }
-      });
+const middleware = isDevTestingEnabled()
+  ? () => NextResponse.next()
+  : clerkMiddleware(async (auth, req) => {
+      if (!isPublicRoute(req)) {
+        await auth.protect();
+      }
+    });
 
 export default middleware;
 

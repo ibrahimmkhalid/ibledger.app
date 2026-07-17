@@ -4,6 +4,7 @@ import { AuthProvider } from "@/components/utils/auth-provider";
 import { ThemeProvider } from "@/components/utils/theme-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
+import { isDevTestingEnabled } from "@/lib/dev-testing";
 
 export const metadata: Metadata = {
   title: "ibLedger",
@@ -19,7 +20,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isDevTesting = process.env.DEV_TESTING === "true";
+  const isDevTesting = isDevTestingEnabled();
 
   return (
     <AuthProvider devTesting={isDevTesting}>

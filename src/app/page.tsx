@@ -4,6 +4,7 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
+import { isDevTestingEnabled } from "@/lib/dev-testing";
 
 const CTA_PRIMARY_CLASS =
   "bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition";
@@ -53,9 +54,7 @@ function ExampleTransactionCard(args: {
 }
 
 function PrimaryCta() {
-  const isDevTesting = process.env.DEV_TESTING === "true";
-
-  if (isDevTesting) {
+  if (isDevTestingEnabled()) {
     return (
       <Link href="/tracker" className={CTA_PRIMARY_CLASS}>
         Open your ledger
