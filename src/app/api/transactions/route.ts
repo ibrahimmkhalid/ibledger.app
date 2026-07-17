@@ -25,7 +25,6 @@ import {
   parseCreateTransactionLines,
   parseOccurredAt,
   parseRequestJsonObject,
-  type CreateTransactionLineInput,
 } from "@/app/api/transactions/validation";
 import { requireUser } from "@/lib/auth";
 
@@ -187,16 +186,16 @@ export async function GET(request: NextRequest) {
 
     const eventAmount = eventDisplayAmountSql(user.id);
     const incomeExists = incomeExistsSql(user.id);
-    const nonAmountFilterConditions: SQL<unknown>[] = [
+    const filterConditions: SQL<unknown>[] = [
       eq(transactions.userId, user.id),
       isNull(transactions.parentId),
       isNull(transactions.deletedAt),
     ];
 
     if (pendingStatus === "pending") {
-      nonAmountFilterConditions.push(eq(transactions.isPending, true));
+      filterConditions.push(eq(transactions.isPending, true));
     } else if (pendingStatus === "cleared") {
-      nonAmountFilterConditions.push(eq(transactions.isPending, false));
+      filterConditions.push(eq(transactions.isPending, false));
     }
 
     if (fundIds.length > 0) {
@@ -206,7 +205,7 @@ export async function GET(request: NextRequest) {
         childExistsSql(user.id, sql`child."fund_id" in (${ids})`),
       );
       if (fundFilter) {
-        nonAmountFilterConditions.push(fundFilter);
+        filterConditions.push(fundFilter);
       }
     }
 
@@ -217,40 +216,35 @@ export async function GET(request: NextRequest) {
         childExistsSql(user.id, sql`child."wallet_id" in (${ids})`),
       );
       if (walletFilter) {
-        nonAmountFilterConditions.push(walletFilter);
+        filterConditions.push(walletFilter);
       }
     }
 
     if (incomeFilter === "income") {
-      nonAmountFilterConditions.push(incomeExists);
+      filterConditions.push(incomeExists);
     } else if (incomeFilter === "not_income") {
-      nonAmountFilterConditions.push(sql`not (${incomeExists})`);
+      filterConditions.push(sql`not (${incomeExists})`);
     }
 
     if (direction === "in") {
-      nonAmountFilterConditions.push(sql`${eventAmount} > 0`);
+      filterConditions.push(sql`${eventAmount} > 0`);
     } else if (direction === "out") {
-      nonAmountFilterConditions.push(sql`${eventAmount} < 0`);
+      filterConditions.push(sql`${eventAmount} < 0`);
     }
 
     for (const pattern of fuzzyLikePatterns(search)) {
-      nonAmountFilterConditions.push(textSearchSql(user.id, pattern));
+      filterConditions.push(textSearchSql(user.id, pattern));
     }
 
-    const amountFilterConditions: SQL<unknown>[] = [];
-
     if (minAmount !== null) {
-      amountFilterConditions.push(sql`abs(${eventAmount}) >= ${minAmount}`);
+      filterConditions.push(sql`abs(${eventAmount}) >= ${minAmount}`);
     }
 
     if (maxAmount !== null) {
-      amountFilterConditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
+      filterConditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
     }
 
-    const filters = and(
-      ...nonAmountFilterConditions,
-      ...amountFilterConditions,
-    );
+    const filters = and(...filterConditions);
 
     const [countRows, events] = await Promise.all([
       db.select({ value: count() }).from(transactions).where(filters),
@@ -373,7 +367,6 @@ export async function POST(request: NextRequest) {
     if (type === "income") {
       const walletId = Number(body.walletId);
       const amount = Number(body.amount);
-      const isPending = eventIsPending;
 
       if (!walletId || Number.isNaN(walletId)) {
         return NextResponse.json(
@@ -485,7 +478,7 @@ export async function POST(request: NextRequest) {
             occurredAt,
             description: null,
             isPosting: true,
-            isPending,
+            isPending: eventIsPending,
             incomePull: pull.percentage,
             walletId,
             fundId: pull.destFundId,
@@ -504,7 +497,7 @@ export async function POST(request: NextRequest) {
             occurredAt,
             description: null,
             isPosting: true,
-            isPending,
+            isPending: eventIsPending,
             incomePull: 100 - pullSum,
             walletId,
             fundId: savingsFundId,
@@ -525,16 +518,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing lines" }, { status: 400 });
     }
 
-    const parsedLines: CreateTransactionLineInput[] = lines;
-
     const neededWalletIds = Array.from(
       new Set(
-        parsedLines.map((l) => l.walletId).filter((id): id is number => !!id),
+        lines.map((l) => l.walletId).filter((id): id is number => !!id),
       ),
     );
     const neededFundIds = Array.from(
       new Set(
-        parsedLines.map((l) => l.fundId).filter((id): id is number => !!id),
+        lines.map((l) => l.fundId).filter((id): id is number => !!id),
       ),
     );
 
@@ -583,8 +574,8 @@ export async function POST(request: NextRequest) {
 
     // If this is a single-line event, store it as a posting-only event
     // (no child rows) to reduce inserts.
-    if (parsedLines.length === 1) {
-      const line = parsedLines[0];
+    if (lines.length === 1) {
+      const line = lines[0];
       const posting = await db
         .insert(transactions)
         .values({
@@ -635,7 +626,7 @@ export async function POST(request: NextRequest) {
       }
 
       await tx.insert(transactions).values(
-        parsedLines.map((line) => ({
+        lines.map((line) => ({
           userId: user.id,
           parentId: parent.id,
           occurredAt,

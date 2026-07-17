@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,13 +86,6 @@ export function TransactionModal(args: {
     onDeleted,
   } = args;
 
-  const walletOptions = useMemo(
-    () => wallets.map((w) => ({ id: w.id, name: w.name })),
-    [wallets],
-  );
-
-  const fundOptions = useMemo(() => funds, [funds]);
-
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -150,8 +143,8 @@ export function TransactionModal(args: {
 
     const defaultWalletId = wallets[0]?.id;
     const preferredFundId =
-      fundOptions.find((f) => !f.isSavings)?.id ??
-      fundOptions.find((f) => f.isSavings)?.id;
+      funds.find((f) => !f.isSavings)?.id ??
+      funds.find((f) => f.isSavings)?.id;
 
     setOccurredAt(isoToday());
     setLines([
@@ -163,7 +156,7 @@ export function TransactionModal(args: {
         isPending: true,
       }),
     ]);
-  }, [open, initialEvent, wallets, fundOptions]);
+  }, [open, initialEvent, wallets, funds]);
 
   function patchLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) =>
@@ -399,7 +392,7 @@ export function TransactionModal(args: {
                         {fmtAmount(Math.abs(n))}
                       </span>
                     </TableCell>
-                    <TableCell>{Boolean(c.isPending) ? "yes" : "no"}</TableCell>
+                    <TableCell>{c.isPending ? "yes" : "no"}</TableCell>
                   </TableRow>
                 );
               })}
@@ -446,7 +439,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {walletOptions.map((w) => (
+                      {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
                           {w.name}
                         </SelectItem>
@@ -467,7 +460,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {fundOptions.map((f) => (
+                      {funds.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
                           {f.name}
                         </SelectItem>
@@ -591,7 +584,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {walletOptions.map((w) => (
+                      {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
                           {w.name}
                         </SelectItem>
@@ -613,7 +606,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {fundOptions.map((f) => (
+                      {funds.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
                           {f.name}
                         </SelectItem>

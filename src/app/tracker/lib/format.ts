@@ -24,9 +24,10 @@ export function fmtAmount(
 ) {
   if (style === "accounting") {
     return moneyFormatter.format(Number(n));
-  } else if (style === "plain") {
-    return Number(n).toFixed(2).replace(/-/, "");
   }
+
+  // "plain" drops the sign: callers pair it with their own +/- treatment.
+  return Number(n).toFixed(2).replace(/-/, "");
 }
 
 export function isoToday() {

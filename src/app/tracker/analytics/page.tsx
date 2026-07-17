@@ -676,10 +676,6 @@ function EmptyChart() {
   );
 }
 
-function formatHoverAmount(value: number) {
-  return fmtAmount(value) ?? "$0.00";
-}
-
 type AxisPoint = { label: string; period: string };
 
 // Splits a period key into its year and a compact, always-shown primary label
@@ -1048,9 +1044,9 @@ function cashflowNetHoverText(
   const accent = positive ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE;
   const heading = positive ? "Net gain" : "Net loss";
   return [
-    `<b><span style="color:${accent}">${heading}: ${formatHoverAmount(point.net)}</span></b>`,
-    `Income: ${formatHoverAmount(point.income)}`,
-    `Spending: ${formatHoverAmount(-point.spending)}`,
+    `<b><span style="color:${accent}">${heading}: ${fmtAmount(point.net)}</span></b>`,
+    `Income: ${fmtAmount(point.income)}`,
+    `Spending: ${fmtAmount(-point.spending)}`,
     `<span style="color:${theme.muted}">${point.count.toLocaleString()} line items</span>`,
   ].join("<br>");
 }
@@ -1184,7 +1180,7 @@ function trendPlot(
         },
         hovertext: item.points.map(
           (point) =>
-            `<b><span style="color:${color}">${item.name}</span></b><br>Period net: ${formatHoverAmount(point.value)}<br>${valueLabel}: ${formatHoverAmount(mode === "raw" ? point.raw : point.cumulative)}`,
+            `<b><span style="color:${color}">${item.name}</span></b><br>Period net: ${fmtAmount(point.value)}<br>${valueLabel}: ${fmtAmount(mode === "raw" ? point.raw : point.cumulative)}`,
         ),
         hovertemplate: "%{hovertext}<extra></extra>",
       } satisfies PlotData;

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -301,12 +301,11 @@ export default function TrackerPage() {
         <CardContent>
           <div className="flex flex-col gap-1.5">
             {events.slice(0, 10).map((ev) => (
-              <Fragment key={ev.id}>
-                <TransactionEventCard
-                  event={ev}
-                  onClick={() => setDetailsEvent(ev)}
-                />
-              </Fragment>
+              <TransactionEventCard
+                key={ev.id}
+                event={ev}
+                onClick={() => setDetailsEvent(ev)}
+              />
             ))}
           </div>
         </CardContent>
