@@ -49,3 +49,6 @@ next-env.d.ts
 
 # ai stuff
 agent_docs/
+
+# local dev tooling
+.claude/
