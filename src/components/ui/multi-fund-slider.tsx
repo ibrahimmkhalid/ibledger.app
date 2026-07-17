@@ -96,7 +96,6 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   useEffect(() => {
     if (dragging === null || !trackRef.current) return;
     const track = trackRef.current;
-    const MIN_PCT = 1;
 
     const handleMove = (e: PointerEvent) => {
       const cur = fundsRef.current;
@@ -112,9 +111,10 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
         curCum.push(s);
       }
 
-      const minVal = (dragging > 0 ? curCum[dragging - 1] : 0) + MIN_PCT;
-      const maxVal =
-        (dragging < curCum.length - 1 ? curCum[dragging + 1] : 100) - MIN_PCT;
+      // A handle may meet its neighbour exactly, collapsing a segment to 0 --
+      // that is how you say "route no income to this fund".
+      const minVal = dragging > 0 ? curCum[dragging - 1] : 0;
+      const maxVal = dragging < curCum.length - 1 ? curCum[dragging + 1] : 100;
       const clamped = Math.max(minVal, Math.min(maxVal, pct));
 
       const newCum = [...curCum];

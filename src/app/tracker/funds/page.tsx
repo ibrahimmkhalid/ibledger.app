@@ -74,57 +74,32 @@ function fundToDraft(f: Fund): DraftFund {
 }
 
 /**
- * Normalise non-savings pull-percentages so they sum to ≤ 99
- * (keeping at least 1 % for the savings segment on the slider).
+ * Non-savings pulls have to leave savings a non-negative share, so they can
+ * total at most 100. Any fund may sit at 0, meaning no income is routed to it,
+ * and savings may sit at 0 when the others claim everything between them.
  *
- * A3: reserve 1 % per fund as a guaranteed base before distributing the
- *     remaining pool (99 − count) proportionally.  This eliminates the
- *     post-hoc min‑1 % enforcement that could push the total past 99.
- * A4: the last fund is clamped to what's left — it can never overshoot.
+ * This only ever scales down, and only for totals over 100 -- which the server
+ * now rejects, so they can only come from rows written before it did. The last
+ * fund absorbs the rounding remainder, so the result cannot overshoot.
  */
 function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const out = drafts.map((d) => ({ ...d }));
   const nonSavings = out.filter((f) => !f.isSavings);
-  if (nonSavings.length === 0) return out;
-
-  const count = nonSavings.length;
-  const MAX = 99;
-  const POOL = MAX - count; // remaining after 1 % per fund
 
   const total = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
+  if (total <= 100) return out;
 
-  // Nothing allocated → distribute the pool equally.
-  if (total === 0) {
-    const share = roundHalf(POOL / count);
-    let allocated = 0;
-    nonSavings.forEach((f, i) => {
-      const variable = i === count - 1 ? roundHalf(POOL - allocated) : share;
-      allocated += variable;
-      f.pullPercentage = 1 + Math.max(0, variable);
-    });
-    return out;
-  }
+  const scale = 100 / total;
+  let allocated = 0;
 
-  // Total exceeds 99 → scale the variable portion so it fits in the pool.
-  if (total > MAX) {
-    const scale = POOL / total;
-    let varAllocated = 0;
-    nonSavings.forEach((f, i) => {
-      if (i === count - 1) {
-        f.pullPercentage = 1 + Math.max(0, roundHalf(POOL - varAllocated));
-      } else {
-        const variable = roundHalf(f.pullPercentage * scale);
-        varAllocated += variable;
-        f.pullPercentage = 1 + variable;
-      }
-    });
-    return out;
-  }
-
-  // Total ≤ 99: just bump below‑1 funds up to the minimum.
-  // No risk of overflow since the worst case (all 0 → all 1) sums to ≤ 99.
-  nonSavings.forEach((f) => {
-    if (f.pullPercentage < 1) f.pullPercentage = 1;
+  nonSavings.forEach((f, i) => {
+    if (i === nonSavings.length - 1) {
+      f.pullPercentage = Math.max(0, roundHalf(100 - allocated));
+      return;
+    }
+    const scaled = roundHalf(f.pullPercentage * scale);
+    allocated += scaled;
+    f.pullPercentage = scaled;
   });
 
   return out;
@@ -258,40 +233,19 @@ export default function FundsPage() {
   }
 
   function addFund() {
-    setDraftFunds((prev) => {
-      const nonSavings = prev.filter((f) => !f.isSavings);
-      const nsTotal = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
-      const savingsWouldBe = 100 - nsTotal - 1;
-
-      let updated = [...prev];
-
-      // If savings would drop below 1 %, steal 1 % from the largest fund.
-      if (savingsWouldBe < 1 && nonSavings.length > 0) {
-        const sorted = [...nonSavings].sort(
-          (a, b) => b.pullPercentage - a.pullPercentage,
-        );
-        const largest = sorted[0];
-        if (largest && largest.pullPercentage > 1) {
-          updated = updated.map((f) =>
-            f.key === largest.key
-              ? { ...f, pullPercentage: f.pullPercentage - 1 }
-              : f,
-          );
-        }
-      }
-
-      return [
-        ...updated,
-        {
-          key: crypto.randomUUID(),
-          name: "",
-          pullPercentage: 1,
-          isSavings: false,
-          balance: 0,
-          balanceWithPending: 0,
-        },
-      ];
-    });
+    // Starts at 0: a new fund takes no income until it is dragged a share, and
+    // adding one must not quietly take income away from the funds already set.
+    setDraftFunds((prev) => [
+      ...prev,
+      {
+        key: crypto.randomUUID(),
+        name: "",
+        pullPercentage: 0,
+        isSavings: false,
+        balance: 0,
+        balanceWithPending: 0,
+      },
+    ]);
     setDirty(true);
   }
 
