@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { MONEY_TOLERANCE } from "@/lib/money";
 
 const TOLERANCE = MONEY_TOLERANCE;
@@ -28,18 +28,8 @@ function addTo(map: Map<number, number>, id: number, amount: number) {
 
 export async function GET() {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const [walletRows, fundRows] = await Promise.all([
       db
@@ -92,18 +82,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const body = await request.json();
     const source = body?.source === "funds" ? "funds" : "wallets";

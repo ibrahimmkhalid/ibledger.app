@@ -20,7 +20,7 @@ import {
   parseRequestJsonObject,
   type CreateTransactionLineInput,
 } from "@/app/api/transactions/validation";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
@@ -220,18 +220,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
     }
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const allowedPageSizes = [20, 50, 100];
     const pageSize = parseIntegerParam(searchParams, "pageSize", 20);
@@ -418,13 +408,13 @@ export async function GET(request: NextRequest) {
       childrenByParentId.set(pid, list);
     }
 
-    const response = events.map((event) => ({
+    const eventsWithChildren = events.map((event) => ({
       ...event,
       children: childrenByParentId.get(event.id) ?? [],
     }));
 
     return NextResponse.json({
-      events: response,
+      events: eventsWithChildren,
       currentPage: page,
       nextPage: page + 1 < totalPages ? page + 1 : -1,
       prevPage: page > 0 ? page - 1 : -1,
@@ -447,18 +437,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const body = await parseRequestJsonObject(request);
 

@@ -3,7 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { hasResidualBalance } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
@@ -11,18 +11,8 @@ export async function GET(request: NextRequest) {
     const searchParams = new URL(request.url).searchParams;
     const includeSummary = searchParams.get("summary") !== "false";
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     if (!includeSummary) {
       const userFunds = await db
@@ -122,18 +112,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -177,18 +157,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -252,18 +222,8 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 

@@ -13,7 +13,7 @@ import {
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
@@ -275,18 +275,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const baseConditions: SQL<unknown>[] = [
       eq(transactions.userId, user.id),

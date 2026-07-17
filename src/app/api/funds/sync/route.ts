@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { hasResidualBalance } from "@/lib/money";
 
 /**
@@ -25,18 +25,8 @@ import { hasResidualBalance } from "@/lib/money";
  */
 export async function PUT(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 

@@ -1,4 +1,5 @@
 import { currentUser as clerkCurrentUser } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 import { isDevTestingEnabled } from "./dev-testing";
 import { testUser } from "./test_user";
 import { db } from "@/db";
@@ -18,7 +19,9 @@ export async function currentUser() {
   return await clerkCurrentUser();
 }
 
-export async function currentUserWithDB(user: AuthUser | null | undefined) {
+// Resolves the Clerk caller to their row, adopting an unclaimed row that
+// matches on email. Writes, despite the name-shape -- see requireUser.
+async function currentUserWithDB(user: AuthUser | null | undefined) {
   const clerkId = user?.id;
   const email = user?.emailAddresses?.[0]?.emailAddress;
 
@@ -72,4 +75,29 @@ export async function currentUserWithDB(user: AuthUser | null | undefined) {
     .then((res) => res[0]);
 
   return adopted ?? null;
+}
+
+// Every route needs the same two steps: an authenticated caller, and the DB row
+// that caller maps to. Returns the row, or the response to hand straight back.
+export async function requireUser() {
+  const authUser = await currentUser();
+  if (!authUser) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    } as const;
+  }
+
+  const user = await currentUserWithDB(authUser);
+  if (!user) {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: "User not found. Call POST /api/bootstrap first." },
+        { status: 400 },
+      ),
+    } as const;
+  }
+
+  return { user, response: null } as const;
 }
