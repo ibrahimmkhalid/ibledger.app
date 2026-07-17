@@ -40,7 +40,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -53,9 +52,10 @@ import { cn } from "@/lib/utils";
 
 import { AnalyticsSkeleton } from "@/app/tracker/analytics/analytics-skeleton";
 import {
+  AmountAndAccountFilters,
   FilterSearchField,
-  MultiSelectDropdown,
   SegmentedControl,
+  StatusTypeDirectionControls,
   countActiveTransactionFilters,
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
@@ -66,9 +66,6 @@ import {
   DEFAULT_TRANSACTIONS_FILTERS,
   normalizeTransactionsFilters,
   transactionsFiltersCacheKey,
-  type TransactionDirectionFilter,
-  type TransactionIncomeFilter,
-  type TransactionPendingFilter,
   type TransactionsPageFilters,
 } from "@/app/tracker/lib/transactions-page-cache";
 import type { Fund, Wallet } from "@/app/tracker/types";
@@ -1587,87 +1584,20 @@ export default function AnalyticsPage() {
                     }))}
                   />
 
-                  <SegmentedControl<TransactionPendingFilter>
-                    label="Status"
-                    value={filterDraft.pendingStatus}
-                    onChange={(pendingStatus) =>
-                      patchFilterDraft({ pendingStatus })
-                    }
-                    options={[
-                      { value: "all", label: "All" },
-                      { value: "pending", label: "Pending" },
-                      { value: "cleared", label: "Cleared" },
-                    ]}
-                  />
-                  <SegmentedControl<TransactionIncomeFilter>
-                    label="Type"
-                    value={filterDraft.income}
-                    onChange={(income) => patchFilterDraft({ income })}
-                    options={[
-                      { value: "all", label: "All" },
-                      { value: "income", label: "Income" },
-                      { value: "not_income", label: "Expense" },
-                    ]}
-                  />
-                  <SegmentedControl<TransactionDirectionFilter>
-                    label="Direction"
-                    value={filterDraft.direction}
-                    onChange={(direction) => patchFilterDraft({ direction })}
-                    options={[
-                      { value: "all", label: "All" },
-                      { value: "in", label: "In" },
-                      { value: "out", label: "Out" },
-                    ]}
+                  <StatusTypeDirectionControls
+                    draft={filterDraft}
+                    onPatch={patchFilterDraft}
                   />
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor={minAmountId}>Minimum</Label>
-                    <Input
-                      id={minAmountId}
-                      inputMode="decimal"
-                      value={filterDraft.minAmount}
-                      onChange={(event) =>
-                        patchFilterDraft({ minAmount: event.target.value })
-                      }
-                      placeholder="$0"
-                    />
-                  </div>
-
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <Label htmlFor={maxAmountId}>Maximum</Label>
-                    <Input
-                      id={maxAmountId}
-                      inputMode="decimal"
-                      value={filterDraft.maxAmount}
-                      onChange={(event) =>
-                        patchFilterDraft({ maxAmount: event.target.value })
-                      }
-                      placeholder="Any"
-                    />
-                  </div>
-
-                  <div className="xl:col-span-2">
-                    <MultiSelectDropdown
-                      label="Funds"
-                      allLabel="All funds"
-                      options={funds}
-                      selectedIds={filterDraft.fundIds}
-                      onChange={(fundIds) => patchFilterDraft({ fundIds })}
-                    />
-                  </div>
-
-                  <div className="xl:col-span-2">
-                    <MultiSelectDropdown
-                      label="Wallets"
-                      allLabel="All wallets"
-                      options={wallets}
-                      selectedIds={filterDraft.walletIds}
-                      onChange={(walletIds) => patchFilterDraft({ walletIds })}
-                    />
-                  </div>
-                </div>
+                <AmountAndAccountFilters
+                  draft={filterDraft}
+                  onPatch={patchFilterDraft}
+                  funds={funds}
+                  wallets={wallets}
+                  minAmountId={minAmountId}
+                  maxAmountId={maxAmountId}
+                />
               </div>
 
               <div className="border-border mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">

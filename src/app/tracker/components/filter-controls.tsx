@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-import type { TransactionsPageFilters } from "@/app/tracker/lib/transactions-page-cache";
+import type {
+  TransactionDirectionFilter,
+  TransactionIncomeFilter,
+  TransactionPendingFilter,
+  TransactionsPageFilters,
+} from "@/app/tracker/lib/transactions-page-cache";
 
 export type MultiSelectOption = {
   id: number;
@@ -234,6 +239,123 @@ export function MultiSelectDropdown(args: {
           </PopoverPrimitive.Content>
         </PopoverPrimitive.Portal>
       </PopoverPrimitive.Root>
+    </div>
+  );
+}
+
+// The transactions and analytics pages render the same filter fields inside
+// different chrome (a Card vs a bordered div), so the fields are shared and the
+// wrapper is not. Analytics adds its own date-range and detail controls
+// alongside these.
+
+type SharedFilterDraft = {
+  pendingStatus: TransactionPendingFilter;
+  income: TransactionIncomeFilter;
+  direction: TransactionDirectionFilter;
+  fundIds: number[];
+  walletIds: number[];
+  minAmount: string;
+  maxAmount: string;
+};
+
+export function StatusTypeDirectionControls(args: {
+  draft: Pick<SharedFilterDraft, "pendingStatus" | "income" | "direction">;
+  onPatch: (patch: Partial<SharedFilterDraft>) => void;
+}) {
+  const { draft, onPatch } = args;
+
+  return (
+    <>
+      <SegmentedControl<TransactionPendingFilter>
+        label="Status"
+        value={draft.pendingStatus}
+        onChange={(pendingStatus) => onPatch({ pendingStatus })}
+        options={[
+          { value: "all", label: "All" },
+          { value: "pending", label: "Pending" },
+          { value: "cleared", label: "Cleared" },
+        ]}
+      />
+      <SegmentedControl<TransactionIncomeFilter>
+        label="Type"
+        value={draft.income}
+        onChange={(income) => onPatch({ income })}
+        options={[
+          { value: "all", label: "All" },
+          { value: "income", label: "Income" },
+          { value: "not_income", label: "Expense" },
+        ]}
+      />
+      <SegmentedControl<TransactionDirectionFilter>
+        label="Direction"
+        value={draft.direction}
+        onChange={(direction) => onPatch({ direction })}
+        options={[
+          { value: "all", label: "All" },
+          { value: "in", label: "In" },
+          { value: "out", label: "Out" },
+        ]}
+      />
+    </>
+  );
+}
+
+export function AmountAndAccountFilters(args: {
+  draft: Pick<
+    SharedFilterDraft,
+    "minAmount" | "maxAmount" | "fundIds" | "walletIds"
+  >;
+  onPatch: (patch: Partial<SharedFilterDraft>) => void;
+  funds: MultiSelectOption[];
+  wallets: MultiSelectOption[];
+  minAmountId: string;
+  maxAmountId: string;
+}) {
+  const { draft, onPatch, funds, wallets, minAmountId, maxAmountId } = args;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={minAmountId}>Minimum</Label>
+        <Input
+          id={minAmountId}
+          inputMode="decimal"
+          value={draft.minAmount}
+          onChange={(event) => onPatch({ minAmount: event.target.value })}
+          placeholder="$0"
+        />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={maxAmountId}>Maximum</Label>
+        <Input
+          id={maxAmountId}
+          inputMode="decimal"
+          value={draft.maxAmount}
+          onChange={(event) => onPatch({ maxAmount: event.target.value })}
+          placeholder="Any"
+        />
+      </div>
+
+      <div className="xl:col-span-2">
+        <MultiSelectDropdown
+          label="Funds"
+          allLabel="All funds"
+          options={funds}
+          selectedIds={draft.fundIds}
+          onChange={(fundIds) => onPatch({ fundIds })}
+        />
+      </div>
+
+      <div className="xl:col-span-2">
+        <MultiSelectDropdown
+          label="Wallets"
+          allLabel="All wallets"
+          options={wallets}
+          selectedIds={draft.walletIds}
+          onChange={(walletIds) => onPatch({ walletIds })}
+        />
+      </div>
     </div>
   );
 }
