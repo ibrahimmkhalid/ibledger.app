@@ -560,8 +560,6 @@ export async function GET(request: NextRequest) {
         lastTransactionAt: postingRows.at(-1)?.occurredAt ?? null,
       },
       summary,
-      wallets: walletsForResponse,
-      funds: fundsForResponse,
       timeSeries,
       walletSeries: buildSeries(
         walletRows,

@@ -10,7 +10,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { InferInsertModel, InferSelectModel, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp().defaultNow().notNull(),
@@ -127,13 +127,3 @@ export const transactions = pgTable(
     }),
   ],
 );
-
-export type User = InferSelectModel<typeof users>;
-export type Fund = InferSelectModel<typeof funds>;
-export type Wallet = InferSelectModel<typeof wallets>;
-export type Transaction = InferSelectModel<typeof transactions>;
-
-export type NewUser = InferInsertModel<typeof users>;
-export type NewFund = InferInsertModel<typeof funds>;
-export type NewWallet = InferInsertModel<typeof wallets>;
-export type NewTransaction = InferInsertModel<typeof transactions>;

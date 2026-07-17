@@ -33,12 +33,12 @@ import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
   EventsResponse,
   Fund,
-  TotalsResponse,
+  OverviewTotals,
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
 
-type OverviewResponse = TotalsResponse & EventsResponse;
+type OverviewResponse = OverviewTotals & EventsResponse;
 
 const TransactionModal = dynamic(
   () =>
@@ -69,7 +69,7 @@ export default function TrackerPage() {
 
   const [loading, setLoading] = useState(true);
 
-  const [totals, setTotals] = useState<TotalsResponse | null>(null);
+  const [totals, setTotals] = useState<OverviewTotals | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [events, setEvents] = useState<TransactionEvent[]>([]);

@@ -136,20 +136,6 @@ type AnalyticsResponse = {
     lastTransactionAt: string | null;
   };
   summary: MoneyTotal;
-  wallets: Array<
-    MoneyTotal & {
-      id: number;
-      name: string;
-    }
-  >;
-  funds: Array<
-    MoneyTotal & {
-      id: number;
-      name: string;
-      isSavings: boolean;
-      pullPercentage: number;
-    }
-  >;
   timeSeries: Array<
     MoneyTotal & {
       period: string;

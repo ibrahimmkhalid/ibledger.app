@@ -193,7 +193,6 @@ export async function GET() {
     }));
 
     return NextResponse.json({
-      user,
       grandTotal,
       grandTotalWithPending,
       wallets: walletsInfo,
@@ -205,7 +204,6 @@ export async function GET() {
       totalCount: events.length,
       totalPages: events.length === 0 ? 0 : 1,
       pageSize,
-      recentTransactions: eventsWithChildren,
     });
   } catch (error) {
     console.error("API: Error fetching tracker overview", error);
