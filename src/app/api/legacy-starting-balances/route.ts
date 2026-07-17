@@ -4,8 +4,9 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { MONEY_TOLERANCE } from "@/lib/money";
 
-const TOLERANCE = 0.005;
+const TOLERANCE = MONEY_TOLERANCE;
 
 type AllocationInput = {
   walletId: unknown;

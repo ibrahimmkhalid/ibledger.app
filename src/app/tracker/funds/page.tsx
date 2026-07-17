@@ -23,6 +23,7 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
+import { hasResidualBalance } from "@/lib/money";
 import type { Fund } from "@/app/tracker/types";
 import {
   MultiFundSlider,
@@ -169,7 +170,7 @@ function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
   if (d.isSavings) return { ok: false, reason: "Savings can't be deleted" };
   if (!d.id) return { ok: true };
   const raw = Number(d.rawBalanceWithPending ?? d.balanceWithPending);
-  if (Number.isFinite(raw) && Math.abs(raw) >= 0.005) {
+  if (hasResidualBalance(raw)) {
     return {
       ok: false,
       reason: "Still holds money (including pending). Move it out first.",

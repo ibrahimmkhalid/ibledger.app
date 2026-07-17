@@ -28,8 +28,9 @@ import {
 import { apiJson } from "@/app/tracker/lib/api";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { MigrationSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { MONEY_TOLERANCE } from "@/lib/money";
 
-const TOLERANCE = 0.005;
+const TOLERANCE = MONEY_TOLERANCE;
 
 type LegacyWallet = {
   id: number;

@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { hasResidualBalance } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
   try {
@@ -314,7 +315,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const bal = Number(fundBalanceRow?.balanceWithPending ?? 0);
-    if (Math.abs(bal) > 0.005) {
+    if (hasResidualBalance(bal)) {
       return NextResponse.json(
         {
           error:

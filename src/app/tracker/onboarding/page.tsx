@@ -27,6 +27,7 @@ import {
 import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { hasResidualBalance } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
@@ -578,12 +579,12 @@ export default function OnboardingPage() {
                         {f.isSavings
                           ? null
                           : (() => {
-                              const rawWithPending = Number(
-                                f.rawBalanceWithPending ?? f.balanceWithPending,
+                              const deleteBlocked = hasResidualBalance(
+                                Number(
+                                  f.rawBalanceWithPending ??
+                                    f.balanceWithPending,
+                                ),
                               );
-                              const deleteBlocked =
-                                Number.isFinite(rawWithPending) &&
-                                Math.abs(rawWithPending) > 0.005;
 
                               const title = deleteBlocked
                                 ? "This fund still holds money (including pending). Move it out and clear pending transactions before deleting."

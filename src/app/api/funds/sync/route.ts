@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { hasResidualBalance } from "@/lib/money";
 
 /**
  * PUT /api/funds/sync
@@ -174,7 +175,7 @@ export async function PUT(request: NextRequest) {
 
       for (const id of deletedFundIds) {
         const bal = balanceByFundId.get(id) ?? 0;
-        if (Math.abs(bal) > 0.005) {
+        if (hasResidualBalance(bal)) {
           throw new Error(
             `Fund "${id}" has a non-zero balance. Move the money out first.`,
           );
