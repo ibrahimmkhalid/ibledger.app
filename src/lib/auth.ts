@@ -19,14 +19,30 @@ export async function currentUser() {
   return await clerkCurrentUser();
 }
 
-// Resolves the Clerk caller to their row, adopting an unclaimed row that
-// matches on email. Writes, despite the name-shape -- see requireUser.
-async function currentUserWithDB(user: AuthUser | null | undefined) {
+export const EMAIL_TAKEN_ERROR =
+  "Email is already registered to another account";
+
+type UserRow = typeof users.$inferSelect;
+
+type Identity =
+  | { kind: "found"; user: UserRow }
+  | { kind: "missing" }
+  | { kind: "email_taken" };
+
+// Resolves the Clerk caller to their row, adopting an unclaimed row that matches
+// on email. Writes on that adoption path, despite the name-shape.
+//
+// "email_taken" is distinct from "missing" on purpose: an email-matched row bound
+// to someone else's Clerk ID must never resolve, and telling that caller to
+// bootstrap would send them to an endpoint that rejects them for the same reason.
+async function resolveIdentity(
+  user: AuthUser | null | undefined,
+): Promise<Identity> {
   const clerkId = user?.id;
   const email = user?.emailAddresses?.[0]?.emailAddress;
 
   if (!clerkId && !email) {
-    return null;
+    return { kind: "missing" };
   }
 
   const rows = await db
@@ -44,27 +60,26 @@ async function currentUserWithDB(user: AuthUser | null | undefined) {
     ? rows.find((row) => row.clerkId === clerkId)
     : undefined;
   if (byClerkId) {
-    return byClerkId;
+    return { kind: "found", user: byClerkId };
   }
 
   if (!email) {
-    return null;
+    return { kind: "missing" };
   }
 
   const byEmail = rows.find((row) => row.email === email);
   if (!byEmail) {
-    return null;
+    return { kind: "missing" };
   }
 
-  // Only adopt an email-matched row when it is unclaimed. A row already bound to
-  // a different Clerk ID belongs to someone else, and matching on email alone
-  // would hand over their ledger.
   if (byEmail.clerkId) {
-    return byEmail.clerkId === clerkId ? byEmail : null;
+    return byEmail.clerkId === clerkId
+      ? { kind: "found", user: byEmail }
+      : { kind: "email_taken" };
   }
 
   if (!clerkId) {
-    return byEmail;
+    return { kind: "found", user: byEmail };
   }
 
   const adopted = await db
@@ -74,7 +89,25 @@ async function currentUserWithDB(user: AuthUser | null | undefined) {
     .returning()
     .then((res) => res[0]);
 
-  return adopted ?? null;
+  if (adopted) {
+    return { kind: "found", user: adopted };
+  }
+
+  // The conditional update matched nothing, so someone claimed the row between
+  // the read and the write. That someone may be this same caller in a parallel
+  // request, so re-read rather than assuming a conflict.
+  const claimed = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, byEmail.id))
+    .limit(1)
+    .then((res) => res[0]);
+
+  if (claimed?.clerkId === clerkId) {
+    return { kind: "found", user: claimed };
+  }
+
+  return { kind: "email_taken" };
 }
 
 // Every route needs the same two steps: an authenticated caller, and the DB row
@@ -88,8 +121,19 @@ export async function requireUser() {
     } as const;
   }
 
-  const user = await currentUserWithDB(authUser);
-  if (!user) {
+  const identity = await resolveIdentity(authUser);
+
+  if (identity.kind === "email_taken") {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: EMAIL_TAKEN_ERROR },
+        { status: 409 },
+      ),
+    } as const;
+  }
+
+  if (identity.kind === "missing") {
     return {
       user: null,
       response: NextResponse.json(
@@ -99,5 +143,5 @@ export async function requireUser() {
     } as const;
   }
 
-  return { user, response: null } as const;
+  return { user: identity.user, response: null } as const;
 }

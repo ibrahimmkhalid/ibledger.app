@@ -30,8 +30,6 @@ import { fmtAmount } from "@/app/tracker/lib/format";
 import { MigrationSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { MONEY_TOLERANCE } from "@/lib/money";
 
-const TOLERANCE = MONEY_TOLERANCE;
-
 type LegacyWallet = {
   id: number;
   name: string;
@@ -64,7 +62,7 @@ type AllocationEntry = {
 type Source = "wallets" | "funds";
 
 function isNonZero(amount: number) {
-  return Math.abs(Number(amount)) > TOLERANCE;
+  return Math.abs(Number(amount)) > MONEY_TOLERANCE;
 }
 
 function near(a: number, b: number) {

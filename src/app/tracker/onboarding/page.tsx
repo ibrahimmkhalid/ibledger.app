@@ -31,7 +31,7 @@ import {
 } from "@/app/tracker/components/wallet-modal";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
-import { hasResidualBalance } from "@/lib/money";
+import { holdsMoney } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
@@ -527,7 +527,7 @@ export default function OnboardingPage() {
                         {f.isSavings
                           ? null
                           : (() => {
-                              const deleteBlocked = hasResidualBalance(
+                              const deleteBlocked = holdsMoney(
                                 Number(
                                   f.rawBalanceWithPending ??
                                     f.balanceWithPending,

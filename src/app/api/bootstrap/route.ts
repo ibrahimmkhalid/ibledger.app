@@ -3,7 +3,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, users, wallets } from "@/db/schema";
-import { currentUser } from "@/lib/auth";
+import { EMAIL_TAKEN_ERROR, currentUser } from "@/lib/auth";
 
 export async function POST() {
   try {
@@ -47,10 +47,7 @@ export async function POST() {
     // to someone else. Claiming it here would rebind their account to this
     // caller and lock them out.
     if (!existingByClerkId && existingByEmail?.clerkId) {
-      return NextResponse.json(
-        { error: "Email is already registered to another account" },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: EMAIL_TAKEN_ERROR }, { status: 409 });
     }
 
     const existing = existingByClerkId ?? existingByEmail;

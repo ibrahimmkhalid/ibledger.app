@@ -6,8 +6,6 @@ import { funds, transactions, wallets } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { MONEY_TOLERANCE } from "@/lib/money";
 
-const TOLERANCE = MONEY_TOLERANCE;
-
 type AllocationInput = {
   walletId: unknown;
   fundId: unknown;
@@ -19,7 +17,7 @@ function centsLike(n: number) {
 }
 
 function near(a: number, b: number) {
-  return Math.abs(centsLike(a) - centsLike(b)) <= TOLERANCE;
+  return Math.abs(centsLike(a) - centsLike(b)) <= MONEY_TOLERANCE;
 }
 
 function addTo(map: Map<number, number>, id: number, amount: number) {
@@ -135,10 +133,10 @@ export async function POST(request: NextRequest) {
       0,
     );
     const hasWalletLegacy = walletRows.some(
-      (wallet) => Math.abs(Number(wallet.legacyAmount ?? 0)) > TOLERANCE,
+      (wallet) => Math.abs(Number(wallet.legacyAmount ?? 0)) > MONEY_TOLERANCE,
     );
     const hasFundLegacy = fundRows.some(
-      (fund) => Math.abs(Number(fund.legacyAmount ?? 0)) > TOLERANCE,
+      (fund) => Math.abs(Number(fund.legacyAmount ?? 0)) > MONEY_TOLERANCE,
     );
 
     const parsed = inputs.map((input) => {
@@ -154,7 +152,7 @@ export async function POST(request: NextRequest) {
         throw new Error("One or more funds are invalid");
       }
 
-      if (!Number.isFinite(amount) || Math.abs(amount) <= TOLERANCE) {
+      if (!Number.isFinite(amount) || Math.abs(amount) <= MONEY_TOLERANCE) {
         throw new Error("Migration amounts must be non-zero numbers");
       }
 

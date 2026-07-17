@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { applySavingsDeficitClamp } from "@/lib/fund-balances";
-import { hasResidualBalance } from "@/lib/money";
+import { holdsMoney } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
   try {
@@ -243,7 +243,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const bal = Number(fundBalanceRow?.balanceWithPending ?? 0);
-    if (hasResidualBalance(bal)) {
+    if (holdsMoney(bal)) {
       return NextResponse.json(
         {
           error:

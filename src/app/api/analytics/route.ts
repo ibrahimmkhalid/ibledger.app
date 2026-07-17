@@ -395,12 +395,12 @@ export async function GET(request: NextRequest) {
     }
 
     const sortedPeriods = Array.from(periods).sort();
-    const walletsForResponse = walletRows.map((wallet) => ({
+    const walletTotalsList = walletRows.map((wallet) => ({
       id: wallet.id,
       name: wallet.name,
       ...(walletTotals.get(String(wallet.id)) ?? emptyMoney()),
     }));
-    const fundsForResponse = fundRows.map((fund) => ({
+    const fundTotalsList = fundRows.map((fund) => ({
       id: fund.id,
       name: fund.name,
       isSavings: fund.isSavings,
@@ -452,7 +452,7 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
     }
 
-    const byFundSpending = fundsForResponse
+    const byFundSpending = fundTotalsList
       .filter((fund) => fund.spending > 0)
       .map((fund) => ({
         id: fund.id,
@@ -464,7 +464,7 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.spending - a.spending);
 
-    const byWalletSpending = walletsForResponse
+    const byWalletSpending = walletTotalsList
       .filter((wallet) => wallet.spending > 0)
       .map((wallet) => ({
         id: wallet.id,

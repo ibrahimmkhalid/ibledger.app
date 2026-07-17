@@ -3,8 +3,9 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
+import { BadRequestError } from "@/app/api/query-params";
 import { requireUser } from "@/lib/auth";
-import { hasResidualBalance } from "@/lib/money";
+import { holdsMoney } from "@/lib/money";
 
 /**
  * PUT /api/funds/sync
@@ -137,7 +138,7 @@ export async function PUT(request: NextRequest) {
       }
 
       if (resultingPullSum > 100) {
-        throw new Error("Invalid fund pulls: sum exceeds 100");
+        throw new BadRequestError("Invalid fund pulls: sum exceeds 100");
       }
 
       // Verify zero balance for all deletions in one grouped read.
@@ -171,7 +172,7 @@ export async function PUT(request: NextRequest) {
 
       for (const id of deletedFundIds) {
         const bal = balanceByFundId.get(id) ?? 0;
-        if (hasResidualBalance(bal)) {
+        if (holdsMoney(bal)) {
           throw new Error(
             `Fund "${id}" has a non-zero balance. Move the money out first.`,
           );
@@ -226,6 +227,13 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    // The remaining domain errors thrown inside the transaction ("Fund N not
+    // found", "Cannot delete savings fund", non-zero balance) still surface as
+    // 500s with their raw message. Pre-existing, and left alone deliberately.
     const message =
       error instanceof Error ? error.message : "Internal server error";
     console.error("API: Error syncing funds", error);
