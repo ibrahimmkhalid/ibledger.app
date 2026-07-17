@@ -3,8 +3,8 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { BadRequestError } from "@/app/api/query-params";
 import {
-  BadRequestError,
   parseOccurredAt,
   parseRequestJsonObject,
   parseUpdateTransactionLines,

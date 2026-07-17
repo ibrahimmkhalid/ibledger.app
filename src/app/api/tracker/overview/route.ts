@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { applySavingsDeficitClamp } from "@/lib/fund-balances";
 
 export async function GET() {
   try {
@@ -135,37 +136,7 @@ export async function GET() {
       childrenByParentId.set(parentId, list);
     }
 
-    const fundsWithRaw = fundsInfoRaw.map((f) => ({
-      ...f,
-      rawBalance: Number(f.balance),
-      rawBalanceWithPending: Number(f.balanceWithPending),
-    }));
-
-    const deficitCleared = fundsWithRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
-
-    const deficitWithPending = fundsWithRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce(
-        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
-        0,
-      );
-
-    const fundsInfo = fundsWithRaw.map((f) => {
-      const balance = f.isSavings
-        ? f.rawBalance - deficitCleared
-        : Math.max(0, f.rawBalance);
-      const balanceWithPending = f.isSavings
-        ? f.rawBalanceWithPending - deficitWithPending
-        : Math.max(0, f.rawBalanceWithPending);
-
-      return {
-        ...f,
-        balance,
-        balanceWithPending,
-      };
-    });
+    const fundsInfo = applySavingsDeficitClamp(fundsInfoRaw);
 
     const grandTotal = walletsInfo.reduce(
       (acc, wallet) => acc + Number(wallet.balance),

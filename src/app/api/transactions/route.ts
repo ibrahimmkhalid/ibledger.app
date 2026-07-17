@@ -15,6 +15,13 @@ import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import {
   BadRequestError,
+  fuzzyLikePatterns,
+  parseAmountParam,
+  parseEnumParam,
+  parseIdList,
+  parseIntegerParam,
+} from "@/app/api/query-params";
+import {
   parseCreateTransactionLines,
   parseOccurredAt,
   parseRequestJsonObject,
@@ -25,80 +32,6 @@ import { requireUser } from "@/lib/auth";
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
 type DirectionFilter = "all" | "in" | "out";
-
-function parseIntegerParam(
-  searchParams: URLSearchParams,
-  name: string,
-  fallback: number,
-) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-  if (!Number.isInteger(value)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
-}
-
-function parseEnumParam<T extends string>(
-  searchParams: URLSearchParams,
-  name: string,
-  allowed: readonly T[],
-  fallback: T,
-) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return fallback;
-  }
-
-  if (!allowed.includes(raw as T)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return raw as T;
-}
-
-function parseAmountParam(searchParams: URLSearchParams, name: string) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return null;
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
-}
-
-function parseIdList(searchParams: URLSearchParams, pluralName: string) {
-  const singularName = pluralName.replace(/s$/, "");
-  const rawValues = [
-    ...searchParams.getAll(pluralName),
-    ...searchParams.getAll(singularName),
-  ];
-
-  if (rawValues.length === 0) {
-    return [];
-  }
-
-  const ids = rawValues
-    .flatMap((value) => value.split(","))
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => Number(value));
-
-  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new BadRequestError(`Invalid ${pluralName}`);
-  }
-
-  return Array.from(new Set(ids));
-}
 
 function sqlNumberList(ids: number[]) {
   return sql.join(
@@ -152,20 +85,8 @@ function incomeExistsSql(userId: number) {
   return childExistsSql(userId, sql`child."income_pull" is not null`);
 }
 
-function escapeLike(input: string) {
-  return input.replace(/[\\%_]/g, "\\$&");
-}
-
-function fuzzyLikePatterns(search: string) {
-  return search
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 8)
-    .map((term) => `%${Array.from(term).map(escapeLike).join("%")}%`);
-}
-
+// Unlike the posting-level search in /api/analytics, this matches at event
+// granularity and reaches down into children.
 function textSearchSql(userId: number, pattern: string) {
   const escapeChar = "\\";
 

@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { applySavingsDeficitClamp } from "@/lib/fund-balances";
 import { hasResidualBalance } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
@@ -65,42 +66,9 @@ export async function GET(request: NextRequest) {
         funds.updatedAt,
       );
 
-    // Display rule:
-    // - Non-savings funds are visually clamped at 0
-    // - Savings absorbs all deficits from clamped funds (and may go negative)
-    const withRaw = userFundsRaw.map((f) => ({
-      ...f,
-      rawBalance: Number(f.balance),
-      rawBalanceWithPending: Number(f.balanceWithPending),
-    }));
-
-    const deficitCleared = withRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
-
-    const deficitWithPending = withRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce(
-        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
-        0,
-      );
-
-    const userFunds = withRaw.map((f) => {
-      const balance = f.isSavings
-        ? f.rawBalance - deficitCleared
-        : Math.max(0, f.rawBalance);
-      const balanceWithPending = f.isSavings
-        ? f.rawBalanceWithPending - deficitWithPending
-        : Math.max(0, f.rawBalanceWithPending);
-
-      return {
-        ...f,
-        balance,
-        balanceWithPending,
-      };
+    return NextResponse.json({
+      funds: applySavingsDeficitClamp(userFundsRaw),
     });
-
-    return NextResponse.json({ funds: userFunds });
   } catch (error) {
     console.error("API: Error fetching funds", error);
     return NextResponse.json(
