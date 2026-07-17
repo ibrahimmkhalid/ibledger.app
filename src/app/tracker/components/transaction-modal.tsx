@@ -24,6 +24,7 @@ import {
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { apiJson } from "@/app/tracker/lib/api";
+import { useBusy } from "@/app/tracker/components/use-busy";
 import {
   formatCentsToDisplay,
   parseInputAsCents,
@@ -86,8 +87,7 @@ export function TransactionModal(args: {
     onDeleted,
   } = args;
 
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setBusy, setError, runWithBusy } = useBusy();
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
@@ -155,7 +155,7 @@ export function TransactionModal(args: {
         isPending: true,
       }),
     ]);
-  }, [open, initialEvent, wallets, funds]);
+  }, [open, initialEvent, wallets, funds, setBusy, setError]);
 
   function patchLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) =>
@@ -221,9 +221,7 @@ export function TransactionModal(args: {
   }
 
   async function saveCreate() {
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
       await apiJson("/api/transactions", {
         method: "POST",
@@ -237,19 +235,13 @@ export function TransactionModal(args: {
       });
       await onSaved?.();
       onOpenChange(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to save");
   }
 
   async function saveEdit() {
     if (!initialEvent) return;
 
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "PATCH",
@@ -262,28 +254,18 @@ export function TransactionModal(args: {
         }),
       });
       await onSaved?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to save");
   }
 
   async function deleteEvent() {
     if (!initialEvent) return;
 
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "DELETE",
       });
       await onDeleted?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to delete");
   }
 
   const title = initialEvent ? "Transaction" : "Add transaction";

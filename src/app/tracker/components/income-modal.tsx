@@ -23,6 +23,7 @@ import {
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { apiJson } from "@/app/tracker/lib/api";
+import { useBusy } from "@/app/tracker/components/use-busy";
 import {
   formatCentsToDisplay,
   parseInputAsCents,
@@ -57,8 +58,7 @@ export function IncomeModal(args: {
     [wallets],
   );
 
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setBusy, setError, runWithBusy } = useBusy();
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
@@ -94,7 +94,7 @@ export function IncomeModal(args: {
     setWalletId(defaultWalletId ? String(defaultWalletId) : "");
     setAmount("");
     setIsPending(true);
-  }, [open, initialEvent, wallets]);
+  }, [open, initialEvent, wallets, setBusy, setError]);
 
   const readOnly = Boolean(initialEvent) && !editing;
 
@@ -113,18 +113,6 @@ export function IncomeModal(args: {
       amount: amt,
       isPending,
     };
-  }
-
-  async function runWithBusy(op: () => Promise<void>, fallback: string) {
-    setError(null);
-    setBusy(true);
-    try {
-      await op();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : fallback);
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function saveCreate() {
