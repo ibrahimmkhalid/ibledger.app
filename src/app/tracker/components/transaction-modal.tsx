@@ -143,8 +143,7 @@ export function TransactionModal(args: {
 
     const defaultWalletId = wallets[0]?.id;
     const preferredFundId =
-      funds.find((f) => !f.isSavings)?.id ??
-      funds.find((f) => f.isSavings)?.id;
+      funds.find((f) => !f.isSavings)?.id ?? funds.find((f) => f.isSavings)?.id;
 
     setOccurredAt(isoToday());
     setLines([

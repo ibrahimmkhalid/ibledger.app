@@ -38,8 +38,6 @@ export async function PUT(request: NextRequest) {
 
     const deletedIds: number[] = data?.deletedIds ?? [];
 
-    // ── Validate inputs ──────────────────────────────────────────────
-
     for (const f of fundInputs) {
       if (!f.name?.trim()) {
         return NextResponse.json(

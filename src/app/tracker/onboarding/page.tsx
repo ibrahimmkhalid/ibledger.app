@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/tooltip";
 import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
 
-
 type FundFormState = {
   name: string;
   pullPercentage: string;

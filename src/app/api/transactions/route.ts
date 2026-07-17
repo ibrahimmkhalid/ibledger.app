@@ -279,7 +279,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
     }
 
-    // when isPosting is false, it means that the event is a parent event
     const parentEventIds = events.filter((e) => !e.isPosting).map((e) => e.id);
 
     const children =
@@ -519,14 +518,10 @@ export async function POST(request: NextRequest) {
     }
 
     const neededWalletIds = Array.from(
-      new Set(
-        lines.map((l) => l.walletId).filter((id): id is number => !!id),
-      ),
+      new Set(lines.map((l) => l.walletId).filter((id): id is number => !!id)),
     );
     const neededFundIds = Array.from(
-      new Set(
-        lines.map((l) => l.fundId).filter((id): id is number => !!id),
-      ),
+      new Set(lines.map((l) => l.fundId).filter((id): id is number => !!id)),
     );
 
     const [ownedWallets, fundRows] = await Promise.all([

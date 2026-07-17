@@ -33,10 +33,6 @@ import {
 } from "@/components/ui/multi-fund-slider";
 import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
-/* ═══════════════════════════════════════════════════════════════════
-   Types
-   ═══════════════════════════════════════════════════════════════════ */
-
 type DraftFund = {
   key: string;
   id?: number;
@@ -48,10 +44,6 @@ type DraftFund = {
   rawBalance?: number;
   rawBalanceWithPending?: number;
 };
-
-/* ═══════════════════════════════════════════════════════════════════
-   Helpers
-   ═══════════════════════════════════════════════════════════════════ */
 
 /** Round to nearest 0.5. */
 function roundHalf(n: number): number {
@@ -119,7 +111,6 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
     let varAllocated = 0;
     nonSavings.forEach((f, i) => {
       if (i === count - 1) {
-        // A4: last fund takes what's left — guaranteed no overshoot.
         f.pullPercentage = 1 + Math.max(0, roundHalf(POOL - varAllocated));
       } else {
         const variable = roundHalf(f.pullPercentage * scale);
@@ -179,26 +170,18 @@ function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Page
-   ═══════════════════════════════════════════════════════════════════ */
-
 export default function FundsPage() {
   const router = useRouter();
 
-  // ── server state ─────────────────────────────────────────────────
   const [serverFunds, setServerFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── draft state ──────────────────────────────────────────────────
   const [draftFunds, setDraftFunds] = useState<DraftFund[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
 
-  // ── ui state ─────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false);
 
-  // ── derived ──────────────────────────────────────────────────────
   const sliderFunds = useMemo(() => buildSliderFunds(draftFunds), [draftFunds]);
 
   /** Display order: non-savings first, savings last. */
@@ -225,8 +208,6 @@ export default function FundsPage() {
         .reduce((s, f) => s + (f.pullPercentage ?? 0), 0),
     [serverFunds],
   );
-
-  // ── data loading ─────────────────────────────────────────────────
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -256,8 +237,6 @@ export default function FundsPage() {
   useEffect(() => {
     resetDraft();
   }, [resetDraft]);
-
-  // ── draft mutations ──────────────────────────────────────────────
 
   function updateDraft(key: string, updates: Partial<DraftFund>) {
     setDraftFunds((prev) =>
@@ -331,8 +310,6 @@ export default function FundsPage() {
     resetDraft();
   }
 
-  // ── save ─────────────────────────────────────────────────────────
-
   async function confirmChanges() {
     setBusy(true);
 
@@ -361,8 +338,6 @@ export default function FundsPage() {
       setBusy(false);
     }
   }
-
-  // ── render ───────────────────────────────────────────────────────
 
   if (loading) {
     return <FundsSkeleton />;
