@@ -4,6 +4,7 @@ import {
 } from "@/app/tracker/components/filter-controls";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
+  appendTransactionFilterParams,
   normalizeTransactionsFilters,
   transactionsFiltersCacheKey,
 } from "@/app/tracker/lib/transactions-page-cache";
@@ -99,21 +100,7 @@ export function countActiveFilters(filters: AnalyticsFilters) {
 export function buildAnalyticsUrl(filters: AnalyticsFilters) {
   const params = new URLSearchParams();
 
-  if (filters.search) params.set("search", filters.search);
-  if (filters.fundIds.length > 0)
-    params.set("fundIds", filters.fundIds.join(","));
-  if (filters.walletIds.length > 0) {
-    params.set("walletIds", filters.walletIds.join(","));
-  }
-  if (filters.minAmount !== null)
-    params.set("minAmount", String(filters.minAmount));
-  if (filters.maxAmount !== null)
-    params.set("maxAmount", String(filters.maxAmount));
-  if (filters.pendingStatus !== "all") {
-    params.set("pendingStatus", filters.pendingStatus);
-  }
-  if (filters.income !== "all") params.set("income", filters.income);
-  if (filters.direction !== "all") params.set("direction", filters.direction);
+  appendTransactionFilterParams(params, filters);
   if (filters.startDate) params.set("startDate", filters.startDate);
   if (filters.endDate) params.set("endDate", filters.endDate);
   if (filters.groupBy !== "month") params.set("groupBy", filters.groupBy);

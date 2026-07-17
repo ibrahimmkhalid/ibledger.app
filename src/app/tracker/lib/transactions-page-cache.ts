@@ -67,45 +67,38 @@ export function transactionsPageCacheKey(query: TransactionsPageQuery): string {
   )}`;
 }
 
+// Serializes the eight transaction-level filters that the transactions and
+// analytics endpoints share, matching what @/app/api/query-params reads back.
+// Each caller adds its own page/date-specific params separately.
+export function appendTransactionFilterParams(
+  params: URLSearchParams,
+  filters: TransactionsPageFilters,
+) {
+  if (filters.search) params.set("search", filters.search);
+  if (filters.fundIds.length > 0)
+    params.set("fundIds", filters.fundIds.join(","));
+  if (filters.walletIds.length > 0)
+    params.set("walletIds", filters.walletIds.join(","));
+  if (filters.minAmount !== null)
+    params.set("minAmount", String(filters.minAmount));
+  if (filters.maxAmount !== null)
+    params.set("maxAmount", String(filters.maxAmount));
+  if (filters.pendingStatus !== "all")
+    params.set("pendingStatus", filters.pendingStatus);
+  if (filters.income !== "all") params.set("income", filters.income);
+  if (filters.direction !== "all") params.set("direction", filters.direction);
+}
+
 export function buildTransactionsPageUrl(query: TransactionsPageQuery): string {
   const params = new URLSearchParams({
     page: String(query.page),
     pageSize: String(query.pageSize),
   });
 
-  const filters = normalizeTransactionsFilters(query.filters);
-
-  if (filters.search) {
-    params.set("search", filters.search);
-  }
-
-  if (filters.fundIds.length > 0) {
-    params.set("fundIds", filters.fundIds.join(","));
-  }
-
-  if (filters.walletIds.length > 0) {
-    params.set("walletIds", filters.walletIds.join(","));
-  }
-
-  if (filters.minAmount !== null) {
-    params.set("minAmount", String(filters.minAmount));
-  }
-
-  if (filters.maxAmount !== null) {
-    params.set("maxAmount", String(filters.maxAmount));
-  }
-
-  if (filters.pendingStatus !== "all") {
-    params.set("pendingStatus", filters.pendingStatus);
-  }
-
-  if (filters.income !== "all") {
-    params.set("income", filters.income);
-  }
-
-  if (filters.direction !== "all") {
-    params.set("direction", filters.direction);
-  }
+  appendTransactionFilterParams(
+    params,
+    normalizeTransactionsFilters(query.filters),
+  );
 
   return `/api/transactions?${params.toString()}`;
 }
