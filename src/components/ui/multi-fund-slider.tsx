@@ -86,6 +86,23 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
     cumValues.push(cumSum);
   }
 
+  // A 0%-wide fund puts two handles at the same boundary; stacked, only the
+  // top one catches the pointer, so its neighbour becomes hard to grab. Spread
+  // handles that share a position a few px apart (purely visual -- the boundary
+  // value is unchanged) so each stays reachable.
+  const handleOffsets = cumValues.map(() => 0);
+  for (let i = 0; i < cumValues.length; ) {
+    let j = i;
+    while (j + 1 < cumValues.length && cumValues[j + 1] === cumValues[i]) j++;
+    const count = j - i + 1;
+    if (count > 1) {
+      for (let k = i; k <= j; k++) {
+        handleOffsets[k] = (k - i - (count - 1) / 2) * 7;
+      }
+    }
+    i = j + 1;
+  }
+
   // Pre-compute per-fund colour index (savings always gets -1).
   const colorIndices: number[] = funds.map((f) =>
     f.isSavings ? -1 : keyToColorIndex(f.id),
@@ -190,8 +207,11 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
           cumValues.map((val, i) => (
             <div
               key={`handle-${i}`}
-              className="absolute top-0 z-10 flex h-full w-5 -translate-x-1/2 cursor-col-resize items-center justify-center"
-              style={{ left: `${val}%` }}
+              className="absolute top-0 z-10 flex h-full w-5 cursor-col-resize items-center justify-center"
+              style={{
+                left: `${val}%`,
+                transform: `translateX(calc(-50% + ${handleOffsets[i]}px))`,
+              }}
               onPointerDown={(e) => {
                 e.preventDefault();
                 setDragging(i);
