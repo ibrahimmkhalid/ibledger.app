@@ -31,14 +31,8 @@ export function createDefaultAnalyticsFilters(): AnalyticsFilters {
 }
 
 export function createDefaultFilterDraft(): AnalyticsFilterDraft {
-  const { startDate, endDate } = dateRangeForPreset(DEFAULT_DATE_PRESET);
   return {
-    ...DEFAULT_TRANSACTIONS_FILTERS,
-    startDate,
-    endDate,
-    groupBy:
-      GRANULARITY_SLOT_MAP[DEFAULT_DATE_PRESET][DEFAULT_GRANULARITY_LEVEL] ??
-      "week",
+    ...createDefaultAnalyticsFilters(),
     minAmount: "",
     maxAmount: "",
     datePreset: DEFAULT_DATE_PRESET,

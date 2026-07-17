@@ -43,7 +43,7 @@ export const DATE_RANGE_PRESETS: ReadonlyArray<{
   { value: "last_year", label: "Last year" },
   { value: "ytd", label: "Year to date" },
 ];
-export function toISODate(date: Date): string {
+function toISODate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -85,7 +85,7 @@ export function dateRangeForPreset(preset: DateRangePreset): {
   return { startDate: toISODate(start), endDate: toISODate(today) };
 }
 
-export function daysInclusive(start: Date, end: Date) {
+function daysInclusive(start: Date, end: Date) {
   const startUtc = Date.UTC(
     start.getFullYear(),
     start.getMonth(),
@@ -95,12 +95,12 @@ export function daysInclusive(start: Date, end: Date) {
   return Math.max(1, Math.floor((endUtc - startUtc) / 86_400_000) + 1);
 }
 
-export function parseLocalDate(isoDate: string) {
+function parseLocalDate(isoDate: string) {
   const [year, month, day] = isoDate.split("-").map(Number);
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
-export function effectiveSpanDays(args: {
+function effectiveSpanDays(args: {
   preset: DateRangePreset;
   startDate: string;
   endDate: string;
@@ -137,18 +137,18 @@ export function effectiveSpanDays(args: {
   return daysInclusive(start, end);
 }
 
-export function estimatedBars(groupBy: GroupBy, spanDays: number) {
+function estimatedBars(groupBy: GroupBy, spanDays: number) {
   if (groupBy === "day") return spanDays;
   if (groupBy === "week") return Math.ceil(spanDays / 7);
   return Math.max(1, Math.ceil(spanDays / 30));
 }
 
-export function isGranularityValid(groupBy: GroupBy, spanDays: number) {
+function isGranularityValid(groupBy: GroupBy, spanDays: number) {
   const bars = estimatedBars(groupBy, spanDays);
   return bars >= 2 && bars <= 120;
 }
 
-export function dynamicGranularitySlots(spanDays: number) {
+function dynamicGranularitySlots(spanDays: number) {
   if (spanDays <= 14) {
     return { fine: "day" as const, medium: null, coarse: null };
   }
@@ -176,12 +176,12 @@ export function dynamicGranularitySlots(spanDays: number) {
   };
 }
 
-export type GranularitySlotState = {
+type GranularitySlotState = {
   groupBy: GroupBy | null;
   disabled: boolean;
 };
 
-export function resolveGranularitySlots(
+function resolveGranularitySlots(
   preset: DateRangePreset,
   spanDays: number,
 ): Record<GranularityLevel, GranularitySlotState> {
@@ -209,7 +209,7 @@ export function resolveGranularitySlots(
   );
 }
 
-export function pickGranularityLevel(
+function pickGranularityLevel(
   slots: Record<GranularityLevel, GranularitySlotState>,
   preferred: GranularityLevel = "medium",
 ): GranularityLevel {
