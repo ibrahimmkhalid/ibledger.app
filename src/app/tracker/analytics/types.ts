@@ -1,4 +1,4 @@
-import type { TransactionsPageFilters } from "@/app/tracker/lib/transactions-page-cache";
+import type { TransactionsPageFilters } from "@/app/tracker/lib/transactions-page-query";
 
 export type GroupBy = "day" | "week" | "month";
 

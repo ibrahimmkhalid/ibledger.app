@@ -64,7 +64,7 @@ import {
   transactionsPageCacheKey,
   type TransactionsPageFilters,
   type TransactionsPageQuery,
-} from "@/app/tracker/lib/transactions-page-cache";
+} from "@/app/tracker/lib/transactions-page-query";
 import type {
   EventsResponse,
   Fund,

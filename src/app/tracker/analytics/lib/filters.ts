@@ -7,7 +7,7 @@ import {
   appendTransactionFilterParams,
   normalizeTransactionsFilters,
   transactionsFiltersCacheKey,
-} from "@/app/tracker/lib/transactions-page-cache";
+} from "@/app/tracker/lib/transactions-page-query";
 import {
   DEFAULT_DATE_PRESET,
   DEFAULT_GRANULARITY_LEVEL,

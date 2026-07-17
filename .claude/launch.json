@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["DEV_TESTING=true", "npm", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

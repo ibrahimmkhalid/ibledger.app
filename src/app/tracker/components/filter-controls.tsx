@@ -14,7 +14,7 @@ import type {
   TransactionIncomeFilter,
   TransactionPendingFilter,
   TransactionsPageFilters,
-} from "@/app/tracker/lib/transactions-page-cache";
+} from "@/app/tracker/lib/transactions-page-query";
 
 export type MultiSelectOption = {
   id: number;

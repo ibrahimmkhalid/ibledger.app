@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { buildPageLinks } from "@/app/tracker/lib/transactions-page-cache";
+import { buildPageLinks } from "@/app/tracker/lib/transactions-page-query";
 
 type TransactionsPaginationProps = {
   page: number;
