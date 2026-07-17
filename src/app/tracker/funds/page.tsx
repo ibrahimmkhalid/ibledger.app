@@ -78,9 +78,8 @@ function fundToDraft(f: Fund): DraftFund {
  * total at most 100. Any fund may sit at 0, meaning no income is routed to it,
  * and savings may sit at 0 when the others claim everything between them.
  *
- * This only ever scales down, and only for totals over 100 -- which the server
- * now rejects, so they can only come from rows written before it did. The last
- * fund absorbs the rounding remainder, so the result cannot overshoot.
+ * Only ever scales down, and only for totals over 100 -- which the server now
+ * rejects, so they can only come from rows written before it did.
  */
 function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const out = drafts.map((d) => ({ ...d }));
@@ -90,17 +89,24 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   if (total <= 100) return out;
 
   const scale = 100 / total;
-  let allocated = 0;
+  for (const f of nonSavings) {
+    f.pullPercentage = roundHalf(f.pullPercentage * scale);
+  }
 
-  nonSavings.forEach((f, i) => {
-    if (i === nonSavings.length - 1) {
-      f.pullPercentage = Math.max(0, roundHalf(100 - allocated));
-      return;
-    }
-    const scaled = roundHalf(f.pullPercentage * scale);
-    allocated += scaled;
-    f.pullPercentage = scaled;
-  });
+  // roundHalf can nudge the total a little either side of 100; settle the
+  // difference on the largest fund, which is big enough to absorb it whichever
+  // way it went. Rounding each fund up independently could otherwise push the
+  // total back over 100.
+  const drift = 100 - nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
+  if (drift !== 0) {
+    const largest = nonSavings.reduce((a, b) =>
+      b.pullPercentage > a.pullPercentage ? b : a,
+    );
+    largest.pullPercentage = Math.max(
+      0,
+      roundHalf(largest.pullPercentage + drift),
+    );
+  }
 
   return out;
 }
