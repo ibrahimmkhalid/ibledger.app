@@ -42,6 +42,17 @@ export async function POST() {
       (row) => row.clerkId === clerkId,
     );
     const existingByEmail = existingRows.find((row) => row.email === email);
+
+    // An email-matched row that is already bound to a different Clerk ID belongs
+    // to someone else. Claiming it here would rebind their account to this
+    // caller and lock them out.
+    if (!existingByClerkId && existingByEmail?.clerkId) {
+      return NextResponse.json(
+        { error: "Email is already registered to another account" },
+        { status: 409 },
+      );
+    }
+
     const existing = existingByClerkId ?? existingByEmail;
 
     const existingNeedsUpdate =
