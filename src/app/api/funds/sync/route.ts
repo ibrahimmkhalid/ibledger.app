@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
 import { BadRequestError } from "@/app/api/query-params";
+import { pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { holdsMoney } from "@/lib/money";
 
@@ -148,9 +149,7 @@ export async function PUT(request: NextRequest) {
           : await tx
               .select({
                 fundId: transactions.fundId,
-                bal: sql<number>`
-              COALESCE(SUM(${transactions.amount}), 0)
-            `.as("bal"),
+                bal: pendingBalanceSql().as("bal"),
               })
               .from(transactions)
               .where(

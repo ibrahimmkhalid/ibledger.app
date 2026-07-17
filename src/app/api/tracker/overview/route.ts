@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { applySavingsDeficitClamp } from "@/lib/fund-balances";
 
@@ -20,12 +21,8 @@ export async function GET() {
           name: funds.name,
           isSavings: funds.isSavings,
           pullPercentage: funds.pullPercentage,
-          balance: sql<number>`
-            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-          `.as("balance"),
-          balanceWithPending: sql<number>`
-            COALESCE(SUM(${transactions.amount}), 0)
-          `.as("balanceWithPending"),
+          balance: clearedBalanceSql().as("balance"),
+          balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
         })
         .from(funds)
         .leftJoin(
@@ -43,12 +40,8 @@ export async function GET() {
         .select({
           id: wallets.id,
           name: wallets.name,
-          balance: sql<number>`
-            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-          `.as("balance"),
-          balanceWithPending: sql<number>`
-            COALESCE(SUM(${transactions.amount}), 0)
-          `.as("balanceWithPending"),
+          balance: clearedBalanceSql().as("balance"),
+          balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
         })
         .from(wallets)
         .leftJoin(

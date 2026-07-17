@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { transactions, wallets } from "@/db/schema";
+import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { holdsMoney } from "@/lib/money";
 
@@ -34,12 +35,8 @@ export async function GET(request: NextRequest) {
         name: wallets.name,
         createdAt: wallets.createdAt,
         updatedAt: wallets.updatedAt,
-        balance: sql<number>`
-          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-        `.as("balance"),
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
+        balance: clearedBalanceSql().as("balance"),
+        balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
       })
       .from(wallets)
       .leftJoin(
@@ -170,9 +167,7 @@ export async function DELETE(request: NextRequest) {
           .then((res) => res[0]),
         db
           .select({
-            balanceWithPending: sql<number>`
-              COALESCE(SUM(${transactions.amount}), 0)
-            `.as("balanceWithPending"),
+            balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
           })
           .from(transactions)
           .where(
