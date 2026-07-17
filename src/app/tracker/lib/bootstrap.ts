@@ -8,7 +8,7 @@ let inFlight: Promise<BootstrapResponse> | null = null;
 // page mounts, removing a serial round trip from every tracker navigation.
 // Responses that demand a redirect (migration or onboarding required) are
 // not cached, so those flows keep re-checking until they complete.
-export function checkBootstrap(): Promise<BootstrapResponse> {
+function checkBootstrap(): Promise<BootstrapResponse> {
   if (settled) return Promise.resolve(settled);
 
   if (!inFlight) {
@@ -28,4 +28,27 @@ export function checkBootstrap(): Promise<BootstrapResponse> {
   }
 
   return inFlight;
+}
+
+// Returns false when a redirect was issued and the caller should stop loading.
+// Every tracker page opens with this.
+export async function checkBootstrapOrRedirect(
+  router: { replace: (href: string) => void },
+  opts?: { skipOnboarding?: boolean },
+) {
+  const boot = await checkBootstrap();
+
+  if (boot.migration?.required) {
+    router.replace(boot.migration.redirectTo);
+    return false;
+  }
+
+  // The onboarding page passes skipOnboarding so users can revisit it to tweak
+  // their initial setup after it is no longer required.
+  if (!opts?.skipOnboarding && boot.onboarding?.required) {
+    router.replace(boot.onboarding.redirectTo);
+    return false;
+  }
+
+  return true;
 }

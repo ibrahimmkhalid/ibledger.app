@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { hasResidualBalance } from "@/lib/money";
@@ -231,16 +231,8 @@ export default function FundsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const boot = await checkBootstrap();
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
-        return;
-      }
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) return;
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setServerFunds(res.funds);
     } catch (e) {

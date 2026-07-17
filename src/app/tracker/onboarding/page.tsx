@@ -25,7 +25,11 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
+import {
+  WalletModal,
+  type WalletFormState,
+} from "@/app/tracker/components/wallet-modal";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { hasResidualBalance } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
@@ -37,56 +41,6 @@ import {
 } from "@/components/ui/tooltip";
 import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
 
-type WalletFormState = {
-  name: string;
-};
-
-function WalletModal(args: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  initial?: WalletFormState;
-  busy: boolean;
-  onSave: (data: WalletFormState) => void | Promise<void>;
-}) {
-  const { open, onOpenChange, title, initial, busy, onSave } = args;
-  const [name, setName] = useState(initial?.name ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initial?.name ?? "");
-  }, [open, initial]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        aria-describedby={undefined}
-        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 type FundFormState = {
   name: string;
@@ -200,15 +154,10 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      const boot = await checkBootstrap();
-
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      // Even if onboarding is no longer required, allow users to revisit this
-      // page to tweak initial setup.
+      const ready = await checkBootstrapOrRedirect(router, {
+        skipOnboarding: true,
+      });
+      if (!ready) return;
 
       const [walletsRes, fundsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),

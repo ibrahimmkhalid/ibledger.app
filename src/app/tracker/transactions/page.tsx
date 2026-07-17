@@ -55,7 +55,7 @@ import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
@@ -316,16 +316,8 @@ export default function TransactionsPage() {
       }
 
       try {
-        const boot = await checkBootstrap();
-        if (boot.migration?.required) {
-          router.replace(boot.migration.redirectTo);
-          return;
-        }
-
-        if (boot.onboarding?.required) {
-          router.replace(boot.onboarding.redirectTo);
-          return;
-        }
+        const ready = await checkBootstrapOrRedirect(router);
+        if (!ready) return;
 
         const [walletsRes, fundsRes, eventsRes] = await Promise.all([
           apiJson<{ wallets: Wallet[] }>("/api/wallets?summary=false"),

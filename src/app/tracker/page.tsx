@@ -27,7 +27,7 @@ import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pendin
 import { OverviewSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
@@ -86,17 +86,8 @@ export default function TrackerPage() {
     setLoading(true);
 
     try {
-      const boot = await checkBootstrap();
-
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
-        return;
-      }
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) return;
 
       const overview = await apiJson<OverviewResponse>("/api/tracker/overview");
 

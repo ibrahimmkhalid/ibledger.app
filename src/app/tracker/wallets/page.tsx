@@ -9,14 +9,6 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
   Table,
   TableBody,
   TableCell,
@@ -26,61 +18,15 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrap } from "@/app/tracker/lib/bootstrap";
+import {
+  WalletModal,
+  type WalletFormState,
+} from "@/app/tracker/components/wallet-modal";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { Wallet } from "@/app/tracker/types";
 
-type WalletFormState = {
-  name: string;
-};
-
-function WalletModal(args: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  initial?: WalletFormState;
-  busy: boolean;
-  onSave: (data: WalletFormState) => void | Promise<void>;
-}) {
-  const { open, onOpenChange, title, initial, busy, onSave } = args;
-  const [name, setName] = useState(initial?.name ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initial?.name ?? "");
-  }, [open, initial]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        aria-describedby={undefined}
-        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function WalletsPage() {
   const router = useRouter();
@@ -95,16 +41,8 @@ export default function WalletsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const boot = await checkBootstrap();
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
-        return;
-      }
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) return;
       const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
       setWallets(res.wallets);
     } catch (e) {
