@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fmtAmount } from "@/app/tracker/lib/format";
+import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
 import type {
   AxisPoint,
   GroupBy,
@@ -50,21 +51,7 @@ const TREND_MODE_OPTIONS: ReadonlyArray<{
   { value: "raw", label: "Value" },
 ];
 
-const CHART_COLORS = [
-  "#06b6d4",
-  "#e05260",
-  "#7c3aed",
-  "#f59e0b",
-  "#10b981",
-  "#64748b",
-];
-
 const CASHFLOW_SYMLOG_SCALE = 100;
-
-// Diverging colors for the net cashflow bars: emerald for net gain, rose for
-// net loss. Kept in sync with the income/spending tones used elsewhere.
-const CASHFLOW_POSITIVE = "#059669";
-const CASHFLOW_NEGATIVE = "#e05260";
 
 const ROLLING_AVERAGE_WINDOWS: Record<GroupBy, number> = {
   day: 10,
@@ -91,7 +78,7 @@ export function TrendModeToggle({
 }) {
   return (
     <div className="flex items-center justify-end gap-2">
-      <span className="text-muted-foreground text-[11px] font-medium">
+      <span className="text-muted-foreground text-2xs font-medium">
         View
       </span>
       <div
@@ -108,7 +95,7 @@ export function TrendModeToggle({
               aria-pressed={active}
               onClick={() => onChange(option.value)}
               className={cn(
-                "flex h-full items-center rounded-sm px-2 text-[11px] font-medium transition-colors",
+                "flex h-full items-center rounded-sm px-2 text-2xs font-medium transition-colors",
                 active
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -132,7 +119,7 @@ export function StatCard(args: {
 }) {
   const toneClass =
     args.tone === "income"
-      ? "text-emerald-700 dark:text-emerald-300"
+      ? "text-income"
       : args.tone === "spending"
         ? "text-destructive"
         : "text-foreground";
@@ -249,6 +236,8 @@ const DEFAULT_PLOT_THEME = {
   muted: "#78716c",
   border: "#e7e5e4",
   card: "#ffffff",
+  income: "#059669",
+  destructive: "#e05260",
 };
 
 export function usePlotTheme() {
@@ -277,6 +266,8 @@ export function usePlotTheme() {
         muted: resolve("--muted-foreground", DEFAULT_PLOT_THEME.muted),
         border: resolve("--border", DEFAULT_PLOT_THEME.border),
         card: resolve("--popover", DEFAULT_PLOT_THEME.card),
+        income: resolve("--income", DEFAULT_PLOT_THEME.income),
+        destructive: resolve("--destructive", DEFAULT_PLOT_THEME.destructive),
       });
     }
 
@@ -528,13 +519,13 @@ function cashflowNetHoverText(
   theme: ReturnType<typeof usePlotTheme>,
 ) {
   const positive = point.net >= 0;
-  const accent = positive ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE;
+  const accent = positive ? theme.income : theme.destructive;
   const heading = positive ? "Net gain" : "Net loss";
   return [
     `<b><span style="color:${accent}">${heading}: ${fmtAmount(point.net)}</span></b>`,
     `Income: ${fmtAmount(point.income)}`,
     `Spending: ${fmtAmount(-point.spending)}`,
-    `<span style="color:${theme.muted}">${point.count.toLocaleString()} line items</span>`,
+    `<span style="color:${theme.muted}">${point.count.toLocaleString()} transactions</span>`,
   ].join("<br>");
 }
 
@@ -555,7 +546,7 @@ export function cashflowNetPlot(
   const labels = data.map((point) => point.label);
   const barValues = data.map((point) => symlogAmount(point.net));
   const barColors = data.map((point) =>
-    point.net >= 0 ? CASHFLOW_POSITIVE : CASHFLOW_NEGATIVE,
+    point.net >= 0 ? theme.income : theme.destructive,
   );
   const hoverText = data.map((point) => cashflowNetHoverText(point, theme));
 
@@ -626,8 +617,8 @@ export function trendPlot(
   const valueLabel = mode === "raw" ? "Value" : "Cumulative change";
 
   return {
-    data: visible.flatMap((item, index) => {
-      const color = CHART_COLORS[index % CHART_COLORS.length];
+    data: visible.flatMap((item) => {
+      const color = seriesColor(keyToColorIndex(String(item.id))).bg;
       const x = item.points.map((point) => point.label);
       const values = item.points.map((point) =>
         mode === "raw" ? point.raw : point.cumulative,
@@ -730,7 +721,7 @@ export function SpendingBars({
               style={{ width: `${Math.min(100, Math.max(0, row.share))}%` }}
             />
           </div>
-          <div className="text-muted-foreground flex justify-between gap-3 text-[11px]">
+          <div className="text-muted-foreground flex justify-between gap-3 text-2xs">
             <span>{row.share.toFixed(1)}% of spending</span>
             <span className="tabular-nums">Net {fmtAmount(row.net)}</span>
           </div>
