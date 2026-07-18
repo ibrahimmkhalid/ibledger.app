@@ -3,14 +3,10 @@ import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { TagIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { isDevTestingEnabled } from "@/lib/dev-testing";
-
-const CTA_PRIMARY_CLASS = buttonVariants({ size: "lg" });
-
-const CTA_SECONDARY_CLASS = buttonVariants({ variant: "outline", size: "lg" });
 
 function ExampleTransactionCard(args: {
   occurredAt: Date;
@@ -56,25 +52,27 @@ function ExampleTransactionCard(args: {
 function PrimaryCta() {
   if (isDevTestingEnabled()) {
     return (
-      <Link href="/tracker" className={CTA_PRIMARY_CLASS}>
-        Open your ledger
-      </Link>
+      <Button asChild size="lg">
+        <Link href="/tracker">Open your ledger</Link>
+      </Button>
     );
   }
 
   return (
     <>
       <SignedIn>
-        <Link href="/tracker" className={CTA_PRIMARY_CLASS}>
-          Open your ledger
-        </Link>
+        <Button asChild size="lg">
+          <Link href="/tracker">Open your ledger</Link>
+        </Button>
       </SignedIn>
       <SignedOut>
         <SignUpButton>
-          <button className={CTA_PRIMARY_CLASS}>Start your ledger</button>
+          <Button size="lg">Start your ledger</Button>
         </SignUpButton>
         <SignInButton>
-          <button className={CTA_SECONDARY_CLASS}>Sign in</button>
+          <Button variant="outline" size="lg">
+            Sign in
+          </Button>
         </SignInButton>
       </SignedOut>
     </>
