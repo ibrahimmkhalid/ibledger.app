@@ -86,7 +86,7 @@ export function AppShell(args: {
           <div className="flex items-center gap-3">
             <Link
               href={inTracker ? "/tracker" : "/"}
-              className={`${inter.className} text-base font-semibold tracking-tighter`}
+              className={`${inter.className} focus-visible:ring-ring/50 rounded-sm text-base font-semibold tracking-tighter focus-visible:ring-2 focus-visible:outline-none`}
             >
               ib
               <span className={`${merriweather.className} tracking-normal`}>
@@ -142,7 +142,7 @@ export function AppShell(args: {
             <nav
               ref={mobileNavRef}
               aria-label="Sections"
-              className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto px-4 py-1.5 whitespace-nowrap [-ms-overflow-style:none] [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-1.5 whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <NavLinks pathname={pathname} />
             </nav>
@@ -155,7 +155,10 @@ export function AppShell(args: {
       <footer className="border-t">
         <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6 text-xs">
           <div>{year}</div>
-          <Link href="/" className="hover:text-foreground">
+          <Link
+            href="/"
+            className="hover:text-foreground focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+          >
             ibLedger
           </Link>
         </div>

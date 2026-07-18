@@ -1,12 +1,35 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { TagIcon } from "lucide-react";
+import { ArrowLeftRightIcon, TagIcon, WalletIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { isDevTestingEnabled } from "@/lib/dev-testing";
+
+// The hero CTA reuses the app Button but overrides the toolbar-dense `lg`
+// sizing (which shrinks to h-8/text-xs at sm:) so the page's single primary
+// action reads at full presence on desktop too.
+const heroCtaClass =
+  "h-12 rounded-lg px-6 text-base font-semibold sm:h-12 sm:px-6 sm:text-base";
+
+function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
+  const { icon: Icon, label, tone } = args;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+        tone,
+      )}
+    >
+      <Icon aria-hidden className="size-3 shrink-0" />
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
 
 function ExampleTransactionCard(args: {
   occurredAt: Date;
@@ -15,16 +38,12 @@ function ExampleTransactionCard(args: {
   description: string;
   net: number;
 }) {
-  const meta = [fmtDateShort(args.occurredAt), args.walletName, args.fundName]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
-    <Card size="sm" className="min-h-11 gap-1 py-1.5">
+    <Card size="sm" className="gap-2 py-2">
       <div className="px-3">
         <div className="flex items-baseline justify-between gap-3">
-          <div className="text-muted-foreground min-w-0 truncate text-xs">
-            <span className="tabular-nums">{meta}</span>
+          <div className="min-w-0 truncate text-sm font-medium">
+            {args.description}
           </div>
           <div className="text-sm tabular-nums">
             <span className={args.net < 0 ? "text-destructive" : ""}>
@@ -33,16 +52,20 @@ function ExampleTransactionCard(args: {
           </div>
         </div>
 
-        <div className="mt-0.5 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <TagIcon
-              aria-hidden
-              className="text-muted-foreground mt-[2px] size-3.5 shrink-0"
-            />
-            <div className="min-w-0 truncate text-sm font-medium">
-              {args.description}
-            </div>
-          </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {fmtDateShort(args.occurredAt)}
+          </span>
+          <MetaChip
+            icon={WalletIcon}
+            label={args.walletName}
+            tone="border-border text-muted-foreground"
+          />
+          <MetaChip
+            icon={TagIcon}
+            label={args.fundName}
+            tone="border-primary/40 text-primary"
+          />
         </div>
       </div>
     </Card>
@@ -52,7 +75,7 @@ function ExampleTransactionCard(args: {
 function PrimaryCta() {
   if (isDevTestingEnabled()) {
     return (
-      <Button asChild size="lg">
+      <Button asChild size="lg" className={heroCtaClass}>
         <Link href="/tracker">Open your ledger</Link>
       </Button>
     );
@@ -61,21 +84,40 @@ function PrimaryCta() {
   return (
     <>
       <SignedIn>
-        <Button asChild size="lg">
+        <Button asChild size="lg" className={heroCtaClass}>
           <Link href="/tracker">Open your ledger</Link>
         </Button>
       </SignedIn>
       <SignedOut>
         <SignUpButton>
-          <Button size="lg">Start your ledger</Button>
+          <Button size="lg" className={heroCtaClass}>
+            Start your ledger
+          </Button>
         </SignUpButton>
         <SignInButton>
-          <Button variant="outline" size="lg">
+          <Button variant="outline" size="lg" className={heroCtaClass}>
             Sign in
           </Button>
         </SignInButton>
       </SignedOut>
     </>
+  );
+}
+
+function ConceptColumn(args: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const { icon: Icon, title, children } = args;
+  return (
+    <div>
+      <div className="flex items-center justify-center gap-2 sm:justify-start">
+        <Icon aria-hidden className="text-primary size-4 shrink-0" />
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="text-muted-foreground mt-1 text-sm">{children}</p>
+    </div>
   );
 }
 
@@ -85,19 +127,22 @@ export default function Home() {
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="bg-[radial-gradient(closest-side,theme(colors.primary/14),transparent)] absolute -top-32 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full blur-3xl" />
+        <div className="bg-[radial-gradient(closest-side,theme(colors.primary/22),transparent)] dark:bg-[radial-gradient(closest-side,theme(colors.primary/16),transparent)] absolute -top-32 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full blur-3xl" />
       </div>
 
       <section className="mx-auto w-full max-w-3xl px-4 pt-20 pb-16 text-center sm:pt-28">
         <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Where your money lives.
+          Where your money sits.
           <br />
-          <span className="text-primary">Why it exists.</span>
+          <span className="text-primary">What it&apos;s for.</span>
         </h1>
 
-        <p className="text-muted-foreground mx-auto mt-5 max-w-md text-base text-pretty">
-          Every transaction lands in a wallet and belongs to a fund. One
-          ledger, two answers.
+        <p className="text-muted-foreground mx-auto mt-5 max-w-lg text-base text-pretty">
+          ibLedger is a personal ledger where every transaction picks a{" "}
+          <span className="text-foreground font-medium">wallet</span> (where the
+          money sits) and a{" "}
+          <span className="text-foreground font-medium">fund</span> (what
+          it&apos;s for). One ledger, two answers.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -105,7 +150,13 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-md px-4 pb-16">
+      <section
+        aria-labelledby="demo-heading"
+        className="mx-auto w-full max-w-md px-4 pb-16"
+      >
+        <h2 id="demo-heading" className="sr-only">
+          An example transaction
+        </h2>
         <div className="border-border bg-card/70 rounded-2xl border p-4 shadow-sm backdrop-blur">
           <div className="flex flex-col gap-2">
             <ExampleTransactionCard
@@ -124,74 +175,73 @@ export default function Home() {
             />
           </div>
           <p className="text-muted-foreground mt-3 px-1 text-xs">
-            Checking and Cash say <span className="text-foreground">where</span>
-            . Groceries and Coffee say <span className="text-foreground">why</span>.
+            The <span className="text-foreground">wallet</span> says where the
+            money sits. The <span className="text-primary">fund</span> says what
+            it&apos;s for.
           </p>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-3xl px-4 pb-16">
+      <section
+        aria-labelledby="concepts-heading"
+        className="mx-auto w-full max-w-3xl px-4 pb-16"
+      >
+        <h2 id="concepts-heading" className="sr-only">
+          The three building blocks
+        </h2>
         <div className="grid gap-6 text-center sm:grid-cols-3 sm:gap-4 sm:text-left">
-          <div>
-            <div className="text-sm font-semibold">Wallets</div>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Checking, cash, cards. Where the money sits.
-            </p>
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Funds</div>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Rent, food, travel. What the money is for.
-            </p>
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Transactions</div>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Every line picks one of each. Both views stay balanced.
-            </p>
-          </div>
+          <ConceptColumn icon={WalletIcon} title="Wallets">
+            Checking, cash, cards. Where the money sits.
+          </ConceptColumn>
+          <ConceptColumn icon={TagIcon} title="Funds">
+            Rent, food, travel. What the money is for.
+          </ConceptColumn>
+          <ConceptColumn icon={ArrowLeftRightIcon} title="Transactions">
+            Every line picks one of each. Both views stay balanced.
+          </ConceptColumn>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-3xl px-4 pb-20">
+      <section
+        aria-labelledby="features-heading"
+        className="mx-auto w-full max-w-3xl px-4 pb-20"
+      >
         <div className="border-border bg-card/60 rounded-2xl border p-6 shadow-sm backdrop-blur sm:p-8">
+          <h2 id="features-heading" className="sr-only">
+            What the ledger does for you
+          </h2>
           <div className="grid gap-6 sm:grid-cols-3 sm:gap-4">
             <div>
-              <div className="text-sm font-semibold">
+              <h3 className="text-sm font-semibold">
                 Paychecks split themselves
-              </div>
+              </h3>
               <p className="text-muted-foreground mt-1 text-sm">
-                Each fund pulls its percentage of income. Savings keeps the
-                rest.
+                Set each fund&apos;s share once. Every paycheck allocates itself
+                — no monthly re-budgeting.
               </p>
             </div>
             <div>
-              <div className="text-sm font-semibold">Pending-aware totals</div>
+              <h3 className="text-sm font-semibold">
+                Cleared and pending, side by side
+              </h3>
               <p className="text-muted-foreground mt-1 text-sm">
-                Cleared and pending balances, always side by side.
+                Always see what you can really spend, not just what&apos;s about
+                to clear.
               </p>
             </div>
             <div>
-              <div className="text-sm font-semibold">
-                Overspending is explicit
-              </div>
+              <h3 className="text-sm font-semibold">
+                Overspending stays visible
+              </h3>
               <p className="text-muted-foreground mt-1 text-sm">
-                Funds floor at $0 and wear an overspent badge. Savings absorbs
-                the difference.
+                Funds floor at $0 and show an overspent badge, with Savings
+                covering the gap — no category quietly goes negative.
               </p>
             </div>
           </div>
 
-          <div className="border-border mt-8 flex flex-wrap items-center justify-between gap-3 border-t pt-6">
-            <p className="text-muted-foreground text-xs">
-              Sign in securely. Your data stays tied to your account.
-            </p>
-            <Link
-              href="/tracker/onboarding"
-              className="text-muted-foreground hover:text-foreground text-xs font-semibold transition"
-            >
-              Set up your ledger →
-            </Link>
+          <div className="border-border mt-8 flex flex-wrap items-center justify-center gap-3 border-t pt-8">
+            <PrimaryCta />
           </div>
         </div>
       </section>
