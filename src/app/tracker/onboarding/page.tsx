@@ -1,20 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -29,6 +23,8 @@ import {
   WalletModal,
   type WalletFormState,
 } from "@/app/tracker/components/wallet-modal";
+import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { holdsMoney } from "@/lib/money";
@@ -68,6 +64,8 @@ function FundModal(args: {
   const [pullPercentage, setPullPercentage] = useState(
     initial?.pullPercentage ?? "0",
   );
+  const nameId = useId();
+  const shareId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -76,29 +74,35 @@ function FundModal(args: {
   }, [open, initial]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        aria-describedby={undefined}
-        className="sm:max-w-[min(40rem,calc(100vw-2rem))]"
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      desktopContentClassName="sm:max-w-[min(40rem,calc(100vw-2rem))]"
+      renderBody={() => (
         <div className="grid gap-4">
           <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor={nameId}>Name</Label>
+            <Input
+              id={nameId}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Groceries"
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <div className="flex flex-row gap-1">
-              <div className="text-muted-foreground text-xs">
-                Pull percentage
-              </div>
+            <div className="flex flex-row items-center gap-1">
+              <Label htmlFor={shareId}>Income share</Label>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger>
-                    <CircleHelpIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="What is income share?"
+                      className="text-muted-foreground shrink-0 opacity-65"
+                    >
+                      <CircleHelpIcon className="size-3.5" />
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -110,6 +114,7 @@ function FundModal(args: {
               </TooltipProvider>
             </div>
             <Input
+              id={shareId}
               inputMode="decimal"
               value={pullPercentage}
               onChange={(e) => setPullPercentage(e.target.value)}
@@ -117,23 +122,23 @@ function FundModal(args: {
             />
           </div>
         </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name, pullPercentage })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+      renderFooter={() => (
+        <Button
+          type="button"
+          onClick={() => void onSave({ name, pullPercentage })}
+          disabled={busy}
+        >
+          Save
+        </Button>
+      )}
+    />
   );
 }
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -215,9 +220,12 @@ export default function OnboardingPage() {
   }
 
   async function deleteWallet(wallet: Wallet) {
-    const ok = window.confirm(
-      `Delete wallet "${wallet.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${wallet.name}"?`,
+      description: "This wallet and its history will be removed. You can't undo this.",
+      confirmLabel: "Delete wallet",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -297,9 +305,12 @@ export default function OnboardingPage() {
   }
 
   async function deleteFund(fund: Fund) {
-    const ok = window.confirm(
-      `Delete fund "${fund.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${fund.name}"?`,
+      description: "This fund will be removed. You can't undo this.",
+      confirmLabel: "Delete fund",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -323,6 +334,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
       <div className="flex flex-col gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Welcome</h1>
@@ -446,7 +458,7 @@ export default function OnboardingPage() {
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.name}</TableCell>
                     <TableCell className="text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -454,7 +466,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil />
                         </Button>
                         <Button
                           variant="ghost"
@@ -464,7 +476,7 @@ export default function OnboardingPage() {
                           aria-label={`Delete ${w.name}`}
                           className="text-muted-foreground hover:text-destructive"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 />
                         </Button>
                       </div>
                     </TableCell>
@@ -494,7 +506,7 @@ export default function OnboardingPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Savings</TableHead>
-                <TableHead className="text-right">Pull %</TableHead>
+                <TableHead className="text-right">Income share</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -514,7 +526,7 @@ export default function OnboardingPage() {
                       {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -522,7 +534,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${f.name}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil />
                         </Button>
                         {f.isSavings
                           ? null
@@ -534,23 +546,42 @@ export default function OnboardingPage() {
                                 ),
                               );
 
-                              const title = deleteBlocked
-                                ? "This fund still holds money (including pending). Move it out and clear pending transactions before deleting."
-                                : undefined;
-
-                              return (
-                                <span title={title}>
+                              if (!deleteBlocked) {
+                                return (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => void deleteFund(f)}
-                                    disabled={busy || deleteBlocked}
+                                    disabled={busy}
                                     aria-label={`Delete ${f.name}`}
                                     className="text-muted-foreground hover:text-destructive"
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 />
                                   </Button>
-                                </span>
+                                );
+                              }
+
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span tabIndex={0} className="inline-flex">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled
+                                        aria-label={`Can't delete ${f.name}: still holds money`}
+                                        className="text-muted-foreground pointer-events-none"
+                                      >
+                                        <Trash2 />
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    This fund still holds money (including
+                                    pending). Move it out and clear pending
+                                    transactions before deleting.
+                                  </TooltipContent>
+                                </Tooltip>
                               );
                             })()}
                       </div>
