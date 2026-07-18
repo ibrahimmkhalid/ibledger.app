@@ -92,7 +92,7 @@ export function SegmentedControl<T extends string>(args: {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <Label>{label}</Label>
-      <div className="border-input bg-input/20 dark:bg-input/30 flex h-7 items-center gap-0.5 rounded-md border p-0.5">
+      <div className="border-input bg-input/20 dark:bg-input/30 flex h-10 items-center gap-0.5 rounded-md border p-0.5 sm:h-7">
         {options.map((option) => {
           const active = option.value === value;
           return (
@@ -103,7 +103,7 @@ export function SegmentedControl<T extends string>(args: {
               disabled={option.disabled}
               onClick={() => onChange(option.value)}
               className={cn(
-                "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-xs font-medium transition-colors",
+                "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-sm font-medium transition-colors sm:text-xs",
                 option.disabled
                   ? "text-muted-foreground/40 cursor-not-allowed"
                   : active
@@ -117,9 +117,9 @@ export function SegmentedControl<T extends string>(args: {
         })}
       </div>
       {hint ? (
-        <span className="text-muted-foreground text-[11px]">{hint}</span>
+        <span className="text-muted-foreground text-2xs">{hint}</span>
       ) : (
-        <span className="invisible text-[11px]" aria-hidden>
+        <span className="text-2xs invisible" aria-hidden>
           &nbsp;
         </span>
       )}
@@ -222,7 +222,7 @@ export function MultiSelectDropdown(args: {
                       onClick={() =>
                         onChange(toggleSelectedId(selectedIds, option.id))
                       }
-                      className="hover:bg-muted flex min-h-7 w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs/relaxed"
+                      className="hover:bg-muted flex min-h-9 w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm sm:min-h-7 sm:py-1 sm:text-xs/relaxed"
                     >
                       <span className="min-w-0 truncate">{option.name}</span>
                       <CheckIcon

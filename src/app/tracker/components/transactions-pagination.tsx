@@ -74,7 +74,7 @@ export function TransactionsPagination({
               size="sm"
               disabled
               aria-current="page"
-              className="min-w-7 rounded-none tabular-nums"
+              className="min-w-9 rounded-none tabular-nums sm:min-w-7"
             >
               1
             </Button>
@@ -83,7 +83,7 @@ export function TransactionsPagination({
               link === "ellipsis" ? (
                 <span
                   key={`ellipsis-${index}`}
-                  className="text-muted-foreground border-border flex h-6 min-w-7 items-center justify-center px-1 text-sm select-none"
+                  className="text-muted-foreground border-border flex h-9 min-w-9 items-center justify-center px-1 text-sm select-none sm:h-6 sm:min-w-7"
                   aria-hidden="true"
                 >
                   …
@@ -96,7 +96,7 @@ export function TransactionsPagination({
                   disabled={disabled}
                   aria-current={link === page ? "page" : undefined}
                   onClick={() => onPageChange(link)}
-                  className="min-w-7 rounded-none tabular-nums"
+                  className="min-w-9 rounded-none tabular-nums sm:min-w-7"
                 >
                   {link + 1}
                 </Button>
