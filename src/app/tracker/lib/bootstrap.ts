@@ -6,8 +6,8 @@ let inFlight: Promise<BootstrapResponse> | null = null;
 
 // POSTs /api/bootstrap once per app load and replays the result for later
 // page mounts, removing a serial round trip from every tracker navigation.
-// Responses that demand a redirect (migration or onboarding required) are
-// not cached, so those flows keep re-checking until they complete.
+// Responses that demand a redirect (onboarding required) are not cached, so
+// that flow keeps re-checking until it completes.
 function checkBootstrap(): Promise<BootstrapResponse> {
   if (settled) return Promise.resolve(settled);
 
@@ -17,7 +17,7 @@ function checkBootstrap(): Promise<BootstrapResponse> {
       body: "{}",
     })
       .then((boot) => {
-        if (!boot.migration?.required && !boot.onboarding?.required) {
+        if (!boot.onboarding?.required) {
           settled = boot;
         }
         return boot;
@@ -37,11 +37,6 @@ export async function checkBootstrapOrRedirect(
   opts?: { skipOnboarding?: boolean },
 ) {
   const boot = await checkBootstrap();
-
-  if (boot.migration?.required) {
-    router.replace(boot.migration.redirectTo);
-    return false;
-  }
 
   // The onboarding page passes skipOnboarding so users can revisit it to tweak
   // their initial setup after it is no longer required.

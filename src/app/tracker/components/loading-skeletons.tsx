@@ -416,37 +416,3 @@ export function OnboardingSkeleton() {
     </div>
   );
 }
-
-export function MigrationSkeleton() {
-  return (
-    <div className="flex flex-col gap-6" aria-hidden>
-      <PageHeaderSkeleton
-        titleWidth="w-56"
-        subtitleWidth="w-[36rem]"
-        actionWidths={["w-36"]}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel>
-          <CardTitleSkeleton titleWidth="w-40" />
-          <div className="mt-4">
-            <TableSkeleton rows={3} columns={3} />
-          </div>
-        </LoadingPanel>
-        <LoadingPanel>
-          <CardTitleSkeleton titleWidth="w-36" />
-          <div className="mt-4">
-            <TableSkeleton rows={4} columns={3} />
-          </div>
-        </LoadingPanel>
-      </div>
-
-      <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-36" actionWidth="w-24" />
-        <div className="mt-4">
-          <TableSkeleton rows={4} columns={3} includeActions />
-        </div>
-      </LoadingPanel>
-    </div>
-  );
-}

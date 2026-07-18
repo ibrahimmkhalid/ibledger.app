@@ -71,10 +71,6 @@ export type BootstrapResponse = {
     required: boolean;
     redirectTo: string;
   };
-  migration?: {
-    required: boolean;
-    redirectTo: string;
-  };
   isNewUser?: boolean;
   funds?: {
     savingsFundId: number;

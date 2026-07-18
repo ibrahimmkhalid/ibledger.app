@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, users, wallets } from "@/db/schema";
@@ -86,48 +86,6 @@ export async function POST() {
         { error: "Failed to upsert user" },
         { status: 500 },
       );
-    }
-
-    const [legacyWallet, legacyFund] = await Promise.all([
-      db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.userId, dbUser.id),
-            isNull(wallets.deletedAt),
-            sql`${wallets.openingAmount} <> 0`,
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]),
-      db
-        .select({ id: funds.id })
-        .from(funds)
-        .where(
-          and(
-            eq(funds.userId, dbUser.id),
-            isNull(funds.deletedAt),
-            sql`${funds.openingAmount} <> 0`,
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]),
-    ]);
-
-    if (legacyWallet || legacyFund) {
-      return NextResponse.json({
-        user: dbUser,
-        funds: {},
-        onboarding: {
-          required: false,
-        },
-        migration: {
-          required: true,
-          redirectTo: "/tracker/migrate-starting-balances",
-        },
-        isNewUser: false,
-      });
     }
 
     if (dbUser.onboarded) {
