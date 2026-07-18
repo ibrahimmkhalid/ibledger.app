@@ -15,10 +15,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
-  CircleDollarSignIcon,
   ListFilterIcon,
-  PlusIcon,
-  RefreshCwIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
@@ -50,6 +47,11 @@ import {
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
 import { EventModals } from "@/app/tracker/components/event-modals";
+import {
+  AddTransactionFab,
+  TrackerActions,
+} from "@/app/tracker/components/tracker-actions";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { TransactionsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionsPagination } from "@/app/tracker/components/transactions-pagination";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
@@ -140,6 +142,7 @@ function applyEventsResponse(
 
 export default function TransactionsPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const pageSizeId = useId();
   const searchId = useId();
   const minAmountId = useId();
@@ -416,9 +419,12 @@ export default function TransactionsPage() {
   }, [clearPageCache, filters, page, pageSize, refresh]);
 
   const clearAllPending = useCallback(async () => {
-    const ok = window.confirm(
-      "Mark every pending transaction as cleared? This updates your totals right away.",
-    );
+    const ok = await confirm({
+      title: "Clear all pending transactions?",
+      description:
+        "Pending transactions are ones you've recorded but marked as not-yet-settled. Clearing folds every one of them into your real balance right away.",
+      confirmLabel: "Clear pending",
+    });
     if (!ok) return;
 
     try {
@@ -438,7 +444,7 @@ export default function TransactionsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to clear pending");
     }
-  }, [clearPageCache, filters, pageSize, refresh]);
+  }, [confirm, clearPageCache, filters, pageSize, refresh]);
 
   useEffect(() => {
     router.prefetch("/tracker");
@@ -484,26 +490,17 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
+      <AddTransactionFab onClick={() => setCreateTransactionOpen(true)} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Transactions</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => void handleRefresh()}
-            disabled={pageLoading}
-          >
-            <RefreshCwIcon className={cn(pageLoading && "animate-spin")} />
-            Refresh
-          </Button>
-          <Button onClick={() => setCreateTransactionOpen(true)}>
-            <PlusIcon />
-            Add transaction
-          </Button>
-          <Button variant="outline" onClick={() => setCreateIncomeOpen(true)}>
-            <CircleDollarSignIcon />
-            Add income
-          </Button>
-        </div>
+        <TrackerActions
+          onRefresh={() => void handleRefresh()}
+          refreshing={pageLoading}
+          onAddTransaction={() => setCreateTransactionOpen(true)}
+          onAddIncome={() => setCreateIncomeOpen(true)}
+          disabled={pageLoading}
+        />
       </div>
 
       <EventModals
@@ -525,7 +522,7 @@ export default function TransactionsPage() {
           <CardDescription>
             {totalCount === 0
               ? activeFilterCount > 0
-                ? "No matching transactions"
+                ? "No transactions match your filters"
                 : "No transactions yet"
               : `${totalCount.toLocaleString()} ${
                   totalCount === 1 ? "transaction" : "transactions"
@@ -571,7 +568,7 @@ export default function TransactionsPage() {
                 <ListFilterIcon />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="bg-primary text-primary-foreground flex size-4 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums">
+                  <span className="text-2xs bg-primary text-primary-foreground flex size-4 items-center justify-center rounded-full font-semibold tabular-nums">
                     {activeFilterCount}
                   </span>
                 )}
@@ -591,6 +588,7 @@ export default function TransactionsPage() {
 
             <div
               id="transactions-filters-panel"
+              inert={!filtersExpanded}
               className={cn(
                 "grid transition-[grid-template-rows] duration-200 ease-in-out",
                 filtersExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
