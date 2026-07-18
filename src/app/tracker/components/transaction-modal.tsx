@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -92,6 +93,8 @@ export function TransactionModal(args: {
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
   const [description, setDescription] = useState("");
+  const dateId = useId();
+  const descriptionId = useId();
   const [lines, setLines] = useState<LineDraft[]>([]);
 
   useEffect(() => {
@@ -194,7 +197,7 @@ export function TransactionModal(args: {
       const transactionId = l.transactionId ? Number(l.transactionId) : null;
 
       if (walletId === null || fundId === null) {
-        throw new Error("Every line needs a wallet and a fund.");
+        throw new Error("Every line needs a wallet and a fund");
       }
 
       const signedAmount = l.direction === "out" ? -abs : abs;
@@ -268,7 +271,7 @@ export function TransactionModal(args: {
     }, "Failed to delete");
   }
 
-  const title = initialEvent ? "Transaction" : "Add transaction";
+  const title = initialEvent ? "Transaction details" : "Add transaction";
 
   const readOnly = Boolean(initialEvent) && !editing;
 
@@ -373,7 +376,7 @@ export function TransactionModal(args: {
                         {fmtAmount(Math.abs(n))}
                       </span>
                     </TableCell>
-                    <TableCell>{c.isPending ? "yes" : "no"}</TableCell>
+                    <TableCell>{c.isPending ? "Yes" : "No"}</TableCell>
                   </TableRow>
                 );
               })}
@@ -683,8 +686,9 @@ export function TransactionModal(args: {
             }
           >
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Date</div>
+              <Label htmlFor={dateId}>Date</Label>
               <Input
+                id={dateId}
                 type="date"
                 value={occurredAt}
                 onChange={(e) => setOccurredAt(e.target.value)}
@@ -692,15 +696,25 @@ export function TransactionModal(args: {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Description</div>
+              <Label htmlFor={descriptionId}>Description</Label>
               <Input
+                id={descriptionId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
+                placeholder="e.g. Grocery run"
                 disabled={readOnly}
               />
             </div>
           </div>
+
+          {!readOnly && (
+            <p className="text-muted-foreground text-2xs">
+              Amounts fill in cents-first — type 4200 for $42.00. Turn on{" "}
+              <span className="font-medium">Pending</span> for a line whose money
+              hasn&apos;t settled yet; it stays out of your cleared balance until
+              you clear it.
+            </p>
+          )}
 
           {renderBreakdown(isMobile)}
           {renderLinesEditor(isMobile)}

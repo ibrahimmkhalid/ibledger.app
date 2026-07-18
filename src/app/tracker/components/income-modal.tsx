@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,10 @@ export function IncomeModal(args: {
   const [walletId, setWalletId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [isPending, setIsPending] = useState(true);
+  const dateId = useId();
+  const descriptionId = useId();
+  const walletFieldId = useId();
+  const amountId = useId();
 
   useEffect(() => {
     if (!open) {
@@ -103,7 +108,7 @@ export function IncomeModal(args: {
     const amt = Number(amount) / 100;
     if (!wid || Number.isNaN(wid)) throw new Error("Select a wallet");
     if (!amt || Number.isNaN(amt) || amt <= 0) {
-      throw new Error("Amount must be > 0");
+      throw new Error("Enter an amount above $0");
     }
     return {
       type: "income" as const,
@@ -147,7 +152,7 @@ export function IncomeModal(args: {
     }, "Failed to delete");
   }
 
-  const title = initialEvent ? "Income" : "Add income";
+  const title = initialEvent ? "Income details" : "Add income";
 
   return (
     <ResponsiveModal
@@ -166,8 +171,9 @@ export function IncomeModal(args: {
             }
           >
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Date</div>
+              <Label htmlFor={dateId}>Date</Label>
               <Input
+                id={dateId}
                 type="date"
                 value={occurredAt}
                 onChange={(e) => setOccurredAt(e.target.value)}
@@ -175,11 +181,12 @@ export function IncomeModal(args: {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Description</div>
+              <Label htmlFor={descriptionId}>Description</Label>
               <Input
+                id={descriptionId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
+                placeholder="e.g. Paycheck"
                 disabled={readOnly}
               />
             </div>
@@ -191,7 +198,7 @@ export function IncomeModal(args: {
             }
           >
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Wallet</div>
+              <Label htmlFor={walletFieldId}>Wallet</Label>
               <Select
                 value={walletId}
                 onValueChange={(value) =>
@@ -199,7 +206,7 @@ export function IncomeModal(args: {
                 }
                 disabled={readOnly}
               >
-                <SelectTrigger className="w-full min-w-0">
+                <SelectTrigger id={walletFieldId} className="w-full min-w-0">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
@@ -213,14 +220,20 @@ export function IncomeModal(args: {
             </div>
 
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Amount</div>
+              <Label htmlFor={amountId}>Amount</Label>
               <Input
+                id={amountId}
                 inputMode="numeric"
                 value={formatCentsToDisplay(amount)}
                 onChange={(e) => setAmount(parseInputAsCents(e.target.value))}
                 disabled={readOnly}
                 placeholder="$0.00"
               />
+              {!readOnly && (
+                <span className="text-muted-foreground text-2xs">
+                  Fills in cents-first — type 4200 for $42.00.
+                </span>
+              )}
             </div>
           </div>
 
@@ -254,7 +267,7 @@ export function IncomeModal(args: {
             >
               <div className="text-sm font-medium">Breakdown</div>
               <div className="text-muted-foreground text-xs">
-                Split across your funds by pull %
+                Split across your funds by income share
               </div>
 
               {isMobile ? (
@@ -266,10 +279,10 @@ export function IncomeModal(args: {
                           <div className="truncate text-sm font-medium">
                             {c.fundName ?? "(fund)"}
                           </div>
-                          <div className="text-muted-foreground mt-1 text-[11px]">
+                          <div className="text-muted-foreground text-2xs mt-1">
                             {c.incomePull === null
                               ? ""
-                              : `Pull ${c.incomePull}%`}
+                              : `${c.incomePull}% share`}
                             {c.isPending
                               ? c.incomePull === null
                                 ? "Pending"
@@ -290,7 +303,7 @@ export function IncomeModal(args: {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Fund</TableHead>
-                        <TableHead className="w-[110px]">Pull</TableHead>
+                        <TableHead className="w-[110px]">Share</TableHead>
                         <TableHead className="w-[140px] text-right">
                           Amount
                         </TableHead>
@@ -307,7 +320,7 @@ export function IncomeModal(args: {
                           <TableCell className="text-right tabular-nums">
                             {fmtAmount(Number(c.amount))}
                           </TableCell>
-                          <TableCell>{c.isPending ? "yes" : "no"}</TableCell>
+                          <TableCell>{c.isPending ? "Yes" : "No"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
