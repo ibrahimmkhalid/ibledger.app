@@ -362,6 +362,7 @@ export default function AnalyticsPage() {
               void applyFilters();
             }}
             id="analytics-filters-panel"
+            inert={!filtersExpanded}
             className={cn(
               "grid transition-[grid-template-rows] duration-200 ease-in-out",
               filtersExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
@@ -468,7 +469,7 @@ export default function AnalyticsPage() {
           <StatCard
             title="Net"
             value={fmtAmount(summary?.net ?? 0)}
-            detail={`${(summary?.count ?? 0).toLocaleString()} line items`}
+            detail={`Income minus spending · ${(summary?.count ?? 0).toLocaleString()} transactions`}
             icon={<BarChart3Icon className="size-4" />}
             tone={netTone}
           />
@@ -496,7 +497,7 @@ export default function AnalyticsPage() {
         </div>
 
         <ExpandableChartCard
-          title="Cashflow"
+          title="Cash flow"
           expandedChildren={
             <PlotlyChart
               data={cashflowNetChart.data}
@@ -513,7 +514,7 @@ export default function AnalyticsPage() {
             layout={cashflowNetChart.layout}
             height={360}
             tickAxis={cashflowNetTickAxis}
-            ariaLabel="Cashflow chart"
+            ariaLabel="Cash flow chart"
           />
         </ExpandableChartCard>
 
@@ -523,7 +524,7 @@ export default function AnalyticsPage() {
           </div>
           <div className="grid gap-6 xl:grid-cols-2">
             <ExpandableChartCard
-              title="Wallet Trend"
+              title="Wallet trend"
               expandedChildren={
                 <PlotlyChart
                   data={walletTrendChart.data}
@@ -545,7 +546,7 @@ export default function AnalyticsPage() {
             </ExpandableChartCard>
 
             <ExpandableChartCard
-              title="Fund Trend"
+              title="Fund trend"
               expandedChildren={
                 <PlotlyChart
                   data={fundTrendChart.data}
@@ -571,7 +572,7 @@ export default function AnalyticsPage() {
         <div className="grid gap-6 xl:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Wallet Spending</CardTitle>
+              <CardTitle>Wallet spending</CardTitle>
             </CardHeader>
             <CardContent>
               <SpendingBars
@@ -583,7 +584,7 @@ export default function AnalyticsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Fund Spending</CardTitle>
+              <CardTitle>Fund spending</CardTitle>
             </CardHeader>
             <CardContent>
               <SpendingBars
