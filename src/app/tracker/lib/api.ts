@@ -11,7 +11,9 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
   const data = (await res.json()) as T | ApiError;
   if (!res.ok) {
-    throw new Error((data as ApiError)?.error ?? `HTTP ${res.status}`);
+    throw new Error(
+      (data as ApiError)?.error ?? "Something went wrong. Please try again.",
+    );
   }
 
   return data as T;

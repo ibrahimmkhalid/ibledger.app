@@ -99,6 +99,7 @@ export async function PUT(request: NextRequest) {
       const activeFunds = await tx
         .select({
           id: funds.id,
+          name: funds.name,
           isSavings: funds.isSavings,
           pullPercentage: funds.pullPercentage,
         })
@@ -172,8 +173,9 @@ export async function PUT(request: NextRequest) {
       for (const id of deletedFundIds) {
         const bal = balanceByFundId.get(id) ?? 0;
         if (holdsMoney(bal)) {
+          const name = existingById.get(id)?.name ?? "This fund";
           throw new Error(
-            `Fund "${id}" has a non-zero balance. Move the money out first.`,
+            `"${name}" still holds money (including pending). Move it out before deleting.`,
           );
         }
       }
