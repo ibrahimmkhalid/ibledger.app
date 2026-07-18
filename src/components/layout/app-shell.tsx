@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Inter, Merriweather } from "next/font/google";
@@ -23,6 +24,7 @@ import {
 } from "@clerk/nextjs";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const NAV_ITEMS = [
   { href: "/tracker", label: "Overview" },
@@ -35,12 +37,13 @@ const NAV_ITEMS = [
 function navLinkClassName(args: { href: string; pathname: string }) {
   const active = args.pathname === args.href;
   return [
-    "text-xs",
-    "sm:text-sm",
-    "px-1.5",
+    "text-sm",
+    "px-3",
     "sm:px-2",
-    "py-1",
+    "py-2.5",
+    "sm:py-1",
     "rounded-md",
+    "whitespace-nowrap",
     active
       ? "bg-muted font-semibold"
       : "text-muted-foreground hover:text-foreground",
@@ -52,6 +55,7 @@ function NavLinks({ pathname }: { pathname: string }) {
     <Link
       key={item.href}
       href={item.href}
+      aria-current={pathname === item.href ? "page" : undefined}
       className={navLinkClassName({ href: item.href, pathname })}
     >
       {item.label}
@@ -68,13 +72,20 @@ export function AppShell(args: {
   const inTracker = pathname.startsWith("/tracker");
   const year = new Date().getFullYear();
 
+  // Keep the active item visible in the horizontally-scrolling mobile nav.
+  const mobileNavRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const active = mobileNavRef.current?.querySelector('[aria-current="page"]');
+    active?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [pathname]);
+
   return (
     <div className="bg-background flex min-h-screen flex-col">
       <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link
-              href="/"
+              href={inTracker ? "/tracker" : "/"}
               className={`${inter.className} text-base font-semibold tracking-tighter`}
             >
               ib
@@ -90,6 +101,7 @@ export function AppShell(args: {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {devTesting ? (
               <div className="text-muted-foreground rounded-full border px-2 py-1 text-xs">
                 Test User
@@ -115,7 +127,7 @@ export function AppShell(args: {
                         size: "sm",
                       })}
                     >
-                      Open ledger
+                      Open your ledger
                     </Link>
                   )}
                   <UserButton afterSignOutUrl="/" />
@@ -127,7 +139,11 @@ export function AppShell(args: {
 
         {inTracker && (
           <div className="border-t sm:hidden">
-            <nav className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto px-4 py-2 whitespace-nowrap">
+            <nav
+              ref={mobileNavRef}
+              aria-label="Sections"
+              className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto px-4 py-1.5 whitespace-nowrap [-ms-overflow-style:none] [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               <NavLinks pathname={pathname} />
             </nav>
           </div>
