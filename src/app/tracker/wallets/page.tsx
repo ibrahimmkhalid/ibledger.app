@@ -24,12 +24,14 @@ import {
 } from "@/app/tracker/components/wallet-modal";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { Wallet } from "@/app/tracker/types";
 
 
 export default function WalletsPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -95,9 +97,12 @@ export default function WalletsPage() {
   }
 
   async function deleteWallet(wallet: Wallet) {
-    const ok = window.confirm(
-      `Delete wallet "${wallet.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${wallet.name}"?`,
+      description: "This wallet and its history will be removed. You can't undo this.",
+      confirmLabel: "Delete wallet",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -121,6 +126,7 @@ export default function WalletsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Wallets</h1>
         <div className="flex items-center gap-2">
@@ -176,14 +182,14 @@ export default function WalletsPage() {
               {wallets.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right tabular-nums whitespace-normal">
+                  <TableCell className="text-right text-sm tabular-nums whitespace-normal">
                     <ClearedWithPending
                       cleared={w.balance}
                       withPending={w.balanceWithPending}
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-1">
+                    <div className="inline-flex items-center gap-2 sm:gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -191,7 +197,7 @@ export default function WalletsPage() {
                         disabled={busy}
                         aria-label={`Edit ${w.name}`}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil />
                       </Button>
                       <Button
                         variant="ghost"
@@ -201,7 +207,7 @@ export default function WalletsPage() {
                         aria-label={`Delete ${w.name}`}
                         className="text-muted-foreground hover:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 />
                       </Button>
                     </div>
                   </TableCell>
