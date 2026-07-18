@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { TagIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { isDevTestingEnabled } from "@/lib/dev-testing";
 
-const CTA_PRIMARY_CLASS =
-  "bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition";
+const CTA_PRIMARY_CLASS = buttonVariants({ size: "lg" });
 
-const CTA_SECONDARY_CLASS =
-  "border-border bg-background hover:bg-muted inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-semibold shadow-sm transition";
+const CTA_SECONDARY_CLASS = buttonVariants({ variant: "outline", size: "lg" });
 
 function ExampleTransactionCard(args: {
   occurredAt: Date;
@@ -39,9 +39,9 @@ function ExampleTransactionCard(args: {
 
         <div className="mt-0.5 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span
+            <TagIcon
               aria-hidden
-              className="bg-muted-foreground/25 mt-[2px] size-3.5 shrink-0 rounded-[3px]"
+              className="text-muted-foreground mt-[2px] size-3.5 shrink-0"
             />
             <div className="min-w-0 truncate text-sm font-medium">
               {args.description}
@@ -186,13 +186,13 @@ export default function Home() {
 
           <div className="border-border mt-8 flex flex-wrap items-center justify-between gap-3 border-t pt-6">
             <p className="text-muted-foreground text-xs">
-              Sign in with Clerk. Your data stays tied to your account.
+              Sign in securely. Your data stays tied to your account.
             </p>
             <Link
               href="/tracker/onboarding"
               className="text-muted-foreground hover:text-foreground text-xs font-semibold transition"
             >
-              Take the tour →
+              Set up your ledger →
             </Link>
           </div>
         </div>
