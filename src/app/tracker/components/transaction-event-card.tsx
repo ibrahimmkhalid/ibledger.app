@@ -27,8 +27,15 @@ export function TransactionEventCard(args: {
     .join(" · ");
 
   return (
-    <button type="button" onClick={onClick} className="w-full text-left">
-      <Card size="sm" className="hover:bg-muted/30 min-h-11 gap-1 py-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-visible:ring-ring group w-full rounded-lg text-left outline-none focus-visible:ring-2"
+    >
+      <Card
+        size="sm"
+        className="group-hover:bg-muted/30 group-focus-visible:bg-muted/30 min-h-11 gap-1 py-1.5"
+      >
         <div className="px-3">
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-muted-foreground min-w-0 truncate text-xs">
