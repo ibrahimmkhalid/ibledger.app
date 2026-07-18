@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,9 +27,14 @@ import type { Fund } from "@/app/tracker/types";
 import {
   MultiFundSlider,
   type SliderFund,
-  keyToColorIndex,
-  segmentColor,
 } from "@/components/ui/multi-fund-slider";
+import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
+import { Swatch } from "@/components/ui/swatch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 type DraftFund = {
@@ -343,18 +347,23 @@ export default function FundsPage() {
       {sliderFunds.length > 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Income Allocation</CardTitle>
+            <CardTitle>Income allocation</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
               Set how each paycheck splits across your funds. Savings keeps
-              whatever&apos;s left over.
+              whatever&apos;s left over, so your shares always add up to 100%.
             </p>
             <MultiFundSlider
               funds={sliderFunds}
               onChange={handleSliderChange}
               disabled={busy}
             />
+            <p className="text-muted-foreground text-2xs">
+              Drag a divider, or focus it and use the arrow keys (hold Shift for
+              bigger steps). Nothing is saved until you press Confirm — Revert
+              undoes every change.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -370,7 +379,7 @@ export default function FundsPage() {
               onClick={addFund}
               disabled={busy}
             >
-              <Plus className="mr-1 h-4 w-4" />
+              <Plus />
               Add fund
             </Button>
           </div>
@@ -395,19 +404,10 @@ export default function FundsPage() {
                   <TableRow key={f.key}>
                     {/* Colour dot */}
                     <TableCell>
-                      <div
-                        className={cn(
-                          "mx-auto h-4 w-4 rounded-sm",
-                          segmentColor(ci, f.isSavings),
-                        )}
-                        style={
-                          f.isSavings
-                            ? {
-                                backgroundImage:
-                                  "repeating-linear-gradient(-45deg,transparent,transparent 2px,rgba(255,255,255,.3) 2px,rgba(255,255,255,.3) 4px)",
-                              }
-                            : undefined
-                        }
+                      <Swatch
+                        color={seriesColor(ci, f.isSavings).bg}
+                        hatched={f.isSavings}
+                        className="mx-auto"
                       />
                     </TableCell>
 
@@ -424,7 +424,7 @@ export default function FundsPage() {
                           className="max-w-[200px]"
                         />
                         {!f.id && (
-                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
+                          <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
                             New
                           </span>
                         )}
@@ -445,19 +445,36 @@ export default function FundsPage() {
 
                     {/* Delete */}
                     <TableCell>
-                      {!f.isSavings && (
-                        <span title={del.reason}>
+                      {!f.isSavings &&
+                        (del.ok ? (
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => removeFund(f.key)}
-                            disabled={busy || !del.ok}
+                            disabled={busy}
+                            aria-label={`Delete ${f.name || "fund"}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 />
                           </Button>
-                        </span>
-                      )}
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span tabIndex={0} className="inline-flex">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled
+                                  aria-label={`Can't delete ${f.name || "fund"}: ${del.reason}`}
+                                  className="text-muted-foreground pointer-events-none"
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{del.reason}</TooltipContent>
+                          </Tooltip>
+                        ))}
                     </TableCell>
                   </TableRow>
                 );
@@ -488,7 +505,7 @@ export default function FundsPage() {
                     className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
                   >
                     <span className="min-w-[100px] font-medium">{f.name}</span>
-                    <span className="tabular-nums">{displayPct} pull</span>
+                    <span className="tabular-nums">{displayPct} income share</span>
                     <span className="opacity-40">·</span>
                     <span className="tabular-nums">
                       {fmtAmount(f.balance)} balance
