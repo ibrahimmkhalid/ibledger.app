@@ -21,10 +21,23 @@ import {
   SignInButton,
   SignUpButton,
   UserButton,
+  useAuth,
 } from "@clerk/nextjs";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { syncBootstrapIdentity } from "@/app/tracker/lib/bootstrap";
+
+// Reports the Clerk user id to the bootstrap cache so a session switch that
+// happens without a full page load drops the previous user's cached result.
+// Split out (and only mounted when Clerk is) because useAuth needs a provider.
+function BootstrapIdentitySync() {
+  const { isLoaded, userId } = useAuth();
+  useEffect(() => {
+    if (isLoaded) syncBootstrapIdentity(userId ?? null);
+  }, [isLoaded, userId]);
+  return null;
+}
 
 const NAV_ITEMS = [
   { href: "/tracker", label: "Overview" },
@@ -81,6 +94,7 @@ export function AppShell(args: {
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
+      {!devTesting && <BootstrapIdentitySync />}
       <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
