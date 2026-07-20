@@ -88,11 +88,18 @@ export function SegmentedControl<T extends string>(args: {
   hint?: string;
 }) {
   const { label, value, options, onChange, hint } = args;
+  // The option captions repeat across controls ("All", "In"…), so the group
+  // must carry the label for the buttons to be unambiguous to screen readers.
+  const labelId = useId();
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label>{label}</Label>
-      <div className="border-input bg-input/20 dark:bg-input/30 flex h-10 items-center gap-0.5 rounded-md border p-0.5 sm:h-7">
+      <Label id={labelId}>{label}</Label>
+      <div
+        role="group"
+        aria-labelledby={labelId}
+        className="border-input bg-input/20 dark:bg-input/30 flex h-10 items-center gap-0.5 rounded-md border p-0.5 sm:h-7"
+      >
         {options.map((option) => {
           const active = option.value === value;
           return (
@@ -136,6 +143,10 @@ export function MultiSelectDropdown(args: {
 }) {
   const { label, allLabel, options, selectedIds, onChange } = args;
   const searchId = useId();
+  // "All"/"1 selected" summaries repeat across dropdowns; naming the trigger
+  // by label + summary keeps each one unambiguous to screen readers.
+  const labelId = useId();
+  const summaryId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -161,15 +172,18 @@ export function MultiSelectDropdown(args: {
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label>{label}</Label>
+      <Label id={labelId}>{label}</Label>
       <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
         <PopoverPrimitive.Trigger asChild>
           <Button
             type="button"
             variant="outline"
+            aria-labelledby={`${labelId} ${summaryId}`}
             className="w-full justify-between px-2 font-normal"
           >
-            <span className="min-w-0 truncate">{summary}</span>
+            <span id={summaryId} className="min-w-0 truncate">
+              {summary}
+            </span>
             <ChevronDownIcon className="text-muted-foreground" />
           </Button>
         </PopoverPrimitive.Trigger>
@@ -186,6 +200,7 @@ export function MultiSelectDropdown(args: {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={`Search ${label.toLowerCase()}`}
+                aria-label={`Search ${label.toLowerCase()}`}
                 className="pl-7"
               />
             </div>
