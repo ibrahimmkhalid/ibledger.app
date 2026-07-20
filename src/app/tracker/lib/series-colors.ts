@@ -25,7 +25,7 @@ export const SERIES_COLORS: readonly SeriesColor[] = [
   { bg: "#6366f1", fg: LIGHT }, // indigo
   { bg: "#db2777", fg: LIGHT }, // pink
   { bg: "#84cc16", fg: DARK }, //  lime
-  { bg: "#0ea5e9", fg: LIGHT }, // sky
+  { bg: "#0ea5e9", fg: DARK }, //  sky (light hue: white text fails contrast)
   { bg: "#c026d3", fg: LIGHT }, // fuchsia
   { bg: "#facc15", fg: DARK }, //  yellow
 ] as const;
