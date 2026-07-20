@@ -22,7 +22,7 @@ export function TrackerActions(props: {
       <Button
         variant="outline"
         onClick={props.onRefresh}
-        disabled={props.disabled}
+        disabled={props.disabled || props.refreshing}
       >
         <RefreshCwIcon className={cn(props.refreshing && "animate-spin")} />
         Refresh
