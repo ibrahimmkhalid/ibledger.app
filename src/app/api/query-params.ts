@@ -70,8 +70,20 @@ export function parseDateParam(searchParams: URLSearchParams, name: string) {
   const raw = searchParams.get(name)?.trim();
   if (!raw) return null;
 
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) {
+    throw new BadRequestError(`Invalid ${name}`);
+  }
+
   const parsed = new Date(`${raw}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
+  // Date normalises overflow (2026-02-30 becomes March 2nd); a round-trip
+  // mismatch means the components were not a real calendar date.
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== Number(match[1]) ||
+    parsed.getUTCMonth() + 1 !== Number(match[2]) ||
+    parsed.getUTCDate() !== Number(match[3])
+  ) {
     throw new BadRequestError(`Invalid ${name}`);
   }
 
