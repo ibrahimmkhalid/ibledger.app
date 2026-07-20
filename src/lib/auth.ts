@@ -57,7 +57,7 @@ async function resolveIdentity(
     .limit(2);
 
   const byClerkId = clerkId
-    ? rows.find((row) => row.clerkId === clerkId)
+    ? rows.find((row) => row.clerkId === clerkId && !row.deletedAt)
     : undefined;
   if (byClerkId) {
     return { kind: "found", user: byClerkId };
@@ -70,6 +70,13 @@ async function resolveIdentity(
   const byEmail = rows.find((row) => row.email === email);
   if (!byEmail) {
     return { kind: "missing" };
+  }
+
+  // A soft-deleted account still owns its unique email but must be neither
+  // authorized nor adopted. Blocked rather than "missing": sending this caller
+  // to bootstrap would just collide with the same row.
+  if (byEmail.deletedAt) {
+    return { kind: "email_taken" };
   }
 
   if (byEmail.clerkId) {
@@ -85,7 +92,13 @@ async function resolveIdentity(
   const adopted = await db
     .update(users)
     .set({ clerkId, updatedAt: new Date() })
-    .where(and(eq(users.id, byEmail.id), isNull(users.clerkId)))
+    .where(
+      and(
+        eq(users.id, byEmail.id),
+        isNull(users.clerkId),
+        isNull(users.deletedAt),
+      ),
+    )
     .returning()
     .then((res) => res[0]);
 
@@ -103,7 +116,7 @@ async function resolveIdentity(
     .limit(1)
     .then((res) => res[0]);
 
-  if (claimed?.clerkId === clerkId) {
+  if (claimed?.clerkId === clerkId && !claimed.deletedAt) {
     return { kind: "found", user: claimed };
   }
 
