@@ -50,6 +50,21 @@ function toISODate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// Shift a date back by whole months, clamping to the target month's final day
+// so setMonth can't overflow (May 31 minus a month is Apr 30, not May 1).
+function monthsAgoClamped(base: Date, months: number): Date {
+  const target = new Date(base);
+  target.setDate(1);
+  target.setMonth(target.getMonth() - months);
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0,
+  ).getDate();
+  target.setDate(Math.min(base.getDate(), lastDay));
+  return target;
+}
+
 // Resolves a relative range preset into concrete start/end dates (inclusive of
 // today). "all" clears the range so analytics span every transaction.
 export function dateRangeForPreset(preset: DateRangePreset): {
@@ -59,23 +74,24 @@ export function dateRangeForPreset(preset: DateRangePreset): {
   if (preset === "all") return { startDate: "", endDate: "" };
 
   const today = new Date();
-  const start = new Date(today);
+  let start = new Date(today);
 
   switch (preset) {
     case "last_week":
-      start.setDate(start.getDate() - 7);
+      // Back 6 days: the range is inclusive of today, giving seven dates.
+      start.setDate(start.getDate() - 6);
       break;
     case "last_month":
-      start.setMonth(start.getMonth() - 1);
+      start = monthsAgoClamped(today, 1);
       break;
     case "last_3_months":
-      start.setMonth(start.getMonth() - 3);
+      start = monthsAgoClamped(today, 3);
       break;
     case "last_6_months":
-      start.setMonth(start.getMonth() - 6);
+      start = monthsAgoClamped(today, 6);
       break;
     case "last_year":
-      start.setFullYear(start.getFullYear() - 1);
+      start = monthsAgoClamped(today, 12);
       break;
     case "ytd":
       start.setMonth(0, 1);
