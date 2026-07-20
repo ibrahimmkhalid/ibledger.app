@@ -220,6 +220,18 @@ export async function PATCH(
           (acc, p) => acc + Number(p.incomePull ?? 0),
           0,
         );
+        // Same corruption family: a NaN or out-of-range total would silently
+        // rewrite the postings to nonsense (negative savings, sum ≠ total).
+        // The small tolerance keeps float dust in a legit 100% split legal.
+        if (
+          !Number.isFinite(nonSavingsPct) ||
+          nonSavingsPct < 0 ||
+          nonSavingsPct > 100 + 1e-9
+        ) {
+          throw new Error(
+            "Invalid income allocation percentages for this income event",
+          );
+        }
         if (!savingsPosting && nonSavingsPct < 100) {
           throw new Error(
             "Missing savings allocation posting for this income event",
