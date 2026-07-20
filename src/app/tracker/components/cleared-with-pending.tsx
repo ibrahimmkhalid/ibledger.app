@@ -8,15 +8,17 @@ export function ClearedWithPending(args: {
 }) {
   const cleared = Number(args.cleared);
   const withPending = Number(args.withPending);
-  const delta = withPending - cleared;
+  // Balances are floats, so the subtraction leaves dust; round to whole cents
+  // so a sub-cent delta doesn't render as "[-$0.00]".
+  const deltaCents = Math.round((withPending - cleared) * 100);
 
-  const sign = delta > 0 ? "+" : "-";
+  const sign = deltaCents > 0 ? "+" : "-";
   return (
     <>
       <span className="font-semibold">{fmtAmount(cleared)}</span>
-      {delta !== 0 && (
+      {deltaCents !== 0 && (
         <span className="text-muted-foreground ml-2">
-          [{sign}${fmtAmount(delta, "plain")}]
+          [{sign}${fmtAmount(deltaCents / 100, "plain")}]
         </span>
       )}
     </>
