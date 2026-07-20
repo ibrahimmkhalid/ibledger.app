@@ -97,19 +97,27 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
     f.pullPercentage = roundHalf(f.pullPercentage * scale);
   }
 
-  // roundHalf can nudge the total a little either side of 100; settle the
-  // difference on the largest fund, which is big enough to absorb it whichever
-  // way it went. Rounding each fund up independently could otherwise push the
-  // total back over 100.
+  // roundHalf can nudge the total a little either side of 100. Positive drift
+  // settles on the largest fund, which is big enough to absorb it. Negative
+  // drift may exceed what any single fund holds, so walk the funds largest
+  // first, trimming each (clamped at zero) until it is fully consumed.
   const drift = 100 - nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
-  if (drift !== 0) {
+  if (drift > 0) {
     const largest = nonSavings.reduce((a, b) =>
       b.pullPercentage > a.pullPercentage ? b : a,
     );
-    largest.pullPercentage = Math.max(
-      0,
-      roundHalf(largest.pullPercentage + drift),
+    largest.pullPercentage = roundHalf(largest.pullPercentage + drift);
+  } else if (drift < 0) {
+    let remaining = -drift;
+    const byShare = [...nonSavings].sort(
+      (a, b) => b.pullPercentage - a.pullPercentage,
     );
+    for (const f of byShare) {
+      if (remaining <= 0) break;
+      const cut = Math.min(f.pullPercentage, remaining);
+      f.pullPercentage = roundHalf(f.pullPercentage - cut);
+      remaining = roundHalf(remaining - cut);
+    }
   }
 
   return out;
