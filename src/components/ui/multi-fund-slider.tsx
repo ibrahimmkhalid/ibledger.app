@@ -77,6 +77,10 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   });
 
   const [dragging, setDragging] = useState<number | null>(null);
+  // Pointer-to-boundary distance captured at grab time. Handles are 20px wide
+  // (and visually offset when stacked), so tracking the raw pointer would snap
+  // the boundary to wherever inside the handle the user happened to press.
+  const dragOffsetRef = useRef(0);
 
   // Cumulative boundary positions: for N funds we have N-1 draggable handles.
   const cumValues: number[] = [];
@@ -116,7 +120,8 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
 
     const handleMove = (e: PointerEvent) => {
       const rect = track.getBoundingClientRect();
-      const rawPct = ((e.clientX - rect.left) / rect.width) * 100;
+      const rawPct =
+        ((e.clientX - dragOffsetRef.current - rect.left) / rect.width) * 100;
       const pct = roundHalf(Math.max(0, Math.min(100, rawPct)));
       onChangeRef.current(applyBoundary(fundsRef.current, dragging, pct));
     };
@@ -226,6 +231,10 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
               onPointerDown={(e) => {
                 e.preventDefault();
                 (e.currentTarget as HTMLElement).focus();
+                const rect = trackRef.current?.getBoundingClientRect();
+                dragOffsetRef.current = rect
+                  ? e.clientX - (rect.left + (val / 100) * rect.width)
+                  : 0;
                 setDragging(i);
               }}
               onKeyDown={(e) => onHandleKeyDown(e, i)}
