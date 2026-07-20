@@ -564,12 +564,21 @@ export default function OnboardingPage() {
                               return (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span tabIndex={0} className="inline-flex">
+                                    {/* The span (not the inert Button) takes
+                                        focus, so it must carry the control's
+                                        semantics. */}
+                                    <span
+                                      tabIndex={0}
+                                      role="button"
+                                      aria-disabled="true"
+                                      aria-label={`Can't delete ${f.name}: still holds money`}
+                                      className="inline-flex"
+                                    >
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         disabled
-                                        aria-label={`Can't delete ${f.name}: still holds money`}
+                                        aria-hidden
                                         className="text-muted-foreground pointer-events-none"
                                       >
                                         <Trash2 />
