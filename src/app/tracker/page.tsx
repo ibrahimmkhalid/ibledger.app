@@ -55,9 +55,13 @@ function overspentBadge(args: { raw: number; label?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="text-2xs bg-destructive/10 text-destructive inline-flex cursor-help items-center rounded-full px-2 py-0.5 font-semibold">
+        {/* A button so keyboard users can focus it to open the tooltip. */}
+        <button
+          type="button"
+          className="text-2xs bg-destructive/10 text-destructive focus-visible:ring-ring inline-flex cursor-help items-center rounded-full px-2 py-0.5 font-semibold focus-visible:ring-2 focus-visible:outline-none"
+        >
           Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
-        </span>
+        </button>
       </TooltipTrigger>
       <TooltipContent>
         This fund went below $0
