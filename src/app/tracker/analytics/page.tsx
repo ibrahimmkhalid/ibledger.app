@@ -158,9 +158,15 @@ export default function AnalyticsPage() {
         setPageLoading(true);
       }
 
+      // When bootstrap redirects on a full-screen load, keep the skeleton up
+      // until navigation lands instead of flashing the empty page.
+      let redirected = false;
       try {
         const ready = await checkBootstrapOrRedirect(router);
-        if (!ready) return;
+        if (!ready) {
+          redirected = true;
+          return;
+        }
 
         const [walletsRes, fundsRes, analyticsRes] = await Promise.all([
           apiJson<{ wallets: Wallet[] }>("/api/wallets?summary=false"),
@@ -177,7 +183,7 @@ export default function AnalyticsPage() {
         );
       } finally {
         if (options?.fullScreen) {
-          setLoading(false);
+          if (!redirected) setLoading(false);
         } else {
           setPageLoading(false);
         }

@@ -204,15 +204,21 @@ export default function FundsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    // When bootstrap redirects, keep the skeleton up until navigation lands;
+    // clearing it would flash an empty funds page mid-redirect.
+    let redirected = false;
     try {
       const ready = await checkBootstrapOrRedirect(router);
-      if (!ready) return;
+      if (!ready) {
+        redirected = true;
+        return;
+      }
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setServerFunds(res.funds);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load funds");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }, [router]);
 
