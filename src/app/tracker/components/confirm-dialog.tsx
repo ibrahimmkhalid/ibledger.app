@@ -27,6 +27,9 @@ export function useConfirm() {
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
+      // A confirm while another is pending replaces the dialog; settle the
+      // superseded request as "cancelled" so its awaiter doesn't hang forever.
+      resolver.current?.(false);
       resolver.current = resolve;
       setState({ ...opts, open: true });
     });
