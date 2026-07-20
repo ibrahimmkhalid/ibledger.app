@@ -94,9 +94,15 @@ export default function TrackerPage() {
       if (opts?.initial) setLoading(true);
       else setRefreshing(true);
 
+      // When bootstrap redirects on the initial load, keep the skeleton up
+      // until navigation lands instead of flashing the empty overview.
+      let redirected = false;
       try {
         const ready = await checkBootstrapOrRedirect(router);
-        if (!ready) return;
+        if (!ready) {
+          redirected = true;
+          return;
+        }
 
         const overview =
           await apiJson<OverviewResponse>("/api/tracker/overview");
@@ -112,8 +118,11 @@ export default function TrackerPage() {
             : "Couldn't load your ledger. Check your connection and try again.",
         );
       } finally {
-        if (opts?.initial) setLoading(false);
-        else setRefreshing(false);
+        if (opts?.initial) {
+          if (!redirected) setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
       }
     },
     [router],
