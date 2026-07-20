@@ -45,8 +45,15 @@ export async function POST() {
 
     // An email-matched row that is already bound to a different Clerk ID belongs
     // to someone else. Claiming it here would rebind their account to this
-    // caller and lock them out.
-    if (!existingByClerkId && existingByEmail?.clerkId) {
+    // caller and lock them out. Likewise, when the caller's own row and the
+    // email-matched row are different rows, updating the caller's row to this
+    // email would collide with the other account's unique email.
+    if (
+      (!existingByClerkId && existingByEmail?.clerkId) ||
+      (existingByClerkId &&
+        existingByEmail &&
+        existingByEmail.id !== existingByClerkId.id)
+    ) {
       return NextResponse.json({ error: EMAIL_TAKEN_ERROR }, { status: 409 });
     }
 
