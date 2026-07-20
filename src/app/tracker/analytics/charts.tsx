@@ -488,8 +488,8 @@ function compactAxisAmount(value: number) {
 
 function cashflowAxisTicks(maxAmount: number) {
   const candidates = [
-    100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000,
-    500000, 1000000,
+    10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
+    250000, 500000, 1000000,
   ].filter((amount) => amount <= maxAmount);
   const step = Math.max(1, Math.ceil(candidates.length / 4));
   const selected = candidates.filter(
