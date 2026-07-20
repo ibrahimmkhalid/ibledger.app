@@ -6,10 +6,10 @@ export const MONEY_TOLERANCE = 0.005;
 // True when the balance is real money rather than float dust. Wallets and funds
 // that hold money cannot be deleted.
 //
-// Fails open on NaN: a broken balance computation reads as "holds nothing", so
-// the delete guard would let it through. Long-standing behaviour at every call
-// site, preserved here rather than changed as a side effect of sharing it.
+// Fails closed on NaN/Infinity: a broken balance computation must block the
+// destructive action rather than read as "holds nothing" and let it through.
 export function holdsMoney(amount: number) {
   const n = Number(amount);
-  return Number.isFinite(n) && Math.abs(n) >= MONEY_TOLERANCE;
+  if (!Number.isFinite(n)) return true;
+  return Math.abs(n) >= MONEY_TOLERANCE;
 }
