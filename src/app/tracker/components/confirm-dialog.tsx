@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
@@ -24,6 +24,7 @@ export function useConfirm() {
     null,
   );
   const resolver = useRef<((value: boolean) => void) | null>(null);
+  const descriptionId = useId();
 
   const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
@@ -48,9 +49,12 @@ export function useConfirm() {
         if (!open) settle(false);
       }}
       title={state.title}
+      descriptionId={state.description ? descriptionId : undefined}
       renderBody={() =>
         state.description ? (
-          <p className="text-muted-foreground text-sm">{state.description}</p>
+          <p id={descriptionId} className="text-muted-foreground text-sm">
+            {state.description}
+          </p>
         ) : null
       }
       renderFooter={() => (

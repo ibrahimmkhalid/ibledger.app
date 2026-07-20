@@ -29,6 +29,8 @@ export function ResponsiveModal(args: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  /** id of the element (inside renderBody) that describes the modal. */
+  descriptionId?: string;
   desktopContentClassName?: string;
   desktopFooterClassName?: string;
   mobileContentClassName?: string;
@@ -40,6 +42,7 @@ export function ResponsiveModal(args: {
     open,
     onOpenChange,
     title,
+    descriptionId,
     desktopContentClassName,
     desktopFooterClassName,
     mobileContentClassName,
@@ -54,7 +57,7 @@ export function ResponsiveModal(args: {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent
-          aria-describedby={undefined}
+          aria-describedby={descriptionId}
           className={cn(
             "data-[vaul-drawer-direction=bottom]:max-h-[92dvh]",
             mobileContentClassName,
@@ -95,7 +98,7 @@ export function ResponsiveModal(args: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        aria-describedby={undefined}
+        aria-describedby={descriptionId}
         className={desktopContentClassName}
       >
         <DialogHeader>
