@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
@@ -94,6 +94,14 @@ export async function PUT(request: NextRequest) {
     }
 
     await db.transaction(async (tx) => {
+      // Serialise syncs per user: two concurrent syncs could otherwise both
+      // validate the 100% pull cap against the same pre-update state and
+      // together commit an over-100% total. The lock releases on commit or
+      // rollback. First argument namespaces this lock ("fund" in ASCII).
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${0x66756e64}, ${user.id})`,
+      );
+
       const now = new Date();
 
       const activeFunds = await tx
