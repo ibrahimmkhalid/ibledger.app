@@ -9,11 +9,18 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
 
-  const data = (await res.json()) as T | ApiError;
+  // Error responses from proxies or crashes may be empty or HTML; a parse
+  // failure must not preempt the friendly error below with a SyntaxError.
+  const data = (await res.json().catch(() => null)) as T | ApiError | null;
   if (!res.ok) {
     throw new Error(
-      (data as ApiError)?.error ?? "Something went wrong. Please try again.",
+      (data as ApiError | null)?.error ??
+        "Something went wrong. Please try again.",
     );
+  }
+
+  if (data === null) {
+    throw new Error("Something went wrong. Please try again.");
   }
 
   return data as T;
