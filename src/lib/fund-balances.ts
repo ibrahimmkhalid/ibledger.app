@@ -12,6 +12,15 @@ type FundBalance = {
 // rawBalanceWithPending alongside, since the unclamped figures are what the
 // delete guard and the overspent badges read.
 export function applySavingsDeficitClamp<T extends FundBalance>(funds: T[]) {
+  // The clamp moves every deficit onto "the" savings fund; with zero or several
+  // of them the totals silently lie, so surface the corrupt ledger as a 500.
+  const savingsCount = funds.filter((f) => f.isSavings).length;
+  if (savingsCount !== 1) {
+    throw new Error(
+      `Ledger must have exactly one savings fund, found ${savingsCount}`,
+    );
+  }
+
   const withRaw = funds.map((f) => ({
     ...f,
     rawBalance: Number(f.balance),
