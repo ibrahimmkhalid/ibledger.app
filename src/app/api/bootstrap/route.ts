@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, users, wallets } from "@/db/schema";
-import { currentUser } from "@/lib/auth";
+import { EMAIL_TAKEN_ERROR, currentUser } from "@/lib/auth";
 
 export async function POST() {
   try {
@@ -42,6 +42,21 @@ export async function POST() {
       (row) => row.clerkId === clerkId,
     );
     const existingByEmail = existingRows.find((row) => row.email === email);
+
+    // An email-matched row that is already bound to a different Clerk ID belongs
+    // to someone else. Claiming it here would rebind their account to this
+    // caller and lock them out. Likewise, when the caller's own row and the
+    // email-matched row are different rows, updating the caller's row to this
+    // email would collide with the other account's unique email.
+    if (
+      (!existingByClerkId && existingByEmail?.clerkId) ||
+      (existingByClerkId &&
+        existingByEmail &&
+        existingByEmail.id !== existingByClerkId.id)
+    ) {
+      return NextResponse.json({ error: EMAIL_TAKEN_ERROR }, { status: 409 });
+    }
+
     const existing = existingByClerkId ?? existingByEmail;
 
     const existingNeedsUpdate =
@@ -78,48 +93,6 @@ export async function POST() {
         { error: "Failed to upsert user" },
         { status: 500 },
       );
-    }
-
-    const [legacyWallet, legacyFund] = await Promise.all([
-      db
-        .select({ id: wallets.id })
-        .from(wallets)
-        .where(
-          and(
-            eq(wallets.userId, dbUser.id),
-            isNull(wallets.deletedAt),
-            sql`${wallets.openingAmount} <> 0`,
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]),
-      db
-        .select({ id: funds.id })
-        .from(funds)
-        .where(
-          and(
-            eq(funds.userId, dbUser.id),
-            isNull(funds.deletedAt),
-            sql`${funds.openingAmount} <> 0`,
-          ),
-        )
-        .limit(1)
-        .then((res) => res[0]),
-    ]);
-
-    if (legacyWallet || legacyFund) {
-      return NextResponse.json({
-        user: dbUser,
-        funds: {},
-        onboarding: {
-          required: false,
-        },
-        migration: {
-          required: true,
-          redirectTo: "/tracker/migrate-starting-balances",
-        },
-        isNewUser: false,
-      });
     }
 
     if (dbUser.onboarded) {

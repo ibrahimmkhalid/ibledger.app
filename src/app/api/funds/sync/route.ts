@@ -3,7 +3,10 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { BadRequestError } from "@/app/api/query-params";
+import { pendingBalanceSql } from "@/db/balances";
+import { requireUser } from "@/lib/auth";
+import { holdsMoney } from "@/lib/money";
 
 /**
  * PUT /api/funds/sync
@@ -24,18 +27,8 @@ import { currentUser, currentUserWithDB } from "@/lib/auth";
  */
 export async function PUT(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -46,8 +39,6 @@ export async function PUT(request: NextRequest) {
     }[] = data?.funds ?? [];
 
     const deletedIds: number[] = data?.deletedIds ?? [];
-
-    // ── Validate inputs ──────────────────────────────────────────────
 
     for (const f of fundInputs) {
       if (!f.name?.trim()) {
@@ -102,35 +93,28 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const touchedFundIds = Array.from(
-      new Set([
-        ...deletedFundIds,
-        ...updateInputs.map((fund) => Number(fund.id)),
-      ]),
-    );
-
-    // ── Apply inside a transaction ───────────────────────────────────
-
     await db.transaction(async (tx) => {
+      // Serialise syncs per user: two concurrent syncs could otherwise both
+      // validate the 100% pull cap against the same pre-update state and
+      // together commit an over-100% total. The lock releases on commit or
+      // rollback. First argument namespaces this lock ("fund" in ASCII).
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${0x66756e64}, ${user.id})`,
+      );
+
       const now = new Date();
 
-      const existingFunds =
-        touchedFundIds.length === 0
-          ? []
-          : await tx
-              .select({ id: funds.id, isSavings: funds.isSavings })
-              .from(funds)
-              .where(
-                and(
-                  eq(funds.userId, user.id),
-                  inArray(funds.id, touchedFundIds),
-                  isNull(funds.deletedAt),
-                ),
-              );
+      const activeFunds = await tx
+        .select({
+          id: funds.id,
+          name: funds.name,
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+        })
+        .from(funds)
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
 
-      const existingById = new Map(
-        existingFunds.map((fund) => [fund.id, fund]),
-      );
+      const existingById = new Map(activeFunds.map((fund) => [fund.id, fund]));
 
       for (const id of deletedFundIds) {
         const target = existingById.get(id);
@@ -143,6 +127,30 @@ export async function PUT(request: NextRequest) {
         if (!existingById.has(id)) throw new Error(`Fund ${id} not found`);
       }
 
+      // Income allocation reads these percentages back and rejects a sum over
+      // 100, so a sync that pushes them past it would lock the user out of
+      // recording income with no way to see why. Check the state this sync
+      // would leave behind, not just the funds it names.
+      const updateById = new Map(
+        updateInputs.map((fund) => [Number(fund.id), fund]),
+      );
+
+      let resultingPullSum = 0;
+      for (const fund of activeFunds) {
+        if (fund.isSavings || deletedFundIdSet.has(fund.id)) continue;
+        const update = updateById.get(fund.id);
+        resultingPullSum += Number(
+          update ? update.pullPercentage : (fund.pullPercentage ?? 0),
+        );
+      }
+      for (const fund of createInputs) {
+        resultingPullSum += Number(fund.pullPercentage);
+      }
+
+      if (resultingPullSum > 100) {
+        throw new BadRequestError("Invalid fund pulls: sum exceeds 100");
+      }
+
       // Verify zero balance for all deletions in one grouped read.
       const balanceRows =
         deletedFundIds.length === 0
@@ -150,9 +158,7 @@ export async function PUT(request: NextRequest) {
           : await tx
               .select({
                 fundId: transactions.fundId,
-                bal: sql<number>`
-              COALESCE(SUM(${transactions.amount}), 0)
-            `.as("bal"),
+                bal: pendingBalanceSql().as("bal"),
               })
               .from(transactions)
               .where(
@@ -174,9 +180,10 @@ export async function PUT(request: NextRequest) {
 
       for (const id of deletedFundIds) {
         const bal = balanceByFundId.get(id) ?? 0;
-        if (Math.abs(bal) > 0.005) {
+        if (holdsMoney(bal)) {
+          const name = existingById.get(id)?.name ?? "This fund";
           throw new Error(
-            `Fund "${id}" has a non-zero balance. Move the money out first.`,
+            `"${name}" still holds money (including pending). Move it out before deleting.`,
           );
         }
       }
@@ -229,6 +236,13 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    // The remaining domain errors thrown inside the transaction ("Fund N not
+    // found", "Cannot delete savings fund", non-zero balance) still surface as
+    // 500s with their raw message. Pre-existing, and left alone deliberately.
     const message =
       error instanceof Error ? error.message : "Internal server error";
     console.error("API: Error syncing funds", error);

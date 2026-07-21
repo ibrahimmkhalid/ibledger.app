@@ -16,7 +16,7 @@ function LoadingPanel({
   return (
     <div
       className={cn(
-        "tracker-skeleton-panel border-border bg-card rounded-lg border p-4",
+        "tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-4 py-4 ring-1",
         className,
       )}
     >
@@ -49,7 +49,7 @@ function PageHeaderSkeleton({
           {actionWidths.map((width, index) => (
             <LoadingBlock
               key={`${width}-${index}`}
-              className={cn("h-9 rounded-md", width)}
+              className={cn("h-11 rounded-md sm:h-7", width)}
             />
           ))}
         </div>
@@ -78,7 +78,7 @@ function CardTitleSkeleton({
         ) : null}
       </div>
       {actionWidth ? (
-        <LoadingBlock className={cn("h-8 shrink-0 rounded-md", actionWidth)} />
+        <LoadingBlock className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)} />
       ) : null}
     </div>
   );
@@ -219,22 +219,22 @@ function PaginationSkeleton() {
   return (
     <div className="flex w-full items-center gap-2">
       <div className="border-border flex shrink-0 items-center gap-0 rounded-lg border p-0.5">
-        <LoadingBlock className="size-6 rounded-md" />
-        <LoadingBlock className="size-6 rounded-md border-l" />
+        <LoadingBlock className="size-10 rounded-md sm:size-6" />
+        <LoadingBlock className="size-10 rounded-md border-l sm:size-6" />
       </div>
       <div className="flex min-w-0 flex-1 justify-center">
         <div className="border-border inline-flex items-center gap-0 rounded-lg border p-0.5">
           {Array.from({ length: 5 }).map((_, index) => (
             <LoadingBlock
               key={index}
-              className={cn("h-6 w-7", index > 0 && "border-l")}
+              className={cn("h-9 w-9 sm:h-6 sm:w-7", index > 0 && "border-l")}
             />
           ))}
         </div>
       </div>
       <div className="border-border flex shrink-0 items-center gap-0 rounded-lg border p-0.5">
-        <LoadingBlock className="size-6 rounded-md" />
-        <LoadingBlock className="size-6 rounded-md border-l" />
+        <LoadingBlock className="size-10 rounded-md sm:size-6" />
+        <LoadingBlock className="size-10 rounded-md border-l sm:size-6" />
       </div>
     </div>
   );
@@ -271,23 +271,26 @@ export function OverviewSkeleton() {
         actionWidths={["w-20", "w-32", "w-24"]}
       />
 
-      <LoadingPanel className="p-6">
-        <LoadingBlock className="mb-3 h-4 w-24 rounded" />
-        <LoadingBlock className="h-7 w-36 rounded" />
+      <LoadingPanel className="py-3">
+        <div className="flex items-center justify-between gap-4">
+          <LoadingBlock className="h-4 w-24 rounded" />
+          <LoadingBlock className="h-6 w-36 rounded" />
+        </div>
+        <LoadingBlock className="mt-2 h-3 w-64 max-w-full rounded" />
       </LoadingPanel>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel className="p-6">
+        <LoadingPanel>
           <LoadingBlock className="mb-4 h-4 w-20 rounded" />
           <AmountRowsSkeleton rows={3} />
         </LoadingPanel>
-        <LoadingPanel className="p-6">
+        <LoadingPanel>
           <LoadingBlock className="mb-4 h-4 w-16 rounded" />
           <AmountRowsSkeleton rows={4} />
         </LoadingPanel>
       </div>
 
-      <LoadingPanel className="p-6">
+      <LoadingPanel>
         <div className="mb-4 flex items-center justify-between gap-4">
           <LoadingBlock className="h-4 w-40 rounded" />
           <LoadingBlock className="h-9 w-20 shrink-0 rounded-md" />
@@ -306,7 +309,7 @@ export function TransactionsSkeleton() {
         actionWidths={["w-20", "w-32", "w-24"]}
       />
 
-      <LoadingPanel className="p-6">
+      <LoadingPanel>
         <CardTitleSkeleton
           titleWidth="w-32"
           descriptionWidth="w-56"
@@ -347,14 +350,14 @@ export function FundsSkeleton() {
     <div className="flex flex-col gap-6" aria-hidden>
       <PageHeaderSkeleton titleWidth="w-24" actionWidths={["w-20", "w-24"]} />
 
-      <LoadingPanel className="p-6">
+      <LoadingPanel>
         <CardTitleSkeleton titleWidth="w-36" descriptionWidth="w-72" />
         <div className="mt-4">
           <AllocationSliderSkeleton />
         </div>
       </LoadingPanel>
 
-      <LoadingPanel className="p-6">
+      <LoadingPanel>
         <CardTitleSkeleton titleWidth="w-24" actionWidth="w-24" />
         <div className="mt-4">
           <TableSkeleton rows={5} columns={4} includeActions />
@@ -369,7 +372,7 @@ export function WalletsSkeleton() {
     <div className="flex flex-col gap-6" aria-hidden>
       <PageHeaderSkeleton titleWidth="w-24" actionWidths={["w-20", "w-28"]} />
 
-      <LoadingPanel className="p-6">
+      <LoadingPanel>
         <CardTitleSkeleton titleWidth="w-24" />
         <div className="mt-4">
           <TableSkeleton rows={4} columns={3} includeActions />
@@ -389,7 +392,7 @@ export function OnboardingSkeleton() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel className="p-6">
+        <LoadingPanel>
           <CardTitleSkeleton
             titleWidth="w-20"
             descriptionWidth="w-72"
@@ -399,7 +402,7 @@ export function OnboardingSkeleton() {
             <TableSkeleton rows={3} columns={1} includeActions />
           </div>
         </LoadingPanel>
-        <LoadingPanel className="p-6">
+        <LoadingPanel>
           <CardTitleSkeleton
             titleWidth="w-16"
             descriptionWidth="w-72"
@@ -410,40 +413,6 @@ export function OnboardingSkeleton() {
           </div>
         </LoadingPanel>
       </div>
-    </div>
-  );
-}
-
-export function MigrationSkeleton() {
-  return (
-    <div className="flex flex-col gap-6" aria-hidden>
-      <PageHeaderSkeleton
-        titleWidth="w-56"
-        subtitleWidth="w-[36rem]"
-        actionWidths={["w-36"]}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel className="p-6">
-          <CardTitleSkeleton titleWidth="w-40" />
-          <div className="mt-4">
-            <TableSkeleton rows={3} columns={3} />
-          </div>
-        </LoadingPanel>
-        <LoadingPanel className="p-6">
-          <CardTitleSkeleton titleWidth="w-36" />
-          <div className="mt-4">
-            <TableSkeleton rows={4} columns={3} />
-          </div>
-        </LoadingPanel>
-      </div>
-
-      <LoadingPanel className="p-6">
-        <CardTitleSkeleton titleWidth="w-36" actionWidth="w-24" />
-        <div className="mt-4">
-          <TableSkeleton rows={4} columns={3} includeActions />
-        </div>
-      </LoadingPanel>
     </div>
   );
 }

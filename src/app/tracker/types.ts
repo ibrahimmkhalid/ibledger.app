@@ -1,24 +1,3 @@
-export type TotalsResponse = {
-  grandTotal: number;
-  grandTotalWithPending: number;
-  wallets: Array<{
-    id: number;
-    name: string;
-    balance: number;
-    balanceWithPending: number;
-  }>;
-  funds: Array<{
-    id: number;
-    name: string;
-    isSavings: boolean;
-    pullPercentage: number;
-    balance: number;
-    balanceWithPending: number;
-    rawBalance?: number;
-    rawBalanceWithPending?: number;
-  }>;
-};
-
 export type Wallet = {
   id: number;
   name: string;
@@ -35,6 +14,13 @@ export type Fund = {
   balanceWithPending: number;
   rawBalance?: number;
   rawBalanceWithPending?: number;
+};
+
+export type OverviewTotals = {
+  grandTotal: number;
+  grandTotalWithPending: number;
+  wallets: Wallet[];
+  funds: Fund[];
 };
 
 export type TransactionLine = {
@@ -82,10 +68,6 @@ export type TransactionsPageSize =
 
 export type BootstrapResponse = {
   onboarding?: {
-    required: boolean;
-    redirectTo: string;
-  };
-  migration?: {
     required: boolean;
     redirectTo: string;
   };

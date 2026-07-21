@@ -1,20 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -25,63 +19,23 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import {
+  WalletModal,
+  type WalletFormState,
+} from "@/app/tracker/components/wallet-modal";
+import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
-import type { BootstrapResponse, Fund, Wallet } from "@/app/tracker/types";
+import { holdsMoney } from "@/lib/money";
+import type { Fund, Wallet } from "@/app/tracker/types";
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { CircleHelpIcon } from "lucide-react";
-
-type WalletFormState = {
-  name: string;
-};
-
-function WalletModal(args: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  initial?: WalletFormState;
-  busy: boolean;
-  onSave: (data: WalletFormState) => void | Promise<void>;
-}) {
-  const { open, onOpenChange, title, initial, busy, onSave } = args;
-  const [name, setName] = useState(initial?.name ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initial?.name ?? "");
-  }, [open, initial]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
 
 type FundFormState = {
   name: string;
@@ -110,6 +64,8 @@ function FundModal(args: {
   const [pullPercentage, setPullPercentage] = useState(
     initial?.pullPercentage ?? "0",
   );
+  const nameId = useId();
+  const shareId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -118,37 +74,47 @@ function FundModal(args: {
   }, [open, initial]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      desktopContentClassName="sm:max-w-[min(40rem,calc(100vw-2rem))]"
+      renderBody={() => (
         <div className="grid gap-4">
           <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Label htmlFor={nameId}>Name</Label>
+            <Input
+              id={nameId}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Groceries"
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <div className="flex flex-row gap-1">
-              <div className="text-muted-foreground text-xs">
-                Pull percentage
-              </div>
+            <div className="flex flex-row items-center gap-1">
+              <Label htmlFor={shareId}>Income share</Label>
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger>
-                    <CircleHelpIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="What is income share?"
+                      className="text-muted-foreground shrink-0 opacity-65"
+                    >
+                      <CircleHelpIcon className="size-3.5" />
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
-                      What percentage of an income transaction to save into this
-                      fund. The rest will be saved in the savings fund.
+                      The share of each paycheck that flows into this fund.
+                      Whatever&apos;s left lands in savings.
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
             <Input
+              id={shareId}
               inputMode="decimal"
               value={pullPercentage}
               onChange={(e) => setPullPercentage(e.target.value)}
@@ -156,23 +122,23 @@ function FundModal(args: {
             />
           </div>
         </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name, pullPercentage })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+      renderFooter={() => (
+        <Button
+          type="button"
+          onClick={() => void onSave({ name, pullPercentage })}
+          disabled={busy}
+        >
+          Save
+        </Button>
+      )}
+    />
   );
 }
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -192,18 +158,10 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
+      const ready = await checkBootstrapOrRedirect(router, {
+        skipOnboarding: true,
       });
-
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      // Even if onboarding is no longer required, allow users to revisit this
-      // page to tweak initial setup.
+      if (!ready) return;
 
       const [walletsRes, fundsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -262,9 +220,12 @@ export default function OnboardingPage() {
   }
 
   async function deleteWallet(wallet: Wallet) {
-    const ok = window.confirm(
-      `Delete wallet "${wallet.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${wallet.name}"?`,
+      description: "This wallet and its history will be removed. You can't undo this.",
+      confirmLabel: "Delete wallet",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -344,9 +305,12 @@ export default function OnboardingPage() {
   }
 
   async function deleteFund(fund: Fund) {
-    const ok = window.confirm(
-      `Delete fund "${fund.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${fund.name}"?`,
+      description: "This fund will be removed. You can't undo this.",
+      confirmLabel: "Delete fund",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -370,14 +334,15 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
       <div className="flex flex-col gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Welcome</h1>
           <div className="text-muted-foreground text-sm">
-            To get started, add your own wallets and funds! We have already
-            started you off with a default savings fund and bank wallet. Take a
-            look or go straight to the tracker! You can always modify these
-            later.
+            Set up the wallets your money sits in and the funds it&apos;s set
+            aside for. We&apos;ve started you with a Bank wallet and a Savings
+            fund — rename them, add your own, or head straight to the tracker.
+            Nothing here is permanent.
           </div>
         </div>
         <div className="flex flex-row flex-wrap items-center gap-2">
@@ -396,7 +361,7 @@ export default function OnboardingPage() {
             }}
             disabled={!canFinish}
           >
-            Complete onboarding
+            Finish setup
           </Button>
         </div>
       </div>
@@ -466,8 +431,8 @@ export default function OnboardingPage() {
         <CardContent>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-muted-foreground text-sm">
-              We have set up a default &quot;Bank&quot; wallet for you. Add more
-              if you need!
+              Add every account your money actually sits in — checking, cash, a
+              card. We started you with a Bank wallet.
             </div>
             <Button onClick={() => setCreateWalletOpen(true)}>
               New wallet
@@ -478,7 +443,7 @@ export default function OnboardingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[200px]"></TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -492,21 +457,28 @@ export default function OnboardingPage() {
                 wallets.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell className="font-medium">{w.name}</TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditWallet(w)}
-                        disabled={busy}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => void deleteWallet(w)}
-                        disabled={busy || wallets.length <= 1}
-                      >
-                        Delete
-                      </Button>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditWallet(w)}
+                          disabled={busy}
+                          aria-label={`Edit ${w.name}`}
+                        >
+                          <Pencil />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void deleteWallet(w)}
+                          disabled={busy || wallets.length <= 1}
+                          aria-label={`Delete ${w.name}`}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -523,8 +495,8 @@ export default function OnboardingPage() {
         <CardContent>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-muted-foreground text-sm">
-              We have set up a default &quot;Savings&quot; fund for you. Add
-              more if you need!
+              Add a fund for each thing you set money aside for. Savings catches
+              whatever the others don&apos;t claim.
             </div>
             <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
           </div>
@@ -533,9 +505,9 @@ export default function OnboardingPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[110px]">Savings</TableHead>
-                <TableHead className="w-[130px] text-right">Pull %</TableHead>
-                <TableHead className="w-[220px]"></TableHead>
+                <TableHead>Savings</TableHead>
+                <TableHead className="text-right">Income share</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -553,40 +525,75 @@ export default function OnboardingPage() {
                     <TableCell className="text-right tabular-nums">
                       {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
                     </TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditFund(f)}
-                        disabled={busy}
-                      >
-                        Edit
-                      </Button>
-                      {f.isSavings
-                        ? null
-                        : (() => {
-                            const rawWithPending = Number(
-                              f.rawBalanceWithPending ?? f.balanceWithPending,
-                            );
-                            const deleteBlocked =
-                              Number.isFinite(rawWithPending) &&
-                              Math.abs(rawWithPending) > 0.005;
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditFund(f)}
+                          disabled={busy}
+                          aria-label={`Edit ${f.name}`}
+                        >
+                          <Pencil />
+                        </Button>
+                        {f.isSavings
+                          ? null
+                          : (() => {
+                              const deleteBlocked = holdsMoney(
+                                Number(
+                                  f.rawBalanceWithPending ??
+                                    f.balanceWithPending,
+                                ),
+                              );
 
-                            const title = deleteBlocked
-                              ? "Can't delete: this fund has a non-zero balance (including pending). Move money out and clear pending transactions first."
-                              : undefined;
+                              if (!deleteBlocked) {
+                                return (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => void deleteFund(f)}
+                                    disabled={busy}
+                                    aria-label={`Delete ${f.name}`}
+                                    className="text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 />
+                                  </Button>
+                                );
+                              }
 
-                            return (
-                              <span title={title}>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => void deleteFund(f)}
-                                  disabled={busy || deleteBlocked}
-                                >
-                                  Delete
-                                </Button>
-                              </span>
-                            );
-                          })()}
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    {/* The span (not the inert Button) takes
+                                        focus, so it must carry the control's
+                                        semantics. */}
+                                    <span
+                                      tabIndex={0}
+                                      role="button"
+                                      aria-disabled="true"
+                                      aria-label={`Can't delete ${f.name}: still holds money`}
+                                      className="inline-flex"
+                                    >
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled
+                                        aria-hidden
+                                        className="text-muted-foreground pointer-events-none"
+                                      >
+                                        <Trash2 />
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    This fund still holds money (including
+                                    pending). Move it out and clear pending
+                                    transactions before deleting.
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

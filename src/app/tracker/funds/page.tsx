@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,19 +19,23 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import type { BootstrapResponse, Fund } from "@/app/tracker/types";
+import { holdsMoney } from "@/lib/money";
+import type { Fund } from "@/app/tracker/types";
 import {
   MultiFundSlider,
   type SliderFund,
-  keyToColorIndex,
-  segmentColor,
 } from "@/components/ui/multi-fund-slider";
+import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
+import { Swatch } from "@/components/ui/swatch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
-
-/* ═══════════════════════════════════════════════════════════════════
-   Types
-   ═══════════════════════════════════════════════════════════════════ */
 
 type DraftFund = {
   key: string;
@@ -45,10 +48,6 @@ type DraftFund = {
   rawBalance?: number;
   rawBalanceWithPending?: number;
 };
-
-/* ═══════════════════════════════════════════════════════════════════
-   Helpers
-   ═══════════════════════════════════════════════════════════════════ */
 
 /** Round to nearest 0.5. */
 function roundHalf(n: number): number {
@@ -79,59 +78,47 @@ function fundToDraft(f: Fund): DraftFund {
 }
 
 /**
- * Normalise non-savings pull-percentages so they sum to ≤ 99
- * (keeping at least 1 % for the savings segment on the slider).
+ * Non-savings pulls have to leave savings a non-negative share, so they can
+ * total at most 100. Any fund may sit at 0, meaning no income is routed to it,
+ * and savings may sit at 0 when the others claim everything between them.
  *
- * A3: reserve 1 % per fund as a guaranteed base before distributing the
- *     remaining pool (99 − count) proportionally.  This eliminates the
- *     post-hoc min‑1 % enforcement that could push the total past 99.
- * A4: the last fund is clamped to what's left — it can never overshoot.
+ * Only ever scales down, and only for totals over 100 -- which the server now
+ * rejects, so they can only come from rows written before it did.
  */
 function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const out = drafts.map((d) => ({ ...d }));
   const nonSavings = out.filter((f) => !f.isSavings);
-  if (nonSavings.length === 0) return out;
-
-  const count = nonSavings.length;
-  const MAX = 99;
-  const POOL = MAX - count; // remaining after 1 % per fund
 
   const total = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
+  if (total <= 100) return out;
 
-  // Nothing allocated → distribute the pool equally.
-  if (total === 0) {
-    const share = roundHalf(POOL / count);
-    let allocated = 0;
-    nonSavings.forEach((f, i) => {
-      const variable = i === count - 1 ? roundHalf(POOL - allocated) : share;
-      allocated += variable;
-      f.pullPercentage = 1 + Math.max(0, variable);
-    });
-    return out;
+  const scale = 100 / total;
+  for (const f of nonSavings) {
+    f.pullPercentage = roundHalf(f.pullPercentage * scale);
   }
 
-  // Total exceeds 99 → scale the variable portion so it fits in the pool.
-  if (total > MAX) {
-    const scale = POOL / total;
-    let varAllocated = 0;
-    nonSavings.forEach((f, i) => {
-      if (i === count - 1) {
-        // A4: last fund takes what's left — guaranteed no overshoot.
-        f.pullPercentage = 1 + Math.max(0, roundHalf(POOL - varAllocated));
-      } else {
-        const variable = roundHalf(f.pullPercentage * scale);
-        varAllocated += variable;
-        f.pullPercentage = 1 + variable;
-      }
-    });
-    return out;
+  // roundHalf can nudge the total a little either side of 100. Positive drift
+  // settles on the largest fund, which is big enough to absorb it. Negative
+  // drift may exceed what any single fund holds, so walk the funds largest
+  // first, trimming each (clamped at zero) until it is fully consumed.
+  const drift = 100 - nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
+  if (drift > 0) {
+    const largest = nonSavings.reduce((a, b) =>
+      b.pullPercentage > a.pullPercentage ? b : a,
+    );
+    largest.pullPercentage = roundHalf(largest.pullPercentage + drift);
+  } else if (drift < 0) {
+    let remaining = -drift;
+    const byShare = [...nonSavings].sort(
+      (a, b) => b.pullPercentage - a.pullPercentage,
+    );
+    for (const f of byShare) {
+      if (remaining <= 0) break;
+      const cut = Math.min(f.pullPercentage, remaining);
+      f.pullPercentage = roundHalf(f.pullPercentage - cut);
+      remaining = roundHalf(remaining - cut);
+    }
   }
-
-  // Total ≤ 99: just bump below‑1 funds up to the minimum.
-  // No risk of overflow since the worst case (all 0 → all 1) sums to ≤ 99.
-  nonSavings.forEach((f) => {
-    if (f.pullPercentage < 1) f.pullPercentage = 1;
-  });
 
   return out;
 }
@@ -164,38 +151,30 @@ function buildSliderFunds(drafts: DraftFund[]): SliderFund[] {
 }
 
 function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
-  if (d.isSavings) return { ok: false, reason: "Cannot delete savings fund" };
+  if (d.isSavings) return { ok: false, reason: "Savings can't be deleted" };
   if (!d.id) return { ok: true };
   const raw = Number(d.rawBalanceWithPending ?? d.balanceWithPending);
-  if (Number.isFinite(raw) && Math.abs(raw) >= 0.005) {
+  if (holdsMoney(raw)) {
     return {
       ok: false,
-      reason: "Non-zero balance (including pending). Move money out first.",
+      reason: "Still holds money (including pending). Move it out first.",
     };
   }
   return { ok: true };
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Page
-   ═══════════════════════════════════════════════════════════════════ */
-
 export default function FundsPage() {
   const router = useRouter();
 
-  // ── server state ─────────────────────────────────────────────────
   const [serverFunds, setServerFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── draft state ──────────────────────────────────────────────────
   const [draftFunds, setDraftFunds] = useState<DraftFund[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
 
-  // ── ui state ─────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false);
 
-  // ── derived ──────────────────────────────────────────────────────
   const sliderFunds = useMemo(() => buildSliderFunds(draftFunds), [draftFunds]);
 
   /** Display order: non-savings first, savings last. */
@@ -223,22 +202,15 @@ export default function FundsPage() {
     [serverFunds],
   );
 
-  // ── data loading ─────────────────────────────────────────────────
-
   const refresh = useCallback(async () => {
     setLoading(true);
+    // When bootstrap redirects, keep the skeleton up until navigation lands;
+    // clearing it would flash an empty funds page mid-redirect.
+    let redirected = false;
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) {
+        redirected = true;
         return;
       }
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
@@ -246,7 +218,7 @@ export default function FundsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load funds");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }, [router]);
 
@@ -264,8 +236,6 @@ export default function FundsPage() {
   useEffect(() => {
     resetDraft();
   }, [resetDraft]);
-
-  // ── draft mutations ──────────────────────────────────────────────
 
   function updateDraft(key: string, updates: Partial<DraftFund>) {
     setDraftFunds((prev) =>
@@ -287,40 +257,19 @@ export default function FundsPage() {
   }
 
   function addFund() {
-    setDraftFunds((prev) => {
-      const nonSavings = prev.filter((f) => !f.isSavings);
-      const nsTotal = nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
-      const savingsWouldBe = 100 - nsTotal - 1;
-
-      let updated = [...prev];
-
-      // If savings would drop below 1 %, steal 1 % from the largest fund.
-      if (savingsWouldBe < 1 && nonSavings.length > 0) {
-        const sorted = [...nonSavings].sort(
-          (a, b) => b.pullPercentage - a.pullPercentage,
-        );
-        const largest = sorted[0];
-        if (largest && largest.pullPercentage > 1) {
-          updated = updated.map((f) =>
-            f.key === largest.key
-              ? { ...f, pullPercentage: f.pullPercentage - 1 }
-              : f,
-          );
-        }
-      }
-
-      return [
-        ...updated,
-        {
-          key: crypto.randomUUID(),
-          name: "",
-          pullPercentage: 1,
-          isSavings: false,
-          balance: 0,
-          balanceWithPending: 0,
-        },
-      ];
-    });
+    // Starts at 0: a new fund takes no income until it is dragged a share, and
+    // adding one must not quietly take income away from the funds already set.
+    setDraftFunds((prev) => [
+      ...prev,
+      {
+        key: crypto.randomUUID(),
+        name: "",
+        pullPercentage: 0,
+        isSavings: false,
+        balance: 0,
+        balanceWithPending: 0,
+      },
+    ]);
     setDirty(true);
   }
 
@@ -338,8 +287,6 @@ export default function FundsPage() {
   function revert() {
     resetDraft();
   }
-
-  // ── save ─────────────────────────────────────────────────────────
 
   async function confirmChanges() {
     setBusy(true);
@@ -369,8 +316,6 @@ export default function FundsPage() {
       setBusy(false);
     }
   }
-
-  // ── render ───────────────────────────────────────────────────────
 
   if (loading) {
     return <FundsSkeleton />;
@@ -416,17 +361,23 @@ export default function FundsPage() {
       {sliderFunds.length > 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Income Allocation</CardTitle>
+            <CardTitle>Income allocation</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
-              Decide what percentage of your income should go to each fund.
+              Set how each paycheck splits across your funds. Savings keeps
+              whatever&apos;s left over, so your shares always add up to 100%.
             </p>
             <MultiFundSlider
               funds={sliderFunds}
               onChange={handleSliderChange}
               disabled={busy}
             />
+            <p className="text-muted-foreground text-2xs">
+              Drag a divider, or focus it and use the arrow keys (hold Shift for
+              bigger steps). Nothing is saved until you press Confirm — Revert
+              undoes every change.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -442,7 +393,7 @@ export default function FundsPage() {
               onClick={addFund}
               disabled={busy}
             >
-              <Plus className="mr-1 h-4 w-4" />
+              <Plus />
               Add fund
             </Button>
           </div>
@@ -453,10 +404,7 @@ export default function FundsPage() {
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[120px] text-right">Balance</TableHead>
-                <TableHead className="w-[140px] text-right">
-                  w/ Pending
-                </TableHead>
+                <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="w-[48px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -470,19 +418,10 @@ export default function FundsPage() {
                   <TableRow key={f.key}>
                     {/* Colour dot */}
                     <TableCell>
-                      <div
-                        className={cn(
-                          "mx-auto h-4 w-4 rounded-sm",
-                          segmentColor(ci, f.isSavings),
-                        )}
-                        style={
-                          f.isSavings
-                            ? {
-                                backgroundImage:
-                                  "repeating-linear-gradient(-45deg,transparent,transparent 2px,rgba(255,255,255,.3) 2px,rgba(255,255,255,.3) 4px)",
-                              }
-                            : undefined
-                        }
+                      <Swatch
+                        color={seriesColor(ci, f.isSavings).bg}
+                        hatched={f.isSavings}
+                        className="mx-auto"
                       />
                     </TableCell>
 
@@ -499,7 +438,7 @@ export default function FundsPage() {
                           className="max-w-[200px]"
                         />
                         {!f.id && (
-                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
+                          <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
                             New
                           </span>
                         )}
@@ -508,29 +447,56 @@ export default function FundsPage() {
 
                     {/* Balance */}
                     <TableCell className="text-right tabular-nums">
-                      {f.id ? fmtAmount(f.balance) : "-"}
-                    </TableCell>
-
-                    {/* Balance w/ pending */}
-                    <TableCell className="text-right tabular-nums">
-                      {f.id ? fmtAmount(f.balanceWithPending) : "-"}
+                      {f.id ? (
+                        <ClearedWithPending
+                          cleared={f.balance}
+                          withPending={f.balanceWithPending}
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
 
                     {/* Delete */}
                     <TableCell>
-                      {!f.isSavings && (
-                        <span title={del.reason}>
+                      {!f.isSavings &&
+                        (del.ok ? (
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => removeFund(f.key)}
-                            disabled={busy || !del.ok}
+                            disabled={busy}
+                            aria-label={`Delete ${f.name || "fund"}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 />
                           </Button>
-                        </span>
-                      )}
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {/* The span (not the inert Button) takes focus,
+                                  so it must carry the control's semantics. */}
+                              <span
+                                tabIndex={0}
+                                role="button"
+                                aria-disabled="true"
+                                aria-label={`Can't delete ${f.name || "fund"}: ${del.reason}`}
+                                className="inline-flex"
+                              >
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled
+                                  aria-hidden
+                                  className="text-muted-foreground pointer-events-none"
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{del.reason}</TooltipContent>
+                          </Tooltip>
+                        ))}
                     </TableCell>
                   </TableRow>
                 );
@@ -561,7 +527,7 @@ export default function FundsPage() {
                     className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
                   >
                     <span className="min-w-[100px] font-medium">{f.name}</span>
-                    <span className="tabular-nums">{displayPct} pull</span>
+                    <span className="tabular-nums">{displayPct} income share</span>
                     <span className="opacity-40">·</span>
                     <span className="tabular-nums">
                       {fmtAmount(f.balance)} balance

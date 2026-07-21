@@ -4,17 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -25,60 +18,20 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { fmtAmount } from "@/app/tracker/lib/format";
+import {
+  WalletModal,
+  type WalletFormState,
+} from "@/app/tracker/components/wallet-modal";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
-import type { BootstrapResponse, Wallet } from "@/app/tracker/types";
+import type { Wallet } from "@/app/tracker/types";
 
-type WalletFormState = {
-  name: string;
-};
-
-function WalletModal(args: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  initial?: WalletFormState;
-  busy: boolean;
-  onSave: (data: WalletFormState) => void | Promise<void>;
-}) {
-  const { open, onOpenChange, title, initial, busy, onSave } = args;
-  const [name, setName] = useState(initial?.name ?? "");
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initial?.name ?? "");
-  }, [open, initial]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:min-w-[40rem]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="grid gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="text-muted-foreground text-xs">Name</div>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            onClick={() => void onSave({ name })}
-            disabled={busy}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function WalletsPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -89,18 +42,13 @@ export default function WalletsPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    // When bootstrap redirects, keep the skeleton up until navigation lands;
+    // clearing it would flash an empty wallets page mid-redirect.
+    let redirected = false;
     try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
-      }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) {
+        redirected = true;
         return;
       }
       const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
@@ -108,7 +56,7 @@ export default function WalletsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load wallets");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }, [router]);
 
@@ -155,9 +103,12 @@ export default function WalletsPage() {
   }
 
   async function deleteWallet(wallet: Wallet) {
-    const ok = window.confirm(
-      `Delete wallet "${wallet.name}"? This cannot be undone.`,
-    );
+    const ok = await confirm({
+      title: `Delete "${wallet.name}"?`,
+      description: "This wallet and its history will be removed. You can't undo this.",
+      confirmLabel: "Delete wallet",
+      destructive: true,
+    });
     if (!ok) return;
 
     setBusy(true);
@@ -181,6 +132,7 @@ export default function WalletsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Wallets</h1>
         <div className="flex items-center gap-2">
@@ -228,38 +180,42 @@ export default function WalletsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead className="w-[140px] text-right">Balance</TableHead>
-                <TableHead className="w-[160px] text-right">
-                  With pending
-                </TableHead>
-                <TableHead className="w-[220px]"></TableHead>
+                <TableHead className="text-right">Balance</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {wallets.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtAmount(w.balance)}
+                  <TableCell className="text-right text-sm tabular-nums whitespace-normal">
+                    <ClearedWithPending
+                      cleared={w.balance}
+                      withPending={w.balanceWithPending}
+                    />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtAmount(w.balanceWithPending)}
-                  </TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditWallet(w)}
-                      disabled={busy}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => void deleteWallet(w)}
-                      disabled={busy || wallets.length <= 1}
-                    >
-                      Delete
-                    </Button>
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-2 sm:gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditWallet(w)}
+                        disabled={busy}
+                        aria-label={`Edit ${w.name}`}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void deleteWallet(w)}
+                        disabled={busy || wallets.length <= 1}
+                        aria-label={`Delete ${w.name}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

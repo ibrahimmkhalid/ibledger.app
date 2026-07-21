@@ -1,4 +1,4 @@
-export class BadRequestError extends Error {}
+import { BadRequestError } from "@/app/api/query-params";
 
 export type CreateTransactionLineInput = {
   walletId: number;

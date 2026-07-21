@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { apiJson } from "@/app/tracker/lib/api";
+import { useBusy } from "@/app/tracker/components/use-busy";
 import {
   formatCentsToDisplay,
   parseInputAsCents,
@@ -86,19 +88,13 @@ export function TransactionModal(args: {
     onDeleted,
   } = args;
 
-  const walletOptions = useMemo(
-    () => wallets.map((w) => ({ id: w.id, name: w.name })),
-    [wallets],
-  );
-
-  const fundOptions = useMemo(() => funds, [funds]);
-
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, setBusy, setError, runWithBusy } = useBusy();
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
   const [description, setDescription] = useState("");
+  const dateId = useId();
+  const descriptionId = useId();
   const [lines, setLines] = useState<LineDraft[]>([]);
 
   useEffect(() => {
@@ -150,8 +146,7 @@ export function TransactionModal(args: {
 
     const defaultWalletId = wallets[0]?.id;
     const preferredFundId =
-      fundOptions.find((f) => !f.isSavings)?.id ??
-      fundOptions.find((f) => f.isSavings)?.id;
+      funds.find((f) => !f.isSavings)?.id ?? funds.find((f) => f.isSavings)?.id;
 
     setOccurredAt(isoToday());
     setLines([
@@ -163,7 +158,7 @@ export function TransactionModal(args: {
         isPending: true,
       }),
     ]);
-  }, [open, initialEvent, wallets, fundOptions]);
+  }, [open, initialEvent, wallets, funds, setBusy, setError]);
 
   function patchLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) =>
@@ -194,7 +189,7 @@ export function TransactionModal(args: {
     const parsed = lines.map((l) => {
       const abs = Number(l.amount) / 100;
       if (Number.isNaN(abs) || abs <= 0) {
-        throw new Error("Each line must have an amount > 0");
+        throw new Error("Every line needs an amount above $0");
       }
 
       const walletId = l.walletId ? Number(l.walletId) : null;
@@ -202,7 +197,7 @@ export function TransactionModal(args: {
       const transactionId = l.transactionId ? Number(l.transactionId) : null;
 
       if (walletId === null || fundId === null) {
-        throw new Error("Each line must include a wallet and a fund.");
+        throw new Error("Every line needs a wallet and a fund");
       }
 
       const signedAmount = l.direction === "out" ? -abs : abs;
@@ -229,9 +224,7 @@ export function TransactionModal(args: {
   }
 
   async function saveCreate() {
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
       await apiJson("/api/transactions", {
         method: "POST",
@@ -245,19 +238,13 @@ export function TransactionModal(args: {
       });
       await onSaved?.();
       onOpenChange(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to save");
   }
 
   async function saveEdit() {
     if (!initialEvent) return;
 
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       const { lines: parsedLines, eventIsPending } = parseLinesForApi();
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "PATCH",
@@ -270,31 +257,21 @@ export function TransactionModal(args: {
         }),
       });
       await onSaved?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to save");
   }
 
   async function deleteEvent() {
     if (!initialEvent) return;
 
-    setError(null);
-    setBusy(true);
-    try {
+    await runWithBusy(async () => {
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "DELETE",
       });
       await onDeleted?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    } finally {
-      setBusy(false);
-    }
+    }, "Failed to delete");
   }
 
-  const title = initialEvent ? "Transaction" : "Add transaction";
+  const title = initialEvent ? "Transaction details" : "Add transaction";
 
   const readOnly = Boolean(initialEvent) && !editing;
 
@@ -399,7 +376,7 @@ export function TransactionModal(args: {
                         {fmtAmount(Math.abs(n))}
                       </span>
                     </TableCell>
-                    <TableCell>{Boolean(c.isPending) ? "yes" : "no"}</TableCell>
+                    <TableCell>{c.isPending ? "Yes" : "No"}</TableCell>
                   </TableRow>
                 );
               })}
@@ -446,7 +423,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {walletOptions.map((w) => (
+                      {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
                           {w.name}
                         </SelectItem>
@@ -467,7 +444,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {fundOptions.map((f) => (
+                      {funds.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
                           {f.name}
                         </SelectItem>
@@ -591,7 +568,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {walletOptions.map((w) => (
+                      {wallets.map((w) => (
                         <SelectItem key={w.id} value={String(w.id)}>
                           {w.name}
                         </SelectItem>
@@ -613,7 +590,7 @@ export function TransactionModal(args: {
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {fundOptions.map((f) => (
+                      {funds.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
                           {f.name}
                         </SelectItem>
@@ -697,7 +674,7 @@ export function TransactionModal(args: {
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      desktopContentClassName="sm:max-w-5xl sm:min-w-[56rem]"
+      desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
       desktopFooterClassName="flex items-center justify-between gap-2"
       renderBody={({ isMobile }) => (
         <>
@@ -709,8 +686,9 @@ export function TransactionModal(args: {
             }
           >
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Date</div>
+              <Label htmlFor={dateId}>Date</Label>
               <Input
+                id={dateId}
                 type="date"
                 value={occurredAt}
                 onChange={(e) => setOccurredAt(e.target.value)}
@@ -718,15 +696,25 @@ export function TransactionModal(args: {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <div className="text-muted-foreground text-xs">Description</div>
+              <Label htmlFor={descriptionId}>Description</Label>
               <Input
+                id={descriptionId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
+                placeholder="e.g. Grocery run"
                 disabled={readOnly}
               />
             </div>
           </div>
+
+          {!readOnly && (
+            <p className="text-muted-foreground text-2xs">
+              Amounts fill in cents-first — type 4200 for $42.00. Turn on{" "}
+              <span className="font-medium">Pending</span> for a line whose money
+              hasn&apos;t settled yet; it stays out of your cleared balance until
+              you clear it.
+            </p>
+          )}
 
           {renderBreakdown(isMobile)}
           {renderLinesEditor(isMobile)}

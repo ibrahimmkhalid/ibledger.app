@@ -1,9 +1,7 @@
-import { TrackerShell } from "@/app/tracker/tracker-shell";
-
 export default function TrackerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <TrackerShell>{children}</TrackerShell>;
+  return <div className="mx-auto w-full max-w-6xl px-4 py-6">{children}</div>;
 }

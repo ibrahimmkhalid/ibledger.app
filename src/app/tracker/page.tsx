@@ -1,7 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -23,61 +22,53 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import { EventModals } from "@/app/tracker/components/event-modals";
+import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
+import {
+  AddTransactionFab,
+  TrackerActions,
+} from "@/app/tracker/components/tracker-actions";
 import { OverviewSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
+import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import { isIncomeLike } from "@/app/tracker/lib/events";
 import type {
-  BootstrapResponse,
   EventsResponse,
   Fund,
-  TotalsResponse,
+  OverviewTotals,
   TransactionEvent,
   Wallet,
 } from "@/app/tracker/types";
 
-type OverviewResponse = TotalsResponse & EventsResponse;
-
-const TransactionModal = dynamic(
-  () =>
-    import("@/app/tracker/components/transaction-modal").then(
-      (m) => m.TransactionModal,
-    ),
-  { ssr: false },
-);
-
-const IncomeModal = dynamic(
-  () =>
-    import("@/app/tracker/components/income-modal").then((m) => m.IncomeModal),
-  { ssr: false },
-);
+type OverviewResponse = OverviewTotals & EventsResponse;
 
 function overspentBadge(args: { raw: number; label?: string }) {
   const raw = Number(args.raw);
   if (!Number.isFinite(raw) || raw >= 0) return null;
   return (
-    <span className="bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold">
-      Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
-    </span>
-  );
-}
-
-function renderClearedWithPending(cleared: number, withPending: number) {
-  const c = Number(cleared);
-  const p = Number(withPending);
-  const delta = p - c;
-
-  const sign = delta > 0 ? "+" : "-";
-  return (
-    <>
-      <span className="font-semibold">{fmtAmount(c)}</span>
-      {delta !== 0 && (
-        <span className="text-muted-foreground ml-2">
-          [{sign}${fmtAmount(delta, "plain")}]
-        </span>
-      )}
-    </>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* A button so keyboard users can focus it to open the tooltip. */}
+        <button
+          type="button"
+          className="text-2xs bg-destructive/10 text-destructive focus-visible:ring-ring inline-flex cursor-help items-center rounded-full px-2 py-0.5 font-semibold focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Overspent{args.label ? ` (${args.label})` : ""} {fmtAmount(-raw)}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        This fund went below $0
+        {args.label ? " once pending clears" : ""}; Savings covers the
+        difference.
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -85,8 +76,9 @@ export default function TrackerPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [totals, setTotals] = useState<TotalsResponse | null>(null);
+  const [totals, setTotals] = useState<OverviewTotals | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
   const [events, setEvents] = useState<TransactionEvent[]>([]);
@@ -97,39 +89,44 @@ export default function TrackerPage() {
     null,
   );
 
-  const detailsIsIncome = detailsEvent ? isIncomeLike(detailsEvent) : false;
+  const refresh = useCallback(
+    async (opts?: { initial?: boolean }) => {
+      if (opts?.initial) setLoading(true);
+      else setRefreshing(true);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+      // When bootstrap redirects on the initial load, keep the skeleton up
+      // until navigation lands instead of flashing the empty overview.
+      let redirected = false;
+      try {
+        const ready = await checkBootstrapOrRedirect(router);
+        if (!ready) {
+          redirected = true;
+          return;
+        }
 
-    try {
-      const boot = await apiJson<BootstrapResponse>("/api/bootstrap", {
-        method: "POST",
-        body: "{}",
-      });
+        const overview =
+          await apiJson<OverviewResponse>("/api/tracker/overview");
 
-      if (boot.migration?.required) {
-        router.replace(boot.migration.redirectTo);
-        return;
+        setWallets(overview.wallets);
+        setFunds(overview.funds);
+        setTotals(overview);
+        setEvents(overview.events);
+      } catch (e) {
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : "Couldn't load your ledger. Check your connection and try again.",
+        );
+      } finally {
+        if (opts?.initial) {
+          if (!redirected) setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
       }
-
-      if (boot.onboarding?.required) {
-        router.replace(boot.onboarding.redirectTo);
-        return;
-      }
-
-      const overview = await apiJson<OverviewResponse>("/api/tracker/overview");
-
-      setWallets(overview.wallets);
-      setFunds(overview.funds);
-      setTotals(overview);
-      setEvents(overview.events);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+    },
+    [router],
+  );
 
   // Prefetch sibling routes for instant navigation
   useEffect(() => {
@@ -139,7 +136,7 @@ export default function TrackerPage() {
   }, [router]);
 
   useEffect(() => {
-    void refresh();
+    void refresh({ initial: true });
   }, [refresh]);
 
   if (loading) {
@@ -148,96 +145,49 @@ export default function TrackerPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <AddTransactionFab onClick={() => setCreateTransactionOpen(true)} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Overview</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => void refresh()}>
-            Refresh
-          </Button>
-          <Button onClick={() => setCreateTransactionOpen(true)}>
-            Add transaction
-          </Button>
-          <Button variant="outline" onClick={() => setCreateIncomeOpen(true)}>
-            Add income
-          </Button>
-        </div>
+        <TrackerActions
+          onRefresh={() => void refresh()}
+          refreshing={refreshing}
+          onAddTransaction={() => setCreateTransactionOpen(true)}
+          onAddIncome={() => setCreateIncomeOpen(true)}
+        />
       </div>
 
-      <TransactionModal
-        open={createTransactionOpen}
-        onOpenChange={setCreateTransactionOpen}
+      <EventModals
         wallets={wallets}
         funds={funds}
-        onSaved={async () => {
-          toast.success("Transaction saved");
-          await refresh();
-        }}
+        createTransactionOpen={createTransactionOpen}
+        onCreateTransactionOpenChange={setCreateTransactionOpen}
+        createIncomeOpen={createIncomeOpen}
+        onCreateIncomeOpenChange={setCreateIncomeOpen}
+        detailsEvent={detailsEvent}
+        onDetailsEventChange={setDetailsEvent}
+        onSaved={refresh}
       />
 
-      <IncomeModal
-        open={createIncomeOpen}
-        onOpenChange={setCreateIncomeOpen}
-        wallets={wallets}
-        onSaved={async () => {
-          toast.success("Income saved");
-          await refresh();
-        }}
-      />
-
-      <TransactionModal
-        open={Boolean(detailsEvent) && !detailsIsIncome}
-        onOpenChange={(open: boolean) => {
-          if (!open) setDetailsEvent(null);
-        }}
-        wallets={wallets}
-        funds={funds}
-        initialEvent={detailsEvent}
-        onSaved={async () => {
-          toast.success("Transaction updated");
-          await refresh();
-          setDetailsEvent(null);
-        }}
-        onDeleted={async () => {
-          toast.success("Transaction deleted");
-          await refresh();
-          setDetailsEvent(null);
-        }}
-      />
-
-      <IncomeModal
-        open={Boolean(detailsEvent) && detailsIsIncome}
-        onOpenChange={(open: boolean) => {
-          if (!open) setDetailsEvent(null);
-        }}
-        wallets={wallets}
-        initialEvent={detailsEvent}
-        onSaved={async () => {
-          toast.success("Income updated");
-          await refresh();
-          setDetailsEvent(null);
-        }}
-        onDeleted={async () => {
-          toast.success("Income deleted");
-          await refresh();
-          setDetailsEvent(null);
-        }}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Grand Total</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm">
-          {totals ? (
-            <div className="text-lg">
-              {renderClearedWithPending(
-                totals.grandTotal,
-                totals.grandTotalWithPending,
-              )}
-            </div>
-          ) : (
-            <div className="text-muted-foreground">-</div>
-          )}
+      <Card size="sm">
+        <CardContent className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="text-muted-foreground text-sm font-medium">
+              Total balance
+            </span>
+            {totals ? (
+              <span className="text-xl font-semibold">
+                <ClearedWithPending
+                  cleared={totals.grandTotal}
+                  withPending={totals.grandTotalWithPending}
+                />
+              </span>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+          <p className="text-muted-foreground text-2xs">
+            Balances show your cleared total, with pending changes in brackets.
+          </p>
         </CardContent>
       </Card>
 
@@ -251,18 +201,18 @@ export default function TrackerPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {wallets.map((w) => (
                   <TableRow key={w.id}>
                     <TableCell>{w.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {renderClearedWithPending(
-                        w.balance,
-                        w.balanceWithPending,
-                      )}
+                    <TableCell className="text-right text-sm tabular-nums">
+                      <ClearedWithPending
+                        cleared={w.balance}
+                        withPending={w.balanceWithPending}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -280,7 +230,7 @@ export default function TrackerPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -301,11 +251,11 @@ export default function TrackerPage() {
                             }))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {renderClearedWithPending(
-                        f.balance,
-                        f.balanceWithPending,
-                      )}
+                    <TableCell className="text-right text-sm tabular-nums">
+                      <ClearedWithPending
+                        cleared={f.balance}
+                        withPending={f.balanceWithPending}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -317,7 +267,7 @@ export default function TrackerPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+          <CardTitle>Recent transactions</CardTitle>
           <CardAction>
             <Button
               variant="outline"
@@ -328,16 +278,26 @@ export default function TrackerPage() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-1.5">
-            {events.slice(0, 10).map((ev) => (
-              <Fragment key={ev.id}>
+          {events.length === 0 ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-3 py-8 text-center">
+              <p className="text-sm">
+                No transactions yet. Add your first one to get started.
+              </p>
+              <Button onClick={() => setCreateTransactionOpen(true)}>
+                Add transaction
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {events.slice(0, 10).map((ev) => (
                 <TransactionEventCard
+                  key={ev.id}
                   event={ev}
                   onClick={() => setDetailsEvent(ev)}
                 />
-              </Fragment>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

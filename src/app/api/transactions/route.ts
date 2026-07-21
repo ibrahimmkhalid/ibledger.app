@@ -15,90 +15,22 @@ import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import {
   BadRequestError,
+  fuzzyLikePatterns,
+  parseAmountParam,
+  parseEnumParam,
+  parseIdList,
+  parseIntegerParam,
+} from "@/app/api/query-params";
+import {
   parseCreateTransactionLines,
   parseOccurredAt,
   parseRequestJsonObject,
-  type CreateTransactionLineInput,
 } from "@/app/api/transactions/validation";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
 type DirectionFilter = "all" | "in" | "out";
-
-function parseIntegerParam(
-  searchParams: URLSearchParams,
-  name: string,
-  fallback: number,
-) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-  if (!Number.isInteger(value)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
-}
-
-function parseEnumParam<T extends string>(
-  searchParams: URLSearchParams,
-  name: string,
-  allowed: readonly T[],
-  fallback: T,
-) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return fallback;
-  }
-
-  if (!allowed.includes(raw as T)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return raw as T;
-}
-
-function parseAmountParam(searchParams: URLSearchParams, name: string) {
-  const raw = searchParams.get(name);
-  if (!raw) {
-    return null;
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
-}
-
-function parseIdList(searchParams: URLSearchParams, pluralName: string) {
-  const singularName = pluralName.replace(/s$/, "");
-  const rawValues = [
-    ...searchParams.getAll(pluralName),
-    ...searchParams.getAll(singularName),
-  ];
-
-  if (rawValues.length === 0) {
-    return [];
-  }
-
-  const ids = rawValues
-    .flatMap((value) => value.split(","))
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => Number(value));
-
-  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new BadRequestError(`Invalid ${pluralName}`);
-  }
-
-  return Array.from(new Set(ids));
-}
 
 function sqlNumberList(ids: number[]) {
   return sql.join(
@@ -152,20 +84,8 @@ function incomeExistsSql(userId: number) {
   return childExistsSql(userId, sql`child."income_pull" is not null`);
 }
 
-function escapeLike(input: string) {
-  return input.replace(/[\\%_]/g, "\\$&");
-}
-
-function fuzzyLikePatterns(search: string) {
-  return search
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 8)
-    .map((term) => `%${Array.from(term).map(escapeLike).join("%")}%`);
-}
-
+// Unlike the posting-level search in /api/analytics, this matches at event
+// granularity and reaches down into children.
 function textSearchSql(userId: number, pattern: string) {
   const escapeChar = "\\";
 
@@ -220,18 +140,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
     }
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const allowedPageSizes = [20, 50, 100];
     const pageSize = parseIntegerParam(searchParams, "pageSize", 20);
@@ -276,16 +186,16 @@ export async function GET(request: NextRequest) {
 
     const eventAmount = eventDisplayAmountSql(user.id);
     const incomeExists = incomeExistsSql(user.id);
-    const nonAmountFilterConditions: SQL<unknown>[] = [
+    const filterConditions: SQL<unknown>[] = [
       eq(transactions.userId, user.id),
       isNull(transactions.parentId),
       isNull(transactions.deletedAt),
     ];
 
     if (pendingStatus === "pending") {
-      nonAmountFilterConditions.push(eq(transactions.isPending, true));
+      filterConditions.push(eq(transactions.isPending, true));
     } else if (pendingStatus === "cleared") {
-      nonAmountFilterConditions.push(eq(transactions.isPending, false));
+      filterConditions.push(eq(transactions.isPending, false));
     }
 
     if (fundIds.length > 0) {
@@ -295,7 +205,7 @@ export async function GET(request: NextRequest) {
         childExistsSql(user.id, sql`child."fund_id" in (${ids})`),
       );
       if (fundFilter) {
-        nonAmountFilterConditions.push(fundFilter);
+        filterConditions.push(fundFilter);
       }
     }
 
@@ -306,40 +216,35 @@ export async function GET(request: NextRequest) {
         childExistsSql(user.id, sql`child."wallet_id" in (${ids})`),
       );
       if (walletFilter) {
-        nonAmountFilterConditions.push(walletFilter);
+        filterConditions.push(walletFilter);
       }
     }
 
     if (incomeFilter === "income") {
-      nonAmountFilterConditions.push(incomeExists);
+      filterConditions.push(incomeExists);
     } else if (incomeFilter === "not_income") {
-      nonAmountFilterConditions.push(sql`not (${incomeExists})`);
+      filterConditions.push(sql`not (${incomeExists})`);
     }
 
     if (direction === "in") {
-      nonAmountFilterConditions.push(sql`${eventAmount} > 0`);
+      filterConditions.push(sql`${eventAmount} > 0`);
     } else if (direction === "out") {
-      nonAmountFilterConditions.push(sql`${eventAmount} < 0`);
+      filterConditions.push(sql`${eventAmount} < 0`);
     }
 
     for (const pattern of fuzzyLikePatterns(search)) {
-      nonAmountFilterConditions.push(textSearchSql(user.id, pattern));
+      filterConditions.push(textSearchSql(user.id, pattern));
     }
 
-    const amountFilterConditions: SQL<unknown>[] = [];
-
     if (minAmount !== null) {
-      amountFilterConditions.push(sql`abs(${eventAmount}) >= ${minAmount}`);
+      filterConditions.push(sql`abs(${eventAmount}) >= ${minAmount}`);
     }
 
     if (maxAmount !== null) {
-      amountFilterConditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
+      filterConditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
     }
 
-    const filters = and(
-      ...nonAmountFilterConditions,
-      ...amountFilterConditions,
-    );
+    const filters = and(...filterConditions);
 
     const [countRows, events] = await Promise.all([
       db.select({ value: count() }).from(transactions).where(filters),
@@ -374,7 +279,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid page" }, { status: 400 });
     }
 
-    // when isPosting is false, it means that the event is a parent event
     const parentEventIds = events.filter((e) => !e.isPosting).map((e) => e.id);
 
     const children =
@@ -418,13 +322,13 @@ export async function GET(request: NextRequest) {
       childrenByParentId.set(pid, list);
     }
 
-    const response = events.map((event) => ({
+    const eventsWithChildren = events.map((event) => ({
       ...event,
       children: childrenByParentId.get(event.id) ?? [],
     }));
 
     return NextResponse.json({
-      events: response,
+      events: eventsWithChildren,
       currentPage: page,
       nextPage: page + 1 < totalPages ? page + 1 : -1,
       prevPage: page > 0 ? page - 1 : -1,
@@ -447,18 +351,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const body = await parseRequestJsonObject(request);
 
@@ -472,7 +366,6 @@ export async function POST(request: NextRequest) {
     if (type === "income") {
       const walletId = Number(body.walletId);
       const amount = Number(body.amount);
-      const isPending = eventIsPending;
 
       if (!walletId || Number.isNaN(walletId)) {
         return NextResponse.json(
@@ -550,68 +443,73 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const parent = await db
-        .insert(transactions)
-        .values({
-          userId: user.id,
-          parentId: null,
-          occurredAt,
-          description,
-          isPosting: false,
-          isPending: eventIsPending,
-          incomePull: null,
-          fundId: null,
-          walletId: null,
-          amount: 0,
-        })
-        .returning()
-        .then((res) => res[0]);
+      const eventId = await db.transaction(async (tx) => {
+        const parent = await tx
+          .insert(transactions)
+          .values({
+            userId: user.id,
+            parentId: null,
+            occurredAt,
+            description,
+            isPosting: false,
+            isPending: eventIsPending,
+            incomePull: null,
+            fundId: null,
+            walletId: null,
+            amount: 0,
+          })
+          .returning()
+          .then((res) => res[0]);
 
-      if (!parent) {
-        return NextResponse.json(
-          { error: "Failed to create event" },
-          { status: 500 },
-        );
-      }
+        if (!parent) {
+          throw new Error("Failed to create event");
+        }
 
-      let allocatedTotal = 0;
-      const postingRows: Array<typeof transactions.$inferInsert> = [];
+        let allocatedTotal = 0;
+        const postingRows: Array<typeof transactions.$inferInsert> = [];
 
-      for (const pull of normalizedPulls) {
-        const allocated = (amount * pull.percentage) / 100;
-        allocatedTotal += allocated;
-        postingRows.push({
-          userId: user.id,
-          parentId: parent.id,
-          occurredAt,
-          description: null,
-          isPosting: true,
-          isPending,
-          incomePull: pull.percentage,
-          walletId,
-          fundId: pull.destFundId,
-          amount: allocated,
-        });
-      }
+        for (const pull of normalizedPulls) {
+          const allocated = (amount * pull.percentage) / 100;
+          allocatedTotal += allocated;
+          postingRows.push({
+            userId: user.id,
+            parentId: parent.id,
+            occurredAt,
+            description: null,
+            isPosting: true,
+            isPending: eventIsPending,
+            incomePull: pull.percentage,
+            walletId,
+            fundId: pull.destFundId,
+            amount: allocated,
+          });
+        }
 
-      const savingsPullPct = 100 - pullSum;
-      const savingsAllocated = amount - allocatedTotal;
-      postingRows.push({
-        userId: user.id,
-        parentId: parent.id,
-        occurredAt,
-        description: null,
-        isPosting: true,
-        isPending,
-        incomePull: savingsPullPct,
-        walletId,
-        fundId: savingsFundId,
-        amount: savingsAllocated,
+        // A full 100% split leaves nothing for savings. A zero-amount child
+        // there fails isIncomeLike(), so the UI would open the expense modal
+        // for an income event and the PATCH would 400 -- making the event
+        // permanently uneditable. Omit the child instead.
+        if (pullSum < 100) {
+          postingRows.push({
+            userId: user.id,
+            parentId: parent.id,
+            occurredAt,
+            description: null,
+            isPosting: true,
+            isPending: eventIsPending,
+            incomePull: 100 - pullSum,
+            walletId,
+            fundId: savingsFundId,
+            amount: amount - allocatedTotal,
+          });
+        }
+
+        await tx.insert(transactions).values(postingRows);
+
+        return parent.id;
       });
 
-      await db.insert(transactions).values(postingRows);
-
-      return NextResponse.json({ eventId: parent.id });
+      return NextResponse.json({ eventId });
     }
 
     const lines = parseCreateTransactionLines(body.lines, eventIsPending);
@@ -619,17 +517,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing lines" }, { status: 400 });
     }
 
-    const parsedLines: CreateTransactionLineInput[] = lines;
-
     const neededWalletIds = Array.from(
-      new Set(
-        parsedLines.map((l) => l.walletId).filter((id): id is number => !!id),
-      ),
+      new Set(lines.map((l) => l.walletId).filter((id): id is number => !!id)),
     );
     const neededFundIds = Array.from(
-      new Set(
-        parsedLines.map((l) => l.fundId).filter((id): id is number => !!id),
-      ),
+      new Set(lines.map((l) => l.fundId).filter((id): id is number => !!id)),
     );
 
     const [ownedWallets, fundRows] = await Promise.all([
@@ -677,8 +569,8 @@ export async function POST(request: NextRequest) {
 
     // If this is a single-line event, store it as a posting-only event
     // (no child rows) to reduce inserts.
-    if (parsedLines.length === 1) {
-      const line = parsedLines[0];
+    if (lines.length === 1) {
+      const line = lines[0];
       const posting = await db
         .insert(transactions)
         .values({
@@ -706,46 +598,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ eventId: posting.id });
     }
 
-    const parent = await db
-      .insert(transactions)
-      .values({
-        userId: user.id,
-        parentId: null,
-        occurredAt,
-        description,
-        isPosting: false,
-        isPending: eventIsPending,
-        incomePull: null,
-        fundId: null,
-        walletId: null,
-        amount: 0,
-      })
-      .returning()
-      .then((res) => res[0]);
+    const eventId = await db.transaction(async (tx) => {
+      const parent = await tx
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          parentId: null,
+          occurredAt,
+          description,
+          isPosting: false,
+          isPending: eventIsPending,
+          incomePull: null,
+          fundId: null,
+          walletId: null,
+          amount: 0,
+        })
+        .returning()
+        .then((res) => res[0]);
 
-    if (!parent) {
-      return NextResponse.json(
-        { error: "Failed to create event" },
-        { status: 500 },
+      if (!parent) {
+        throw new Error("Failed to create event");
+      }
+
+      await tx.insert(transactions).values(
+        lines.map((line) => ({
+          userId: user.id,
+          parentId: parent.id,
+          occurredAt,
+          description: line.description ?? null,
+          isPosting: true,
+          isPending: line.isPending,
+          incomePull: null,
+          walletId: line.walletId ?? null,
+          fundId: line.fundId ?? null,
+          amount: line.amount,
+        })),
       );
-    }
 
-    await db.insert(transactions).values(
-      parsedLines.map((line) => ({
-        userId: user.id,
-        parentId: parent.id,
-        occurredAt,
-        description: line.description ?? null,
-        isPosting: true,
-        isPending: line.isPending,
-        incomePull: null,
-        walletId: line.walletId ?? null,
-        fundId: line.fundId ?? null,
-        amount: line.amount,
-      })),
-    );
+      return parent.id;
+    });
 
-    return NextResponse.json({ eventId: parent.id });
+    return NextResponse.json({ eventId });
   } catch (error) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

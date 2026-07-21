@@ -3,14 +3,14 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { BadRequestError } from "@/app/api/query-params";
 import {
-  BadRequestError,
   parseOccurredAt,
   parseRequestJsonObject,
   parseUpdateTransactionLines,
   type UpdateTransactionLineInput,
 } from "@/app/api/transactions/validation";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
 function isIncomeLikeEvent(args: {
   eventIsPosting: boolean;
@@ -25,18 +25,8 @@ export async function PATCH(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const params = await ctx.params;
     const eventId = Number(params.id);
@@ -214,15 +204,39 @@ export async function PATCH(
           (p) => p.fundId === savingsFundId,
         );
 
-        if (!savingsPosting) {
+        const nonSavingsPostings = allocationPostings.filter(
+          (p) => p.id !== savingsPosting?.id,
+        );
+
+        // Income split fully across non-savings funds carries no savings
+        // posting (see the create path). Anything short of a full split must
+        // have one, and its absence means the event is corrupt.
+        //
+        // Not a BadRequestError: nothing the caller sent caused this, so it has
+        // to reach the catch as a 500 and get logged. It used to be caught by a
+        // message.includes("Missing") test and handed back as a 400, which
+        // blamed the user for a broken ledger.
+        const nonSavingsPct = nonSavingsPostings.reduce(
+          (acc, p) => acc + Number(p.incomePull ?? 0),
+          0,
+        );
+        // Same corruption family: a NaN or out-of-range total would silently
+        // rewrite the postings to nonsense (negative savings, sum ≠ total).
+        // The small tolerance keeps float dust in a legit 100% split legal.
+        if (
+          !Number.isFinite(nonSavingsPct) ||
+          nonSavingsPct < 0 ||
+          nonSavingsPct > 100 + 1e-9
+        ) {
+          throw new Error(
+            "Invalid income allocation percentages for this income event",
+          );
+        }
+        if (!savingsPosting && nonSavingsPct < 100) {
           throw new Error(
             "Missing savings allocation posting for this income event",
           );
         }
-
-        const nonSavingsPostings = allocationPostings.filter(
-          (p) => p.id !== savingsPosting.id,
-        );
 
         let nonSavingsAllocated = 0;
         for (const p of nonSavingsPostings) {
@@ -242,21 +256,21 @@ export async function PATCH(
             );
         }
 
-        const savingsAmount = nextTotal - nonSavingsAllocated;
-
-        await tx
-          .update(transactions)
-          .set({
-            walletId: nextWalletId,
-            amount: savingsAmount,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(transactions.userId, user.id),
-              eq(transactions.id, savingsPosting.id),
-            ),
-          );
+        if (savingsPosting) {
+          await tx
+            .update(transactions)
+            .set({
+              walletId: nextWalletId,
+              amount: nextTotal - nonSavingsAllocated,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(transactions.userId, user.id),
+                eq(transactions.id, savingsPosting.id),
+              ),
+            );
+        }
       });
 
       return NextResponse.json({ eventId });
@@ -548,18 +562,6 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-
-    if (
-      message.startsWith("Invalid") ||
-      message.includes("Line must") ||
-      message.includes("Missing") ||
-      message.includes("Fund not found")
-    ) {
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-
     console.error("API: Error updating transaction", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
@@ -573,18 +575,8 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const params = await ctx.params;
     const eventId = Number(params.id);

@@ -13,7 +13,15 @@ import {
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import {
+  BadRequestError,
+  fuzzyLikePatterns,
+  parseAmountParam,
+  parseDateParam,
+  parseEnumParam,
+  parseIdList,
+} from "@/app/api/query-params";
+import { requireUser } from "@/lib/auth";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
@@ -39,87 +47,14 @@ type StartingBalanceRow = {
   fundId: number | null;
 };
 
-class BadRequestError extends Error {}
-
-function parseEnumParam<T extends string>(
-  searchParams: URLSearchParams,
-  name: string,
-  allowed: readonly T[],
-  fallback: T,
-) {
-  const raw = searchParams.get(name);
-  if (!raw) return fallback;
-  if (!allowed.includes(raw as T)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-  return raw as T;
-}
-
-function parseAmountParam(searchParams: URLSearchParams, name: string) {
-  const raw = searchParams.get(name);
-  if (!raw) return null;
-
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-  return value;
-}
-
-function parseIdList(searchParams: URLSearchParams, pluralName: string) {
-  const singularName = pluralName.replace(/s$/, "");
-  const rawValues = [
-    ...searchParams.getAll(pluralName),
-    ...searchParams.getAll(singularName),
-  ];
-
-  if (rawValues.length === 0) return [];
-
-  const ids = rawValues
-    .flatMap((value) => value.split(","))
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => Number(value));
-
-  if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new BadRequestError(`Invalid ${pluralName}`);
-  }
-
-  return Array.from(new Set(ids));
-}
-
-function parseDateParam(searchParams: URLSearchParams, name: string) {
-  const raw = searchParams.get(name)?.trim();
-  if (!raw) return null;
-
-  const parsed = new Date(`${raw}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return parsed;
-}
-
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
 }
 
-function escapeLike(input: string) {
-  return input.replace(/[\\%_]/g, "\\$&");
-}
-
-function fuzzyLikePatterns(search: string) {
-  return search
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 8)
-    .map((term) => `%${Array.from(term).map(escapeLike).join("%")}%`);
-}
-
+// Unlike the events search in /api/transactions, this matches at posting
+// granularity and reaches up to the parent for its description.
 function textSearchSql(userId: number, pattern: string) {
   const escapeChar = "\\";
 
@@ -275,18 +210,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const baseConditions: SQL<unknown>[] = [
       eq(transactions.userId, user.id),
@@ -470,12 +395,12 @@ export async function GET(request: NextRequest) {
     }
 
     const sortedPeriods = Array.from(periods).sort();
-    const walletsForResponse = walletRows.map((wallet) => ({
+    const walletTotalsList = walletRows.map((wallet) => ({
       id: wallet.id,
       name: wallet.name,
       ...(walletTotals.get(String(wallet.id)) ?? emptyMoney()),
     }));
-    const fundsForResponse = fundRows.map((fund) => ({
+    const fundTotalsList = fundRows.map((fund) => ({
       id: fund.id,
       name: fund.name,
       isSavings: fund.isSavings,
@@ -527,7 +452,7 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
     }
 
-    const byFundSpending = fundsForResponse
+    const byFundSpending = fundTotalsList
       .filter((fund) => fund.spending > 0)
       .map((fund) => ({
         id: fund.id,
@@ -539,7 +464,7 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.spending - a.spending);
 
-    const byWalletSpending = walletsForResponse
+    const byWalletSpending = walletTotalsList
       .filter((wallet) => wallet.spending > 0)
       .map((wallet) => ({
         id: wallet.id,
@@ -560,8 +485,6 @@ export async function GET(request: NextRequest) {
         lastTransactionAt: postingRows.at(-1)?.occurredAt ?? null,
       },
       summary,
-      wallets: walletsForResponse,
-      funds: fundsForResponse,
       timeSeries,
       walletSeries: buildSeries(
         walletRows,

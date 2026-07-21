@@ -1,24 +1,16 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
+import { requireUser } from "@/lib/auth";
+import { applySavingsDeficitClamp } from "@/lib/fund-balances";
 
 export async function GET() {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const pageSize = 20;
 
@@ -29,12 +21,8 @@ export async function GET() {
           name: funds.name,
           isSavings: funds.isSavings,
           pullPercentage: funds.pullPercentage,
-          balance: sql<number>`
-            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-          `.as("balance"),
-          balanceWithPending: sql<number>`
-            COALESCE(SUM(${transactions.amount}), 0)
-          `.as("balanceWithPending"),
+          balance: clearedBalanceSql().as("balance"),
+          balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
         })
         .from(funds)
         .leftJoin(
@@ -52,12 +40,8 @@ export async function GET() {
         .select({
           id: wallets.id,
           name: wallets.name,
-          balance: sql<number>`
-            COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-          `.as("balance"),
-          balanceWithPending: sql<number>`
-            COALESCE(SUM(${transactions.amount}), 0)
-          `.as("balanceWithPending"),
+          balance: clearedBalanceSql().as("balance"),
+          balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
         })
         .from(wallets)
         .leftJoin(
@@ -145,37 +129,7 @@ export async function GET() {
       childrenByParentId.set(parentId, list);
     }
 
-    const fundsWithRaw = fundsInfoRaw.map((f) => ({
-      ...f,
-      rawBalance: Number(f.balance),
-      rawBalanceWithPending: Number(f.balanceWithPending),
-    }));
-
-    const deficitCleared = fundsWithRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce((acc, f) => acc + Math.max(0, -Number(f.rawBalance)), 0);
-
-    const deficitWithPending = fundsWithRaw
-      .filter((f) => !Boolean(f.isSavings))
-      .reduce(
-        (acc, f) => acc + Math.max(0, -Number(f.rawBalanceWithPending)),
-        0,
-      );
-
-    const fundsInfo = fundsWithRaw.map((f) => {
-      const balance = f.isSavings
-        ? f.rawBalance - deficitCleared
-        : Math.max(0, f.rawBalance);
-      const balanceWithPending = f.isSavings
-        ? f.rawBalanceWithPending - deficitWithPending
-        : Math.max(0, f.rawBalanceWithPending);
-
-      return {
-        ...f,
-        balance,
-        balanceWithPending,
-      };
-    });
+    const fundsInfo = applySavingsDeficitClamp(fundsInfoRaw);
 
     const grandTotal = walletsInfo.reduce(
       (acc, wallet) => acc + Number(wallet.balance),
@@ -193,7 +147,6 @@ export async function GET() {
     }));
 
     return NextResponse.json({
-      user,
       grandTotal,
       grandTotalWithPending,
       wallets: walletsInfo,
@@ -205,7 +158,6 @@ export async function GET() {
       totalCount: events.length,
       totalPages: events.length === 0 ? 0 : 1,
       pageSize,
-      recentTransactions: eventsWithChildren,
     });
   } catch (error) {
     console.error("API: Error fetching tracker overview", error);

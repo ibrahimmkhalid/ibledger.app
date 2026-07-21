@@ -10,7 +10,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-import { InferInsertModel, InferSelectModel, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp().defaultNow().notNull(),
@@ -80,6 +80,12 @@ export const transactions = pgTable(
 
     occurredAt: timestamp().defaultNow().notNull(),
     description: text(),
+
+    // Discriminates the two event shapes rather than describing the row:
+    //   true  -> a posting. Either a standalone single-line event, or a child
+    //            carrying the money for a parent.
+    //   false -> a parent event. Holds no money itself (amount is 0); its
+    //            children do.
     isPosting: boolean().default(true).notNull(),
     isPending: boolean().default(true).notNull(),
     incomePull: doublePrecision(),
@@ -127,13 +133,3 @@ export const transactions = pgTable(
     }),
   ],
 );
-
-export type User = InferSelectModel<typeof users>;
-export type Fund = InferSelectModel<typeof funds>;
-export type Wallet = InferSelectModel<typeof wallets>;
-export type Transaction = InferSelectModel<typeof transactions>;
-
-export type NewUser = InferInsertModel<typeof users>;
-export type NewFund = InferInsertModel<typeof funds>;
-export type NewWallet = InferInsertModel<typeof wallets>;
-export type NewTransaction = InferInsertModel<typeof transactions>;

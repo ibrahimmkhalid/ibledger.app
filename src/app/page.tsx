@@ -1,9 +1,35 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { ArrowLeftRightIcon, TagIcon, WalletIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
+import { isDevTestingEnabled } from "@/lib/dev-testing";
+
+// The hero CTA reuses the app Button but overrides the toolbar-dense `lg`
+// sizing (which shrinks to h-8/text-xs at sm:) so the page's single primary
+// action reads at full presence on desktop too.
+const heroCtaClass =
+  "h-12 rounded-lg px-6 text-base font-semibold sm:h-12 sm:px-6 sm:text-base";
+
+function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
+  const { icon: Icon, label, tone } = args;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+        tone,
+      )}
+    >
+      <Icon aria-hidden className="size-3 shrink-0" />
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
 
 function ExampleTransactionCard(args: {
   occurredAt: Date;
@@ -11,19 +37,13 @@ function ExampleTransactionCard(args: {
   fundName: string;
   description: string;
   net: number;
-  pending?: boolean;
 }) {
-  const meta = [fmtDateShort(args.occurredAt), args.walletName, args.fundName]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
-    <Card size="sm" className="min-h-11 gap-1 py-1.5">
+    <Card size="sm" className="gap-2 py-2">
       <div className="px-3">
         <div className="flex items-baseline justify-between gap-3">
-          <div className="text-muted-foreground min-w-0 truncate text-xs">
-            <span className="tabular-nums">{meta}</span>
-            {args.pending && <span> · pending</span>}
+          <div className="min-w-0 truncate text-sm font-medium">
+            {args.description}
           </div>
           <div className="text-sm tabular-nums">
             <span className={args.net < 0 ? "text-destructive" : ""}>
@@ -32,307 +52,196 @@ function ExampleTransactionCard(args: {
           </div>
         </div>
 
-        <div className="mt-0.5 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              aria-hidden
-              className="bg-muted-foreground/25 mt-[2px] size-3.5 shrink-0 rounded-[3px]"
-            />
-            <div className={"min-w-0 truncate text-sm font-medium"}>
-              {args.description}
-            </div>
-          </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {fmtDateShort(args.occurredAt)}
+          </span>
+          <MetaChip
+            icon={WalletIcon}
+            label={args.walletName}
+            tone="border-border text-muted-foreground"
+          />
+          <MetaChip
+            icon={TagIcon}
+            label={args.fundName}
+            tone="border-primary/40 text-primary"
+          />
         </div>
       </div>
     </Card>
   );
 }
 
+function PrimaryCta() {
+  if (isDevTestingEnabled()) {
+    return (
+      <Button asChild size="lg" className={heroCtaClass}>
+        <Link href="/tracker">Open your ledger</Link>
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <SignedIn>
+        <Button asChild size="lg" className={heroCtaClass}>
+          <Link href="/tracker">Open your ledger</Link>
+        </Button>
+      </SignedIn>
+      <SignedOut>
+        <SignUpButton>
+          <Button size="lg" className={heroCtaClass}>
+            Start your ledger
+          </Button>
+        </SignUpButton>
+        <SignInButton>
+          <Button variant="outline" size="lg" className={heroCtaClass}>
+            Sign in
+          </Button>
+        </SignInButton>
+      </SignedOut>
+    </>
+  );
+}
+
+function ConceptColumn(args: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const { icon: Icon, title, children } = args;
+  return (
+    <div>
+      <div className="flex items-center justify-center gap-2 sm:justify-start">
+        <Icon aria-hidden className="text-primary size-4 shrink-0" />
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="text-muted-foreground mt-1 text-sm">{children}</p>
+    </div>
+  );
+}
+
 export default function Home() {
-  const isDevTesting = process.env.DEV_TESTING === "true";
   const today = new Date();
 
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="bg-[radial-gradient(closest-side,theme(colors.primary/18),transparent)] absolute -top-24 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full blur-3xl" />
-        <div className="bg-[radial-gradient(closest-side,theme(colors.chart-1/25),transparent)] absolute right-[-140px] -bottom-24 h-[420px] w-[420px] rounded-full blur-3xl" />
-        <div className="bg-[linear-gradient(to_bottom,theme(colors.background),theme(colors.background),theme(colors.muted/35))] absolute inset-0" />
+        <div className="bg-[radial-gradient(closest-side,theme(colors.primary/22),transparent)] dark:bg-[radial-gradient(closest-side,theme(colors.primary/16),transparent)] absolute -top-32 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full blur-3xl" />
       </div>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pt-12 pb-10 sm:pt-16">
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-          <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-700">
-            <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-              Track money by <span className="text-primary">where</span> it
-              lives <span className="text-muted-foreground">and</span>{" "}
-              <span className="text-primary">why</span> it exists.
-            </h1>
-            <p className="text-muted-foreground mt-4 max-w-prose text-sm text-pretty sm:text-base">
-              Wallets capture location (checking, cash, cards). Funds capture
-              purpose (rent, food, travel). Every transaction line picks both.
-            </p>
+      <section className="mx-auto w-full max-w-3xl px-4 pt-20 pb-16 text-center sm:pt-28">
+        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+          Where your money sits.
+          <br />
+          <span className="text-primary">What it&apos;s for.</span>
+        </h1>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {isDevTesting ? (
-                <Link
-                  href="/tracker"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition"
-                >
-                  Open ledger overview
-                </Link>
-              ) : (
-                <>
-                  <SignedIn>
-                    <Link
-                      href="/tracker"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition"
-                    >
-                      Open ledger overview
-                    </Link>
-                  </SignedIn>
-                  <SignedOut>
-                    <SignUpButton>
-                      <button className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold shadow-sm transition">
-                        Get started
-                      </button>
-                    </SignUpButton>
-                    <SignInButton>
-                      <button className="border-border bg-background hover:bg-muted inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-semibold shadow-sm transition">
-                        Sign in
-                      </button>
-                    </SignInButton>
-                  </SignedOut>
-                </>
-              )}
+        <p className="text-muted-foreground mx-auto mt-5 max-w-lg text-base text-pretty">
+          ibLedger is a personal ledger where every transaction picks a{" "}
+          <span className="text-foreground font-medium">wallet</span> (where the
+          money sits) and a{" "}
+          <span className="text-foreground font-medium">fund</span> (what
+          it&apos;s for). One ledger, two answers.
+        </p>
 
-              <Link
-                href="#how-it-works"
-                className="text-muted-foreground hover:text-foreground inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold transition"
-              >
-                See how it works
-              </Link>
-            </div>
-
-            <div className="text-muted-foreground mt-6 flex flex-wrap gap-2 text-xs">
-              <span className="border-border bg-background/60 rounded-full border px-2 py-1">
-                Wallet = where
-              </span>
-              <span className="border-border bg-background/60 rounded-full border px-2 py-1">
-                Fund = why
-              </span>
-              <span className="border-border bg-background/60 rounded-full border px-2 py-1">
-                Pending-aware totals
-              </span>
-            </div>
-          </div>
-
-          <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:delay-150 motion-safe:duration-700">
-            <div className="border-border bg-card/70 rounded-2xl border p-4 shadow-sm backdrop-blur">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">Example</div>
-                <div className="text-muted-foreground text-xs">
-                  Two transactions
-                </div>
-              </div>
-              <div className="mt-3 grid gap-3">
-                <ExampleTransactionCard
-                  occurredAt={today}
-                  walletName="Checking"
-                  fundName="Groceries"
-                  description="Market run"
-                  net={-42.18}
-                />
-                <ExampleTransactionCard
-                  occurredAt={today}
-                  walletName="Cash"
-                  fundName="Coffee"
-                  description="Quick stop"
-                  net={-4.5}
-                />
-              </div>
-
-              <div className="border-border bg-muted/40 mt-4 rounded-xl border p-3">
-                <div className="text-muted-foreground text-xs">
-                  The same dollars exist in a wallet and belong to a purpose.
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <PrimaryCta />
         </div>
       </section>
 
       <section
-        id="how-it-works"
-        className="mx-auto w-full max-w-6xl px-4 pt-4 pb-10"
+        aria-labelledby="demo-heading"
+        className="mx-auto w-full max-w-md px-4 pb-16"
       >
-        <div className="border-border bg-card/60 grid gap-6 rounded-2xl border p-6 shadow-sm backdrop-blur sm:p-8">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              How it works
-            </h2>
-            <p className="text-muted-foreground mt-2 max-w-prose text-sm">
-              A simple loop: set structure once, then capture reality fast.
-            </p>
+        <h2 id="demo-heading" className="sr-only">
+          An example transaction
+        </h2>
+        <div className="border-border bg-card/70 rounded-2xl border p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-2">
+            <ExampleTransactionCard
+              occurredAt={today}
+              walletName="Checking"
+              fundName="Groceries"
+              description="Market run"
+              net={-42.18}
+            />
+            <ExampleTransactionCard
+              occurredAt={today}
+              walletName="Cash"
+              fundName="Coffee"
+              description="Quick stop"
+              net={-4.5}
+            />
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              <div className="text-muted-foreground text-xs font-semibold">
-                01
-              </div>
-              <div className="mt-1 text-sm font-semibold">Create wallets</div>
-              <div className="text-muted-foreground mt-2 text-xs">
-                Checking, cash, cards, savings accounts.
-              </div>
-            </div>
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              <div className="text-muted-foreground text-xs font-semibold">
-                02
-              </div>
-              <div className="mt-1 text-sm font-semibold">Create funds</div>
-              <div className="text-muted-foreground mt-2 text-xs">
-                Envelopes for rent, food, travel, subscriptions.
-              </div>
-            </div>
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              <div className="text-muted-foreground text-xs font-semibold">
-                03
-              </div>
-              <div className="mt-1 text-sm font-semibold">
-                Record transactions
-              </div>
-              <div className="text-muted-foreground mt-2 text-xs">
-                Each line selects both a wallet (where) and a fund (why).
-              </div>
-            </div>
-          </div>
+          <p className="text-muted-foreground mt-3 px-1 text-xs">
+            The <span className="text-foreground">wallet</span> says where the
+            money sits. The <span className="text-primary">fund</span> says what
+            it&apos;s for.
+          </p>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-10">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="border-border bg-card/60 rounded-2xl border p-6 shadow-sm backdrop-blur sm:p-8">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Income pulls
-            </h2>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Route every paycheck automatically. Funds take their percentage.
-              Savings receives the remainder.
-            </p>
-
-            <div className="mt-5">
-              <div className="border-border bg-background/60 h-3 w-full overflow-hidden rounded-full border">
-                <div className="flex h-full">
-                  <div
-                    className="h-full w-[35%]"
-                    style={{ backgroundColor: "var(--chart-3)" }}
-                  />
-                  <div
-                    className="h-full w-[20%]"
-                    style={{ backgroundColor: "var(--chart-2)" }}
-                  />
-                  <div
-                    className="h-full w-[15%]"
-                    style={{ backgroundColor: "var(--chart-1)" }}
-                  />
-                  <div className="bg-primary/60 h-full flex-1" />
-                </div>
-              </div>
-              <div className="text-muted-foreground mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block size-2 rounded-sm"
-                    style={{ backgroundColor: "var(--chart-3)" }}
-                  />
-                  Rent 35%
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block size-2 rounded-sm"
-                    style={{ backgroundColor: "var(--chart-2)" }}
-                  />
-                  Food 20%
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block size-2 rounded-sm"
-                    style={{ backgroundColor: "var(--chart-1)" }}
-                  />
-                  Travel 15%
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-primary/60 inline-block size-2 rounded-sm" />
-                  Savings remainder
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-border bg-card/60 rounded-2xl border p-6 shadow-sm backdrop-blur sm:p-8">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Overspending, made explicit
-            </h2>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Non-savings funds display a floor of $0, but you&apos;ll always
-              see an Overspent badge when raw balances go negative.
-            </p>
-            <div className="mt-5 grid gap-3">
-              <div className="border-border bg-background/60 rounded-xl border p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">Dining out</div>
-                  <div className="bg-destructive/10 text-destructive rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                    Overspent $18.00
-                  </div>
-                </div>
-                <div className="text-muted-foreground mt-2 text-xs">
-                  Displayed balance: $0.00 / Raw balance: -$18.00
-                </div>
-              </div>
-              <div className="border-border bg-background/60 rounded-xl border p-4">
-                <div className="text-sm font-semibold">
-                  Savings absorbs deficits
-                </div>
-                <div className="text-muted-foreground mt-2 text-xs">
-                  When a fund goes below zero, Savings reflects the real
-                  shortfall.
-                </div>
-              </div>
-            </div>
-          </div>
+      <section
+        aria-labelledby="concepts-heading"
+        className="mx-auto w-full max-w-3xl px-4 pb-16"
+      >
+        <h2 id="concepts-heading" className="sr-only">
+          The three building blocks
+        </h2>
+        <div className="grid gap-6 text-center sm:grid-cols-3 sm:gap-4 sm:text-left">
+          <ConceptColumn icon={WalletIcon} title="Wallets">
+            Checking, cash, cards. Where the money sits.
+          </ConceptColumn>
+          <ConceptColumn icon={TagIcon} title="Funds">
+            Rent, food, travel. What the money is for.
+          </ConceptColumn>
+          <ConceptColumn icon={ArrowLeftRightIcon} title="Transactions">
+            Every line picks one of each. Both views stay balanced.
+          </ConceptColumn>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-16">
+      <section
+        aria-labelledby="features-heading"
+        className="mx-auto w-full max-w-3xl px-4 pb-20"
+      >
         <div className="border-border bg-card/60 rounded-2xl border p-6 shadow-sm backdrop-blur sm:p-8">
-          <h2 className="text-xl font-semibold tracking-tight">
-            Trust & privacy
+          <h2 id="features-heading" className="sr-only">
+            What the ledger does for you
           </h2>
-          <div className="text-muted-foreground mt-2 grid gap-2 text-sm sm:grid-cols-3">
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              Auth via Clerk.
+          <div className="grid gap-6 sm:grid-cols-3 sm:gap-4">
+            <div>
+              <h3 className="text-sm font-semibold">
+                Paychecks split themselves
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Set each fund&apos;s share once. Every paycheck allocates itself
+                — no monthly re-budgeting.
+              </p>
             </div>
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              Your data stays tied to your account.
+            <div>
+              <h3 className="text-sm font-semibold">
+                Cleared and pending, side by side
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Always see what you can really spend, not just what&apos;s about
+                to clear.
+              </p>
             </div>
-            <div className="border-border bg-background/60 rounded-xl border p-4">
-              Pending-aware totals for honest forecasts.
+            <div>
+              <h3 className="text-sm font-semibold">
+                Overspending stays visible
+              </h3>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Funds floor at $0 and show an overspent badge, with Savings
+                covering the gap — no category quietly goes negative.
+              </p>
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link
-              href="/tracker/onboarding"
-              className="border-border bg-background hover:bg-muted inline-flex h-9 items-center justify-center rounded-md border px-4 text-sm font-semibold shadow-sm transition"
-            >
-              Take the tour
-            </Link>
-            <Link
-              href="/tracker"
-              className="text-muted-foreground hover:text-foreground inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold transition"
-            >
-              Go to tracker
-            </Link>
+          <div className="border-border mt-8 flex flex-wrap items-center justify-center gap-3 border-t pt-8">
+            <PrimaryCta />
           </div>
         </div>
       </section>

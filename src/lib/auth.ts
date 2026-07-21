@@ -1,8 +1,10 @@
 import { currentUser as clerkCurrentUser } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { isDevTestingEnabled } from "./dev-testing";
 import { testUser } from "./test_user";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 type AuthUser = {
   id?: string | null;
@@ -10,89 +12,149 @@ type AuthUser = {
 };
 
 export async function currentUser() {
-  if (process.env.DEV_TESTING === "true") {
+  if (isDevTestingEnabled()) {
     return testUser satisfies AuthUser;
   }
 
   return await clerkCurrentUser();
 }
 
-export async function currentUserWithDB(user: AuthUser | null | undefined) {
+export const EMAIL_TAKEN_ERROR =
+  "Email is already registered to another account";
+
+type UserRow = typeof users.$inferSelect;
+
+type Identity =
+  | { kind: "found"; user: UserRow }
+  | { kind: "missing" }
+  | { kind: "email_taken" };
+
+// Resolves the Clerk caller to their row, adopting an unclaimed row that matches
+// on email. Writes on that adoption path, despite the name-shape.
+//
+// "email_taken" is distinct from "missing" on purpose: an email-matched row bound
+// to someone else's Clerk ID must never resolve, and telling that caller to
+// bootstrap would send them to an endpoint that rejects them for the same reason.
+async function resolveIdentity(
+  user: AuthUser | null | undefined,
+): Promise<Identity> {
   const clerkId = user?.id;
   const email = user?.emailAddresses?.[0]?.emailAddress;
 
   if (!clerkId && !email) {
-    return null;
+    return { kind: "missing" };
   }
 
-  if (clerkId && email) {
-    const userRows = await db
-      .select()
-      .from(users)
-      .where(or(eq(users.clerkId, clerkId), eq(users.email, email)))
-      .limit(2);
+  const rows = await db
+    .select()
+    .from(users)
+    .where(
+      or(
+        clerkId ? eq(users.clerkId, clerkId) : undefined,
+        email ? eq(users.email, email) : undefined,
+      ),
+    )
+    .limit(2);
 
-    const byClerkId = userRows.find((row) => row.clerkId === clerkId);
-
-    if (byClerkId) {
-      return byClerkId;
-    }
-
-    const byEmail = userRows.find((row) => row.email === email);
-    if (!byEmail) {
-      return null;
-    }
-
-    if (!byEmail.clerkId) {
-      const updated = await db
-        .update(users)
-        .set({ clerkId, updatedAt: new Date() })
-        .where(eq(users.id, byEmail.id))
-        .returning()
-        .then((res) => res[0]);
-
-      return updated ?? byEmail;
-    }
-
-    return byEmail;
-  }
-
-  if (clerkId) {
-    const byClerkId = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkId))
-      .limit(1)
-      .then((res) => res[0]);
-
-    return byClerkId ?? null;
+  const byClerkId = clerkId
+    ? rows.find((row) => row.clerkId === clerkId && !row.deletedAt)
+    : undefined;
+  if (byClerkId) {
+    return { kind: "found", user: byClerkId };
   }
 
   if (!email) {
-    return null;
+    return { kind: "missing" };
   }
 
-  const byEmail = await db
+  const byEmail = rows.find((row) => row.email === email);
+  if (!byEmail) {
+    return { kind: "missing" };
+  }
+
+  // A soft-deleted account still owns its unique email but must be neither
+  // authorized nor adopted. Blocked rather than "missing": sending this caller
+  // to bootstrap would just collide with the same row.
+  if (byEmail.deletedAt) {
+    return { kind: "email_taken" };
+  }
+
+  if (byEmail.clerkId) {
+    return byEmail.clerkId === clerkId
+      ? { kind: "found", user: byEmail }
+      : { kind: "email_taken" };
+  }
+
+  if (!clerkId) {
+    return { kind: "found", user: byEmail };
+  }
+
+  const adopted = await db
+    .update(users)
+    .set({ clerkId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(users.id, byEmail.id),
+        isNull(users.clerkId),
+        isNull(users.deletedAt),
+      ),
+    )
+    .returning()
+    .then((res) => res[0]);
+
+  if (adopted) {
+    return { kind: "found", user: adopted };
+  }
+
+  // The conditional update matched nothing, so someone claimed the row between
+  // the read and the write. That someone may be this same caller in a parallel
+  // request, so re-read rather than assuming a conflict.
+  const claimed = await db
     .select()
     .from(users)
-    .where(eq(users.email, email))
+    .where(eq(users.id, byEmail.id))
     .limit(1)
     .then((res) => res[0]);
 
-  if (!byEmail) {
-    return null;
+  if (claimed?.clerkId === clerkId && !claimed.deletedAt) {
+    return { kind: "found", user: claimed };
   }
 
-  if (clerkId && !byEmail.clerkId) {
-    const updated = await db
-      .update(users)
-      .set({ clerkId, updatedAt: new Date() })
-      .where(eq(users.id, byEmail.id))
-      .returning()
-      .then((res) => res[0]);
+  return { kind: "email_taken" };
+}
 
-    return updated ?? byEmail;
+// Every route needs the same two steps: an authenticated caller, and the DB row
+// that caller maps to. Returns the row, or the response to hand straight back.
+export async function requireUser() {
+  const authUser = await currentUser();
+  if (!authUser) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    } as const;
   }
 
-  return byEmail;
+  const identity = await resolveIdentity(authUser);
+
+  if (identity.kind === "email_taken") {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: EMAIL_TAKEN_ERROR },
+        { status: 409 },
+      ),
+    } as const;
+  }
+
+  if (identity.kind === "missing") {
+    return {
+      user: null,
+      response: NextResponse.json(
+        { error: "User not found. Call POST /api/bootstrap first." },
+        { status: 400 },
+      ),
+    } as const;
+  }
+
+  return { user: identity.user, response: null } as const;
 }

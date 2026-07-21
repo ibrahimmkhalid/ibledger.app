@@ -3,25 +3,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { transactions, wallets } from "@/db/schema";
-import { currentUser, currentUserWithDB } from "@/lib/auth";
+import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
+import { requireUser } from "@/lib/auth";
+import { holdsMoney } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = new URL(request.url).searchParams;
     const includeSummary = searchParams.get("summary") !== "false";
 
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     if (!includeSummary) {
       const userWallets = await db
@@ -43,12 +35,8 @@ export async function GET(request: NextRequest) {
         name: wallets.name,
         createdAt: wallets.createdAt,
         updatedAt: wallets.updatedAt,
-        balance: sql<number>`
-          COALESCE(SUM(CASE WHEN ${transactions.isPending} = false THEN ${transactions.amount} ELSE 0 END), 0)
-        `.as("balance"),
-        balanceWithPending: sql<number>`
-          COALESCE(SUM(${transactions.amount}), 0)
-        `.as("balanceWithPending"),
+        balance: clearedBalanceSql().as("balance"),
+        balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
       })
       .from(wallets)
       .leftJoin(
@@ -75,18 +63,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -114,18 +92,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -166,18 +134,8 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authUser = await currentUser();
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await currentUserWithDB(authUser);
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found. Call POST /api/bootstrap first." },
-        { status: 400 },
-      );
-    }
+    const { user, response } = await requireUser();
+    if (!user) return response;
 
     const data = await request.json();
 
@@ -209,9 +167,7 @@ export async function DELETE(request: NextRequest) {
           .then((res) => res[0]),
         db
           .select({
-            balanceWithPending: sql<number>`
-              COALESCE(SUM(${transactions.amount}), 0)
-            `.as("balanceWithPending"),
+            balanceWithPending: pendingBalanceSql().as("balanceWithPending"),
           })
           .from(transactions)
           .where(
@@ -238,7 +194,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const bal = Number(walletBalanceRow?.balanceWithPending ?? 0);
-    if (Math.abs(bal) > 0.005) {
+    if (holdsMoney(bal)) {
       return NextResponse.json(
         {
           error:

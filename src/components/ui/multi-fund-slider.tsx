@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
+import { Swatch } from "@/components/ui/swatch";
 
 export type SliderFund = {
   id: string;
@@ -10,41 +12,6 @@ export type SliderFund = {
   percentage: number;
   isSavings?: boolean;
 };
-
-const SEGMENT_COLORS = [
-  "bg-blue-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-purple-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-orange-500",
-  "bg-teal-500",
-  "bg-indigo-500",
-  "bg-pink-500",
-  "bg-lime-500",
-  "bg-sky-500",
-  "bg-fuchsia-500",
-  "bg-yellow-500",
-  "bg-violet-500",
-];
-
-/** Deterministic hash from a string to a stable colour index. */
-export function keyToColorIndex(key: string): number {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-  }
-  const len = SEGMENT_COLORS.length;
-  return ((Math.abs(hash) % len) + len) % len;
-}
-
-/** Return the Tailwind bg class for a given fund index. */
-export function segmentColor(index: number, isSavings?: boolean): string {
-  if (isSavings) return "bg-slate-400";
-  const len = SEGMENT_COLORS.length;
-  return SEGMENT_COLORS[((index % len) + len) % len];
-}
 
 /** Round to nearest 0.5. */
 function roundHalf(n: number): number {
@@ -58,6 +25,39 @@ function fmtPct(n: number): string {
     return `${Math.round(rounded)}%`;
   }
   return `${rounded}%`;
+}
+
+/**
+ * Move boundary `boundaryIndex` (between fund i and fund i+1) to `valuePct`,
+ * clamped so it can meet — but not cross — its neighbours. Meeting a neighbour
+ * collapses a segment to 0%, i.e. "route no income to this fund". Shared by
+ * both pointer drag and keyboard so the two paths stay in lockstep.
+ */
+function applyBoundary(
+  funds: SliderFund[],
+  boundaryIndex: number,
+  valuePct: number,
+): SliderFund[] {
+  const curCum: number[] = [];
+  let s = 0;
+  for (let i = 0; i < funds.length - 1; i++) {
+    s += funds[i].percentage;
+    curCum.push(s);
+  }
+
+  const minVal = boundaryIndex > 0 ? curCum[boundaryIndex - 1] : 0;
+  const maxVal =
+    boundaryIndex < curCum.length - 1 ? curCum[boundaryIndex + 1] : 100;
+  const clamped = Math.max(minVal, Math.min(maxVal, valuePct));
+
+  const newCum = [...curCum];
+  newCum[boundaryIndex] = clamped;
+
+  return funds.map((f, i) => {
+    const prev = i > 0 ? newCum[i - 1] : 0;
+    const curr = i < newCum.length ? newCum[i] : 100;
+    return { ...f, percentage: curr - prev };
+  });
 }
 
 type Props = {
@@ -77,6 +77,10 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   });
 
   const [dragging, setDragging] = useState<number | null>(null);
+  // Pointer-to-boundary distance captured at grab time. Handles are 20px wide
+  // (and visually offset when stacked), so tracking the raw pointer would snap
+  // the boundary to wherever inside the handle the user happened to press.
+  const dragOffsetRef = useRef(0);
 
   // Cumulative boundary positions: for N funds we have N-1 draggable handles.
   const cumValues: number[] = [];
@@ -86,9 +90,26 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
     cumValues.push(cumSum);
   }
 
-  // Pre-compute per-fund colour index (savings always gets -1).
-  const colorIndices: number[] = funds.map((f) =>
-    f.isSavings ? -1 : keyToColorIndex(f.id),
+  // A 0%-wide fund puts two handles at the same boundary; stacked, only the
+  // top one catches the pointer, so its neighbour becomes hard to grab. Spread
+  // handles that share a position a few px apart (purely visual -- the boundary
+  // value is unchanged) so each stays reachable.
+  const handleOffsets = cumValues.map(() => 0);
+  for (let i = 0; i < cumValues.length; ) {
+    let j = i;
+    while (j + 1 < cumValues.length && cumValues[j + 1] === cumValues[i]) j++;
+    const count = j - i + 1;
+    if (count > 1) {
+      for (let k = i; k <= j; k++) {
+        handleOffsets[k] = (k - i - (count - 1) / 2) * 7;
+      }
+    }
+    i = j + 1;
+  }
+
+  // Pre-compute per-fund colour (savings always gets the neutral fill).
+  const colors = funds.map((f) =>
+    seriesColor(f.isSavings ? -1 : keyToColorIndex(f.id), f.isSavings),
   );
 
   // ── Drag handling via document-level listeners (refs keep it stable) ──
@@ -96,37 +117,13 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   useEffect(() => {
     if (dragging === null || !trackRef.current) return;
     const track = trackRef.current;
-    const MIN_PCT = 1;
 
     const handleMove = (e: PointerEvent) => {
-      const cur = fundsRef.current;
       const rect = track.getBoundingClientRect();
-      const rawPct = ((e.clientX - rect.left) / rect.width) * 100;
+      const rawPct =
+        ((e.clientX - dragOffsetRef.current - rect.left) / rect.width) * 100;
       const pct = roundHalf(Math.max(0, Math.min(100, rawPct)));
-
-      // Rebuild current cumulative values.
-      const curCum: number[] = [];
-      let s = 0;
-      for (let i = 0; i < cur.length - 1; i++) {
-        s += cur[i].percentage;
-        curCum.push(s);
-      }
-
-      const minVal = (dragging > 0 ? curCum[dragging - 1] : 0) + MIN_PCT;
-      const maxVal =
-        (dragging < curCum.length - 1 ? curCum[dragging + 1] : 100) - MIN_PCT;
-      const clamped = Math.max(minVal, Math.min(maxVal, pct));
-
-      const newCum = [...curCum];
-      newCum[dragging] = clamped;
-
-      const next = cur.map((f, i) => {
-        const prev = i > 0 ? newCum[i - 1] : 0;
-        const curr = i < newCum.length ? newCum[i] : 100;
-        return { ...f, percentage: curr - prev };
-      });
-
-      onChangeRef.current(next);
+      onChangeRef.current(applyBoundary(fundsRef.current, dragging, pct));
     };
 
     const handleUp = () => setDragging(null);
@@ -138,6 +135,32 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
       document.removeEventListener("pointerup", handleUp);
     };
   }, [dragging]);
+
+  function nudge(boundaryIndex: number, delta: number) {
+    const cur = fundsRef.current;
+    let s = 0;
+    for (let i = 0; i <= boundaryIndex; i++) s += cur[i].percentage;
+    onChangeRef.current(
+      applyBoundary(cur, boundaryIndex, roundHalf(s + delta)),
+    );
+  }
+
+  function onHandleKeyDown(e: React.KeyboardEvent, boundaryIndex: number) {
+    const big = e.shiftKey ? 5 : 0.5;
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      nudge(boundaryIndex, -big);
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      nudge(boundaryIndex, big);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      nudge(boundaryIndex, -100);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      nudge(boundaryIndex, 100);
+    }
+  }
 
   if (funds.length === 0) return null;
 
@@ -161,13 +184,13 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
               key={fund.id}
               className={cn(
                 "absolute top-0 flex h-full items-center justify-center overflow-hidden",
-                segmentColor(colorIndices[i], fund.isSavings),
                 isFirst && "rounded-l-lg",
                 isLast && "rounded-r-lg",
               )}
               style={{
                 left: `${left}%`,
                 width: `${width}%`,
+                backgroundColor: colors[i].bg,
                 ...(fund.isSavings
                   ? {
                       backgroundImage:
@@ -177,7 +200,10 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
               }}
             >
               {width > 8 && (
-                <span className="truncate px-1 text-xs font-semibold text-white drop-shadow-sm">
+                <span
+                  className="truncate px-1 text-xs font-semibold drop-shadow-sm"
+                  style={{ color: colors[i].fg }}
+                >
                   {fund.name} {fmtPct(fund.percentage)}
                 </span>
               )}
@@ -185,23 +211,39 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
           );
         })}
 
-        {/* Draggable handles */}
+        {/* Draggable / keyboard-adjustable handles */}
         {!disabled &&
           cumValues.map((val, i) => (
             <div
               key={`handle-${i}`}
-              className="absolute top-0 z-10 flex h-full w-5 -translate-x-1/2 cursor-col-resize items-center justify-center"
-              style={{ left: `${val}%` }}
+              role="slider"
+              tabIndex={0}
+              aria-label={`Split between ${funds[i].name} and ${funds[i + 1].name}`}
+              aria-valuemin={i > 0 ? cumValues[i - 1] : 0}
+              aria-valuemax={i < cumValues.length - 1 ? cumValues[i + 1] : 100}
+              aria-valuenow={val}
+              aria-valuetext={`${fmtPct(funds[i].percentage)} ${funds[i].name}`}
+              className="focus-visible:ring-ring absolute top-0 z-10 flex h-full w-5 cursor-col-resize items-center justify-center rounded-sm outline-none focus-visible:ring-2"
+              style={{
+                left: `${val}%`,
+                transform: `translateX(calc(-50% + ${handleOffsets[i]}px))`,
+              }}
               onPointerDown={(e) => {
                 e.preventDefault();
+                (e.currentTarget as HTMLElement).focus();
+                const rect = trackRef.current?.getBoundingClientRect();
+                dragOffsetRef.current = rect
+                  ? e.clientX - (rect.left + (val / 100) * rect.width)
+                  : 0;
                 setDragging(i);
               }}
+              onKeyDown={(e) => onHandleKeyDown(e, i)}
             >
               <div
                 className={cn(
-                  "h-8 w-1.5 rounded-full border border-gray-300 bg-white shadow-md transition-transform",
-                  "hover:scale-110 hover:bg-gray-50",
-                  dragging === i && "scale-110 bg-gray-100",
+                  "border-border bg-card h-8 w-1.5 rounded-full border shadow-md transition-transform",
+                  "hover:bg-muted hover:scale-110",
+                  dragging === i && "bg-muted scale-110",
                 )}
               />
             </div>
@@ -212,20 +254,7 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {funds.map((fund, i) => (
           <div key={fund.id} className="flex items-center gap-1.5 text-sm">
-            <div
-              className={cn(
-                "h-3 w-3 rounded-sm",
-                segmentColor(colorIndices[i], fund.isSavings),
-              )}
-              style={
-                fund.isSavings
-                  ? {
-                      backgroundImage:
-                        "repeating-linear-gradient(-45deg,transparent,transparent 2px,rgba(255,255,255,.3) 2px,rgba(255,255,255,.3) 4px)",
-                    }
-                  : undefined
-              }
-            />
+            <Swatch color={colors[i].bg} hatched={fund.isSavings} />
             <span className="font-medium">{fund.name}</span>
             <span className="text-muted-foreground tabular-nums">
               {fmtPct(fund.percentage)}

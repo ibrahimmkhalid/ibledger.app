@@ -2,7 +2,7 @@ import { LoadingBlock } from "@/app/tracker/components/loading-skeletons";
 
 function SkeletonStatCard() {
   return (
-    <div className="tracker-skeleton-panel border-border bg-card rounded-lg border p-3">
+    <div className="tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-3 py-3 ring-1">
       <LoadingBlock className="h-3.5 w-20 rounded" />
       <LoadingBlock className="mt-3 h-6 w-28 rounded" />
       <LoadingBlock className="mt-2 h-3 w-24 rounded" />
@@ -12,7 +12,7 @@ function SkeletonStatCard() {
 
 function SkeletonChartCard() {
   return (
-    <div className="tracker-skeleton-panel border-border bg-card rounded-lg border p-4">
+    <div className="tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-4 py-4 ring-1">
       <LoadingBlock className="h-4 w-40 rounded" />
       <LoadingBlock className="mt-2 h-3 w-56 max-w-full rounded" />
       <LoadingBlock className="mt-4 h-72 w-full rounded-md" />
@@ -24,14 +24,11 @@ export function AnalyticsSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <LoadingBlock className="h-7 w-32 rounded-md" />
-          <LoadingBlock className="h-3.5 w-72 max-w-full rounded" />
-        </div>
-        <LoadingBlock className="h-8 w-24 rounded-md" />
+        <LoadingBlock className="h-8 w-32 rounded-md" />
+        <LoadingBlock className="h-9 w-24 rounded-md sm:h-7" />
       </div>
 
-      <div className="tracker-skeleton-panel border-border bg-card rounded-lg border p-4">
+      <div className="tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-4 py-4 ring-1">
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-2">
             <LoadingBlock className="h-4 w-16 rounded" />
@@ -54,7 +51,7 @@ export function AnalyticsSkeleton() {
         <SkeletonChartCard />
       </div>
 
-      <div className="tracker-skeleton-panel border-border bg-card rounded-lg border p-4">
+      <div className="tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-4 py-4 ring-1">
         <LoadingBlock className="h-4 w-44 rounded" />
         <LoadingBlock className="mt-2 h-3 w-64 max-w-full rounded" />
         <div className="mt-4 space-y-3">
