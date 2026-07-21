@@ -49,7 +49,14 @@ function checkBootstrap(): Promise<BootstrapResponse> {
       });
   }
 
-  return inFlight;
+  // A session swap while the request is in flight bumps the generation; the
+  // resolved payload then belongs to the previous user and must not drive
+  // caching or onboarding redirects, so re-enter to fetch for the current
+  // identity instead of handing the stale response to the caller.
+  const joinedGeneration = generation;
+  return inFlight.then((boot) =>
+    joinedGeneration === generation ? boot : checkBootstrap(),
+  );
 }
 
 // Returns false when a redirect was issued and the caller should stop loading.
