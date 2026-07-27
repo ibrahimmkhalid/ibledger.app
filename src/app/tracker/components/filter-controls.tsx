@@ -72,7 +72,7 @@ export function FilterSearchField(args: {
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Description, fund, wallet"
-          className="pl-7"
+          className="pl-7 sm:pointer-fine:pl-7"
         />
       </div>
     </div>
