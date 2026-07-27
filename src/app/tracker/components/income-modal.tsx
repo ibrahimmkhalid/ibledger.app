@@ -77,6 +77,7 @@ export function IncomeModal(args: {
       setError(null);
       setBusy(false);
       setEditing(false);
+      setDescription("");
       return;
     }
 

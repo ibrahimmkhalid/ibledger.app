@@ -100,6 +100,7 @@ export function TransactionModal(args: {
   useEffect(() => {
     if (!open) {
       setError(null);
+      setDescription("");
       setBusy(false);
       setEditing(false);
       return;
