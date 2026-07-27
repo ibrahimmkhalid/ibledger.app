@@ -535,7 +535,7 @@ export default function TransactionsPage() {
                     totalCount === 1 ? "transaction" : "transactions"
                   }`}
             </CardDescription>
-            {filters.pendingStatus === "pending" ? (
+            {filters.pendingStatus === "pending" && totalCount > 0 ? (
               <Button
                 type="button"
                 variant="destructive"
