@@ -525,8 +525,8 @@ export default function TransactionsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
-          <div className="flex items-center gap-2">
-            <CardDescription className="flex items-center">
+          <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <CardDescription className="min-w-0">
               {totalCount === 0
                 ? activeFilterCount > 0
                   ? "No transactions match your filters"
