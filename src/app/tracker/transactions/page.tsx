@@ -525,15 +525,29 @@ export default function TransactionsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
-          <CardDescription>
-            {totalCount === 0
-              ? activeFilterCount > 0
-                ? "No transactions match your filters"
-                : "No transactions yet"
-              : `${totalCount.toLocaleString()} ${
-                  totalCount === 1 ? "transaction" : "transactions"
-                }${activeFilterCount > 0 ? " match your filters" : ""}`}
-          </CardDescription>
+          <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <CardDescription className="min-w-0">
+              {totalCount === 0
+                ? activeFilterCount > 0
+                  ? "No transactions match your filters"
+                  : "No transactions yet"
+                : `${totalCount.toLocaleString()} ${
+                    totalCount === 1 ? "transaction" : "transactions"
+                  }`}
+            </CardDescription>
+            {filters.pendingStatus === "pending" && totalCount > 0 ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void clearAllPending()}
+                disabled={pageLoading}
+              >
+                <CheckCircle2Icon />
+                Clear pending
+              </Button>
+            ) : null}
+          </div>
+
           <CardAction>
             <div className="flex items-center gap-2">
               <Label htmlFor={pageSizeId}>Per page</Label>
@@ -648,16 +662,6 @@ export default function TransactionsPage() {
                         {activeFilterLabel}
                       </span>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => void clearAllPending()}
-                      disabled={pageLoading}
-                      className="sm:ml-auto"
-                    >
-                      <CheckCircle2Icon />
-                      Clear pending
-                    </Button>
                   </div>
                 </div>
               </div>
