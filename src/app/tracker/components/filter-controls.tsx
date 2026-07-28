@@ -35,7 +35,7 @@ export function parseFilterAmount(value: string, label: string) {
 
 type SharedCountedFilters = Pick<
   TransactionsPageFilters,
-  "search" | "fundIds" | "walletIds" | "minAmount" | "maxAmount" | "direction"
+  "search" | "fundIds" | "walletIds" | "minAmount" | "maxAmount"
 >;
 
 // Counts the filters shared by the transactions and analytics pages; callers
@@ -46,7 +46,6 @@ export function countActiveSharedFilters(filters: SharedCountedFilters) {
   if (filters.fundIds.length > 0) count += 1;
   if (filters.walletIds.length > 0) count += 1;
   if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
-  if (filters.direction !== "all") count += 1;
   return count;
 }
 
@@ -56,6 +55,7 @@ export function countActiveTransactionFilters(
   let count = countActiveSharedFilters(filters);
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
+  if (filters.direction !== "all") count += 1;
   return count;
 }
 
@@ -270,8 +270,10 @@ export function MultiSelectDropdown(args: {
 
 // The transactions and analytics pages render the same filter fields inside
 // different chrome (a Card vs a bordered div), so the fields are shared and the
-// wrapper is not. Analytics takes only the direction control out of this group
-// and adds its own date-range and detail controls alongside it.
+// wrapper is not. Analytics uses only the search and amount/account fields; the
+// status/type/direction group is transactions-only, because each of those three
+// splits an axis the analytics charts already break out. Analytics renders its
+// own date-range and detail controls in their place.
 
 type SharedFilterDraft = {
   pendingStatus: TransactionPendingFilter;
@@ -282,26 +284,6 @@ type SharedFilterDraft = {
   minAmount: string;
   maxAmount: string;
 };
-
-export function DirectionControl(args: {
-  value: TransactionDirectionFilter;
-  onChange: (value: TransactionDirectionFilter) => void;
-}) {
-  const { value, onChange } = args;
-
-  return (
-    <SegmentedControl<TransactionDirectionFilter>
-      label="Direction"
-      value={value}
-      onChange={onChange}
-      options={[
-        { value: "all", label: "All" },
-        { value: "in", label: "In" },
-        { value: "out", label: "Out" },
-      ]}
-    />
-  );
-}
 
 export function StatusTypeDirectionControls(args: {
   draft: Pick<SharedFilterDraft, "pendingStatus" | "income" | "direction">;
@@ -331,9 +313,15 @@ export function StatusTypeDirectionControls(args: {
           { value: "not_income", label: "Expense" },
         ]}
       />
-      <DirectionControl
+      <SegmentedControl<TransactionDirectionFilter>
+        label="Direction"
         value={draft.direction}
         onChange={(direction) => onPatch({ direction })}
+        options={[
+          { value: "all", label: "All" },
+          { value: "in", label: "In" },
+          { value: "out", label: "Out" },
+        ]}
       />
     </>
   );

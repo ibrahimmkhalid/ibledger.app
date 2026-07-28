@@ -71,7 +71,6 @@ import type {
 } from "@/app/tracker/analytics/types";
 import {
   AmountAndAccountFilters,
-  DirectionControl,
   FilterSearchField,
   SegmentedControl,
 } from "@/app/tracker/components/filter-controls";
@@ -382,7 +381,7 @@ export default function AnalyticsPage() {
                   onChange={(search) => patchFilterDraft({ search })}
                 />
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <Label htmlFor={dateRangeId}>Date range</Label>
                     <Select
@@ -418,11 +417,6 @@ export default function AnalyticsPage() {
                       label: level.label,
                       disabled: granularityState.slots[level.value].disabled,
                     }))}
-                  />
-
-                  <DirectionControl
-                    value={filterDraft.direction}
-                    onChange={(direction) => patchFilterDraft({ direction })}
                   />
                 </div>
 
