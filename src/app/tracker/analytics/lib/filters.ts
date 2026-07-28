@@ -1,13 +1,13 @@
 import {
-  countActiveTransactionFilters,
+  countActiveSharedFilters,
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
 import {
-  DEFAULT_TRANSACTIONS_FILTERS,
-  appendTransactionFilterParams,
-  normalizeTransactionsFilters,
-  transactionsFiltersCacheKey,
-} from "@/app/tracker/lib/transactions-page-query";
+  DEFAULT_ANALYTICS_FILTERS,
+  analyticsFiltersCacheKey,
+  appendAnalyticsFilterParams,
+  normalizeAnalyticsFilters,
+} from "@/app/tracker/lib/analytics-page-query";
 import {
   DEFAULT_DATE_PRESET,
   DEFAULT_GRANULARITY_LEVEL,
@@ -22,7 +22,7 @@ import type {
 export function createDefaultAnalyticsFilters(): AnalyticsFilters {
   const { startDate, endDate } = dateRangeForPreset(DEFAULT_DATE_PRESET);
   return {
-    ...DEFAULT_TRANSACTIONS_FILTERS,
+    ...DEFAULT_ANALYTICS_FILTERS,
     startDate,
     endDate,
     groupBy:
@@ -53,7 +53,7 @@ export function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
   }
 
   return {
-    ...normalizeTransactionsFilters({
+    ...normalizeAnalyticsFilters({
       ...draft,
       minAmount,
       maxAmount,
@@ -66,7 +66,7 @@ export function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
 
 export function analyticsFiltersKey(filters: AnalyticsFilters) {
   return JSON.stringify({
-    transactions: transactionsFiltersCacheKey(filters),
+    filters: analyticsFiltersCacheKey(filters),
     startDate: filters.startDate,
     endDate: filters.endDate,
     groupBy: filters.groupBy,
@@ -86,7 +86,7 @@ export function isDefaultAnalyticsFilters(filters: AnalyticsFilters) {
 
 export function countActiveFilters(filters: AnalyticsFilters) {
   const defaults = createDefaultAnalyticsFilters();
-  let count = countActiveTransactionFilters(filters);
+  let count = countActiveSharedFilters(filters);
   if (
     (filters.startDate || filters.endDate) &&
     (filters.startDate !== defaults.startDate ||
@@ -100,7 +100,7 @@ export function countActiveFilters(filters: AnalyticsFilters) {
 export function buildAnalyticsUrl(filters: AnalyticsFilters) {
   const params = new URLSearchParams();
 
-  appendTransactionFilterParams(params, filters);
+  appendAnalyticsFilterParams(params, filters);
   if (filters.startDate) params.set("startDate", filters.startDate);
   if (filters.endDate) params.set("endDate", filters.endDate);
   if (filters.groupBy !== "month") params.set("groupBy", filters.groupBy);
