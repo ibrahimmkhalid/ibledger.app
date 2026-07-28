@@ -48,19 +48,24 @@ export function analyticsFiltersCacheKey(
 
 // Serializes the six transaction-level filters the analytics endpoint accepts,
 // matching what @/app/api/query-params reads back. The caller adds the
-// date-range and grouping params separately.
+// date-range and grouping params separately. Normalizes first so a request
+// always matches the analyticsFiltersCacheKey it is cached under, whatever the
+// caller passes in.
 export function appendAnalyticsFilterParams(
   params: URLSearchParams,
   filters: AnalyticsPageFilters,
 ) {
-  if (filters.search) params.set("search", filters.search);
-  if (filters.fundIds.length > 0)
-    params.set("fundIds", filters.fundIds.join(","));
-  if (filters.walletIds.length > 0)
-    params.set("walletIds", filters.walletIds.join(","));
-  if (filters.minAmount !== null)
-    params.set("minAmount", String(filters.minAmount));
-  if (filters.maxAmount !== null)
-    params.set("maxAmount", String(filters.maxAmount));
-  if (filters.direction !== "all") params.set("direction", filters.direction);
+  const normalized = normalizeAnalyticsFilters(filters);
+
+  if (normalized.search) params.set("search", normalized.search);
+  if (normalized.fundIds.length > 0)
+    params.set("fundIds", normalized.fundIds.join(","));
+  if (normalized.walletIds.length > 0)
+    params.set("walletIds", normalized.walletIds.join(","));
+  if (normalized.minAmount !== null)
+    params.set("minAmount", String(normalized.minAmount));
+  if (normalized.maxAmount !== null)
+    params.set("maxAmount", String(normalized.maxAmount));
+  if (normalized.direction !== "all")
+    params.set("direction", normalized.direction);
 }
