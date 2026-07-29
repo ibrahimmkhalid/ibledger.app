@@ -1,7 +1,4 @@
-import {
-  countActiveSharedFilters,
-  parseFilterAmount,
-} from "@/app/tracker/components/filter-controls";
+import { countActiveSharedFilters } from "@/app/tracker/components/filter-controls";
 import {
   DEFAULT_ANALYTICS_FILTERS,
   analyticsFiltersCacheKey,
@@ -34,30 +31,18 @@ export function createDefaultAnalyticsFilters(): AnalyticsFilters {
 export function createDefaultFilterDraft(): AnalyticsFilterDraft {
   return {
     ...createDefaultAnalyticsFilters(),
-    minAmount: "",
-    maxAmount: "",
     datePreset: DEFAULT_DATE_PRESET,
     granularityLevel: DEFAULT_GRANULARITY_LEVEL,
   };
 }
+
 export function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
-  const minAmount = parseFilterAmount(draft.minAmount, "Minimum");
-  const maxAmount = parseFilterAmount(draft.maxAmount, "Maximum");
-
-  if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
-    throw new Error("Minimum amount cannot exceed maximum amount");
-  }
-
   if (draft.startDate && draft.endDate && draft.startDate > draft.endDate) {
     throw new Error("Start date cannot be after end date");
   }
 
   return {
-    ...normalizeAnalyticsFilters({
-      ...draft,
-      minAmount,
-      maxAmount,
-    }),
+    ...normalizeAnalyticsFilters(draft),
     startDate: draft.startDate,
     endDate: draft.endDate,
     groupBy: draft.groupBy,

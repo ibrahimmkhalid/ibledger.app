@@ -70,8 +70,8 @@ import type {
   TrendMode,
 } from "@/app/tracker/analytics/types";
 import {
-  AmountAndAccountFilters,
   FilterSearchField,
+  MultiSelectDropdown,
   SegmentedControl,
 } from "@/app/tracker/components/filter-controls";
 import { apiJson } from "@/app/tracker/lib/api";
@@ -81,8 +81,6 @@ import type { Fund, Wallet } from "@/app/tracker/types";
 export default function AnalyticsPage() {
   const router = useRouter();
   const searchId = useId();
-  const minAmountId = useId();
-  const maxAmountId = useId();
   const dateRangeId = useId();
 
   const [loading, setLoading] = useState(true);
@@ -381,7 +379,7 @@ export default function AnalyticsPage() {
                   onChange={(search) => patchFilterDraft({ search })}
                 />
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <Label htmlFor={dateRangeId}>Date range</Label>
                     <Select
@@ -418,16 +416,23 @@ export default function AnalyticsPage() {
                       disabled: granularityState.slots[level.value].disabled,
                     }))}
                   />
-                </div>
 
-                <AmountAndAccountFilters
-                  draft={filterDraft}
-                  onPatch={patchFilterDraft}
-                  funds={funds}
-                  wallets={wallets}
-                  minAmountId={minAmountId}
-                  maxAmountId={maxAmountId}
-                />
+                  <MultiSelectDropdown
+                    label="Funds"
+                    allLabel="All funds"
+                    options={funds}
+                    selectedIds={filterDraft.fundIds}
+                    onChange={(fundIds) => patchFilterDraft({ fundIds })}
+                  />
+
+                  <MultiSelectDropdown
+                    label="Wallets"
+                    allLabel="All wallets"
+                    options={wallets}
+                    selectedIds={filterDraft.walletIds}
+                    onChange={(walletIds) => patchFilterDraft({ walletIds })}
+                  />
+                </div>
               </div>
 
               <div className="border-border mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">

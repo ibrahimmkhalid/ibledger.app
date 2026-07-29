@@ -35,7 +35,7 @@ export function parseFilterAmount(value: string, label: string) {
 
 type SharedCountedFilters = Pick<
   TransactionsPageFilters,
-  "search" | "fundIds" | "walletIds" | "minAmount" | "maxAmount"
+  "search" | "fundIds" | "walletIds"
 >;
 
 // Counts the filters shared by the transactions and analytics pages; callers
@@ -45,7 +45,6 @@ export function countActiveSharedFilters(filters: SharedCountedFilters) {
   if (filters.search.trim()) count += 1;
   if (filters.fundIds.length > 0) count += 1;
   if (filters.walletIds.length > 0) count += 1;
-  if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
   return count;
 }
 
@@ -53,6 +52,7 @@ export function countActiveTransactionFilters(
   filters: TransactionsPageFilters,
 ) {
   let count = countActiveSharedFilters(filters);
+  if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
   if (filters.direction !== "all") count += 1;
@@ -270,10 +270,9 @@ export function MultiSelectDropdown(args: {
 
 // The transactions and analytics pages render the same filter fields inside
 // different chrome (a Card vs a bordered div), so the fields are shared and the
-// wrapper is not. Analytics uses only the search and amount/account fields; the
-// status/type/direction group is transactions-only, because each of those three
-// splits an axis the analytics charts already break out. Analytics renders its
-// own date-range and detail controls in their place.
+// wrapper is not. Analytics uses only the search field and the two account
+// dropdowns; the status/type/direction group and the amount range below are
+// transactions-only. See @/app/tracker/lib/analytics-page-query for why.
 
 type SharedFilterDraft = {
   pendingStatus: TransactionPendingFilter;

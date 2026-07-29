@@ -21,12 +21,7 @@ export type AnalyticsFilters = AnalyticsPageFilters & {
   groupBy: GroupBy;
 };
 
-export type AnalyticsFilterDraft = Omit<
-  AnalyticsFilters,
-  "minAmount" | "maxAmount"
-> & {
-  minAmount: string;
-  maxAmount: string;
+export type AnalyticsFilterDraft = AnalyticsFilters & {
   datePreset: DateRangePreset;
   granularityLevel: GranularityLevel;
 };
