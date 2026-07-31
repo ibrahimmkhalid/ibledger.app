@@ -391,28 +391,27 @@ export function OnboardingSkeleton() {
         actionWidths={["w-40"]}
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel>
-          <CardTitleSkeleton
-            titleWidth="w-20"
-            descriptionWidth="w-72"
-            actionWidth="w-24"
-          />
-          <div className="mt-4">
-            <TableSkeleton rows={3} columns={1} includeActions />
-          </div>
-        </LoadingPanel>
-        <LoadingPanel>
-          <CardTitleSkeleton
-            titleWidth="w-16"
-            descriptionWidth="w-72"
-            actionWidth="w-20"
-          />
-          <div className="mt-4">
-            <TableSkeleton rows={4} columns={3} includeActions />
-          </div>
-        </LoadingPanel>
-      </div>
+      <LoadingPanel>
+        <CardTitleSkeleton
+          titleWidth="w-20"
+          descriptionWidth="w-72"
+          actionWidth="w-24"
+        />
+        <div className="mt-4">
+          <TableSkeleton rows={3} columns={1} includeActions />
+        </div>
+      </LoadingPanel>
+
+      <LoadingPanel>
+        <CardTitleSkeleton
+          titleWidth="w-16"
+          descriptionWidth="w-72"
+          actionWidth="w-20"
+        />
+        <div className="mt-4">
+          <TableSkeleton rows={4} columns={3} includeActions />
+        </div>
+      </LoadingPanel>
     </div>
   );
 }
