@@ -1,17 +1,246 @@
 import type { Metadata } from "next";
+import {
+  AlertTriangleIcon,
+  ArrowLeftRightIcon,
+  ClockIcon,
+  KeyboardIcon,
+  PercentIcon,
+  TagIcon,
+  Trash2Icon,
+  WalletIcon,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { Card } from "@/components/ui/card";
+import { Swatch } from "@/components/ui/swatch";
+import { fmtAmount } from "@/app/tracker/lib/format";
+import { SAVINGS_COLOR, seriesColor } from "@/app/tracker/lib/series-colors";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "How to use ibLedger",
 };
 
-function Section(args: { title: string; children: React.ReactNode }) {
+const HATCH =
+  "repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.18) 3px,rgba(255,255,255,.18) 6px)";
+
+const GROCERIES = seriesColor(2);
+const RENT = seriesColor(0);
+
+function Section(args: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const { icon: Icon, title, children } = args;
   return (
     <section className="border-border border-t pt-8">
-      <h2 className="text-lg font-semibold">{args.title}</h2>
+      <div className="flex items-center gap-2">
+        <Icon aria-hidden className="text-primary size-4 shrink-0" />
+        <h2 className="text-base font-semibold">{title}</h2>
+      </div>
       <div className="text-muted-foreground mt-3 space-y-3 text-sm">
-        {args.children}
+        {children}
       </div>
     </section>
+  );
+}
+
+function Figure(args: { children: React.ReactNode; caption?: string }) {
+  return (
+    <figure className="my-4 last:mb-0">
+      <div className="border-border bg-muted/20 rounded-lg border p-4">
+        {args.children}
+      </div>
+      {args.caption ? (
+        <figcaption className="text-muted-foreground mt-2 text-xs">
+          {args.caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
+function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
+  const { icon: Icon, label, tone } = args;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+        tone,
+      )}
+    >
+      <Icon aria-hidden className="size-3 shrink-0" />
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
+
+// A transaction as the tracker renders it, with the wallet and fund it picked
+// called out as chips.
+function ExampleTransaction() {
+  return (
+    <Card size="sm" className="gap-2 py-2">
+      <div className="px-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="min-w-0 truncate text-sm font-medium">Market run</div>
+          <div className="text-destructive text-sm tabular-nums">
+            {fmtAmount(-42.18)}
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <MetaChip
+            icon={WalletIcon}
+            label="Checking"
+            tone="border-border text-muted-foreground"
+          />
+          <MetaChip
+            icon={TagIcon}
+            label="Groceries"
+            tone="border-primary/40 text-primary"
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function BalanceColumn(args: {
+  heading: string;
+  rows: Array<{ name: string; amount: number }>;
+}) {
+  const total = args.rows.reduce((sum, row) => sum + row.amount, 0);
+  return (
+    <div className="flex min-w-0 flex-col">
+      <div className="text-foreground text-xs font-semibold">
+        {args.heading}
+      </div>
+      <div className="mt-2 flex-1 space-y-1">
+        {args.rows.map((row) => (
+          <div
+            key={row.name}
+            className="flex items-baseline justify-between gap-3 text-xs"
+          >
+            <span className="min-w-0 truncate">{row.name}</span>
+            <span className="tabular-nums">{fmtAmount(row.amount)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="border-border text-foreground mt-2 flex items-baseline justify-between gap-3 border-t pt-2 text-xs font-semibold">
+        <span>Total</span>
+        <span className="tabular-nums">{fmtAmount(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+// The allocation bar as it appears on the Funds page: one segment per fund,
+// savings hatched and sized by whatever the others leave behind.
+function AllocationBar() {
+  const segments = [
+    { name: "Groceries", pct: 25, color: GROCERIES, savings: false },
+    { name: "Rent", pct: 40, color: RENT, savings: false },
+    { name: "Savings", pct: 35, color: SAVINGS_COLOR, savings: true },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="border-border bg-muted/20 flex h-11 gap-1 overflow-hidden rounded-md border p-1">
+        {segments.map((segment) => (
+          <div
+            key={segment.name}
+            className="flex items-center justify-center overflow-hidden rounded-sm"
+            style={{
+              width: `${segment.pct}%`,
+              backgroundColor: segment.color.bg,
+              ...(segment.savings ? { backgroundImage: HATCH } : {}),
+            }}
+          >
+            <span
+              className="truncate px-1 text-xs font-semibold"
+              style={{ color: segment.color.fg }}
+            >
+              {segment.name} {segment.pct}%
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
+        {segments.map((segment) => (
+          <div key={segment.name} className="flex items-center gap-1.5 text-xs">
+            <Swatch color={segment.color.bg} hatched={segment.savings} />
+            <span className="text-foreground font-medium">{segment.name}</span>
+            <span className="tabular-nums">
+              {fmtAmount((2000 * segment.pct) / 100)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KeystrokeRow(args: { typed: string; result: string }) {
+  return (
+    <div className="flex items-center gap-3 text-xs">
+      <span className="border-border bg-background inline-flex w-20 justify-center rounded-md border px-2 py-1 font-mono tabular-nums">
+        {args.typed}
+      </span>
+      <span aria-hidden className="text-muted-foreground">
+        →
+      </span>
+      <span className="text-foreground font-semibold tabular-nums">
+        {args.result}
+      </span>
+    </div>
+  );
+}
+
+// The cleared/pending notation the balance tables use, pulled apart.
+function ClearedPendingFigure() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-xl tabular-nums">
+        <span className="font-semibold">{fmtAmount(590)}</span>
+        <span className="text-muted-foreground ml-2">[+$190.00]</span>
+      </div>
+      <div className="space-y-1.5 text-xs">
+        <div className="flex items-baseline gap-2">
+          <span className="text-foreground w-24 shrink-0 font-semibold tabular-nums">
+            {fmtAmount(590)}
+          </span>
+          <span>cleared — money that has actually settled</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="w-24 shrink-0 tabular-nums">[+$190.00]</span>
+          <span>pending — on its way in, not counted yet</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverspentFigure() {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-foreground font-medium">Spending</span>
+          <span className="text-2xs bg-destructive/10 text-destructive inline-flex items-center rounded-full px-2 py-0.5 font-semibold">
+            Overspent {fmtAmount(42)}
+          </span>
+        </div>
+        <span className="text-foreground font-semibold tabular-nums">
+          {fmtAmount(0)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="text-foreground font-medium">Savings</span>
+        <span className="text-foreground font-semibold tabular-nums">
+          {fmtAmount(258)}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -26,27 +255,52 @@ export default function HowToUsePage() {
       </p>
 
       <div className="mt-10 flex flex-col gap-8">
-        <Section title="Wallets and funds">
+        <Section icon={ArrowLeftRightIcon} title="Wallets and funds">
           <p>
             Every transaction line picks a{" "}
             <span className="text-foreground font-medium">wallet</span> — where
-            the money sits, like checking, cash, or a card — and a{" "}
+            the money sits — and a{" "}
             <span className="text-foreground font-medium">fund</span> — what the
-            money is set aside for, like rent, groceries, or travel.
+            money is for.
           </p>
+
+          <Figure caption="One line, two answers: it left Checking, and it came out of the Groceries budget.">
+            <ExampleTransaction />
+          </Figure>
+
           <p>
-            Your wallet balances and your fund balances always add up to the
-            same total. They are two views of the same money: one answers
-            &ldquo;where is it?&rdquo;, the other answers &ldquo;what is it
-            for?&rdquo;.
+            Because every line picks one of each, your wallet balances and your
+            fund balances always come to the same total. They are two views of
+            the same money.
           </p>
+
+          <Figure caption="Same $1,300, sorted two different ways.">
+            <div className="grid grid-cols-2 gap-6">
+              <BalanceColumn
+                heading="Wallets"
+                rows={[
+                  { name: "Checking", amount: 1240 },
+                  { name: "Cash", amount: 60 },
+                ]}
+              />
+              <BalanceColumn
+                heading="Funds"
+                rows={[
+                  { name: "Groceries", amount: 300 },
+                  { name: "Rent", amount: 900 },
+                  { name: "Savings", amount: 100 },
+                ]}
+              />
+            </div>
+          </Figure>
+
           <p>
-            Savings is a special fund. It cannot be deleted, and it catches
+            Savings is a special fund. It can&apos;t be deleted, and it catches
             whatever the other funds don&apos;t claim.
           </p>
         </Section>
 
-        <Section title="Setting up">
+        <Section icon={WalletIcon} title="Setting up">
           <p>
             Add every account your money actually sits in as a wallet, and add a
             fund for each thing you set money aside for. You start with a Bank
@@ -59,58 +313,56 @@ export default function HowToUsePage() {
           </p>
         </Section>
 
-        <Section title="Income shares">
+        <Section icon={PercentIcon} title="Income shares">
           <p>
             Each fund other than Savings has an{" "}
             <span className="text-foreground font-medium">income share</span>:
             the percentage of each paycheck that flows into it. Savings keeps
-            whatever is left over, so your shares always add up to 100%.
+            whatever is left over, so the shares always add up to 100%.
+          </p>
+
+          <Figure caption="A $2,000 paycheck splitting itself. Savings takes the 35% the other funds didn't claim.">
+            <AllocationBar />
+          </Figure>
+
+          <p>
+            Set the shares on the Funds page. Drag a divider on the allocation
+            bar, or focus a divider and use the arrow keys — hold Shift for
+            bigger steps. Nothing is saved until you press Confirm, and Revert
+            undoes every change.
           </p>
           <p>
-            Set them on the Funds page. Drag a divider on the allocation bar, or
-            focus a divider and use the arrow keys — hold Shift for bigger
-            steps. Nothing is saved until you press Confirm, and Revert undoes
-            every change.
-          </p>
-          <p>
-            When you record income, it is split across your funds by those
-            shares automatically. Open an income entry to see the breakdown.
+            When you record income it splits itself by those shares. Open an
+            income entry to see the breakdown.
           </p>
         </Section>
 
-        <Section title="Entering amounts">
+        <Section icon={KeyboardIcon} title="Entering amounts">
           <p>
-            Amount fields fill in cents-first. Type{" "}
-            <span className="text-foreground font-medium tabular-nums">
-              4200
-            </span>{" "}
-            for{" "}
-            <span className="text-foreground font-medium tabular-nums">
-              $42.00
-            </span>
-            , or{" "}
-            <span className="text-foreground font-medium tabular-nums">5</span>{" "}
-            for{" "}
-            <span className="text-foreground font-medium tabular-nums">
-              $0.05
-            </span>
-            . There is no decimal point to type.
+            Amount fields fill in cents-first, so there is no decimal point to
+            type.
           </p>
+
+          <Figure>
+            <div className="space-y-2">
+              <KeystrokeRow typed="4200" result="$42.00" />
+              <KeystrokeRow typed="5" result="$0.05" />
+              <KeystrokeRow typed="120000" result="$1,200.00" />
+            </div>
+          </Figure>
         </Section>
 
-        <Section title="Pending and cleared">
+        <Section icon={ClockIcon} title="Pending and cleared">
           <p>
             Turn on <span className="text-foreground font-medium">Pending</span>{" "}
             for money that hasn&apos;t settled yet. Pending amounts stay out of
             your cleared balance until you clear them.
           </p>
-          <p>
-            Balances show the cleared total with the pending change in brackets.{" "}
-            <span className="text-foreground font-medium tabular-nums">
-              $590.00 [+$190.00]
-            </span>{" "}
-            means $590.00 has settled and another $190.00 is on its way in.
-          </p>
+
+          <Figure caption="Every balance in the app reads this way — the settled figure first, the pending change in brackets.">
+            <ClearedPendingFigure />
+          </Figure>
+
           <p>
             To settle everything at once, filter the Transactions page to Status
             &ldquo;Pending&rdquo; and use Clear pending. It folds every pending
@@ -118,7 +370,7 @@ export default function HowToUsePage() {
           </p>
         </Section>
 
-        <Section title="Transactions with several lines">
+        <Section icon={TagIcon} title="Transactions with several lines">
           <p>
             A single transaction can split across several wallets and funds. Use
             Add line in the transaction modal — each line carries its own wallet,
@@ -130,21 +382,23 @@ export default function HowToUsePage() {
           </p>
         </Section>
 
-        <Section title="Overspending">
+        <Section icon={AlertTriangleIcon} title="Overspending">
           <p>
-            Funds don&apos;t go below $0. When one would, it shows an{" "}
-            <span className="text-foreground font-medium">Overspent</span> badge
-            and Savings covers the difference. The badge shows how far past zero
-            the fund went.
+            Funds don&apos;t go below $0. When one would, it floors at zero,
+            shows an Overspent badge, and Savings covers the difference.
           </p>
+
+          <Figure caption="Spending ran $42.00 past its budget, so it sits at $0.00 and Savings is $42.00 lighter.">
+            <OverspentFigure />
+          </Figure>
+
           <p>
-            An Overspent badge marked &ldquo;pending&rdquo; means the fund
-            doesn&apos;t go below $0 today, but will once its pending
-            transactions clear.
+            A badge marked &ldquo;pending&rdquo; means the fund is fine today,
+            but goes past zero once its pending transactions clear.
           </p>
         </Section>
 
-        <Section title="Deleting wallets and funds">
+        <Section icon={Trash2Icon} title="Deleting wallets and funds">
           <p>
             A wallet or fund that still holds money — including pending money —
             can&apos;t be deleted. Move the money elsewhere and clear any
