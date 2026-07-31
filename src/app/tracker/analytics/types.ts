@@ -1,4 +1,4 @@
-import type { TransactionsPageFilters } from "@/app/tracker/lib/transactions-page-query";
+import type { AnalyticsPageFilters } from "@/app/tracker/lib/analytics-page-query";
 
 export type GroupBy = "day" | "week" | "month";
 
@@ -15,18 +15,13 @@ export type DateRangePreset =
   | "last_year"
   | "ytd";
 
-export type AnalyticsFilters = TransactionsPageFilters & {
+export type AnalyticsFilters = AnalyticsPageFilters & {
   startDate: string;
   endDate: string;
   groupBy: GroupBy;
 };
 
-export type AnalyticsFilterDraft = Omit<
-  AnalyticsFilters,
-  "minAmount" | "maxAmount"
-> & {
-  minAmount: string;
-  maxAmount: string;
+export type AnalyticsFilterDraft = AnalyticsFilters & {
   datePreset: DateRangePreset;
   granularityLevel: GranularityLevel;
 };

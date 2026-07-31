@@ -1,13 +1,10 @@
+import { countActiveSharedFilters } from "@/app/tracker/components/filter-controls";
 import {
-  countActiveTransactionFilters,
-  parseFilterAmount,
-} from "@/app/tracker/components/filter-controls";
-import {
-  DEFAULT_TRANSACTIONS_FILTERS,
-  appendTransactionFilterParams,
-  normalizeTransactionsFilters,
-  transactionsFiltersCacheKey,
-} from "@/app/tracker/lib/transactions-page-query";
+  DEFAULT_ANALYTICS_FILTERS,
+  analyticsFiltersCacheKey,
+  appendAnalyticsFilterParams,
+  normalizeAnalyticsFilters,
+} from "@/app/tracker/lib/analytics-page-query";
 import {
   DEFAULT_DATE_PRESET,
   DEFAULT_GRANULARITY_LEVEL,
@@ -22,7 +19,7 @@ import type {
 export function createDefaultAnalyticsFilters(): AnalyticsFilters {
   const { startDate, endDate } = dateRangeForPreset(DEFAULT_DATE_PRESET);
   return {
-    ...DEFAULT_TRANSACTIONS_FILTERS,
+    ...DEFAULT_ANALYTICS_FILTERS,
     startDate,
     endDate,
     groupBy:
@@ -34,30 +31,18 @@ export function createDefaultAnalyticsFilters(): AnalyticsFilters {
 export function createDefaultFilterDraft(): AnalyticsFilterDraft {
   return {
     ...createDefaultAnalyticsFilters(),
-    minAmount: "",
-    maxAmount: "",
     datePreset: DEFAULT_DATE_PRESET,
     granularityLevel: DEFAULT_GRANULARITY_LEVEL,
   };
 }
+
 export function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
-  const minAmount = parseFilterAmount(draft.minAmount, "Minimum");
-  const maxAmount = parseFilterAmount(draft.maxAmount, "Maximum");
-
-  if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
-    throw new Error("Minimum amount cannot exceed maximum amount");
-  }
-
   if (draft.startDate && draft.endDate && draft.startDate > draft.endDate) {
     throw new Error("Start date cannot be after end date");
   }
 
   return {
-    ...normalizeTransactionsFilters({
-      ...draft,
-      minAmount,
-      maxAmount,
-    }),
+    ...normalizeAnalyticsFilters(draft),
     startDate: draft.startDate,
     endDate: draft.endDate,
     groupBy: draft.groupBy,
@@ -66,7 +51,7 @@ export function draftToFilters(draft: AnalyticsFilterDraft): AnalyticsFilters {
 
 export function analyticsFiltersKey(filters: AnalyticsFilters) {
   return JSON.stringify({
-    transactions: transactionsFiltersCacheKey(filters),
+    filters: analyticsFiltersCacheKey(filters),
     startDate: filters.startDate,
     endDate: filters.endDate,
     groupBy: filters.groupBy,
@@ -86,7 +71,7 @@ export function isDefaultAnalyticsFilters(filters: AnalyticsFilters) {
 
 export function countActiveFilters(filters: AnalyticsFilters) {
   const defaults = createDefaultAnalyticsFilters();
-  let count = countActiveTransactionFilters(filters);
+  let count = countActiveSharedFilters(filters);
   if (
     (filters.startDate || filters.endDate) &&
     (filters.startDate !== defaults.startDate ||
@@ -100,7 +85,7 @@ export function countActiveFilters(filters: AnalyticsFilters) {
 export function buildAnalyticsUrl(filters: AnalyticsFilters) {
   const params = new URLSearchParams();
 
-  appendTransactionFilterParams(params, filters);
+  appendAnalyticsFilterParams(params, filters);
   if (filters.startDate) params.set("startDate", filters.startDate);
   if (filters.endDate) params.set("endDate", filters.endDate);
   if (filters.groupBy !== "month") params.set("groupBy", filters.groupBy);

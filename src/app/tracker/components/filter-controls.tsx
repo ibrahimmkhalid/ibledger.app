@@ -33,15 +33,25 @@ export function parseFilterAmount(value: string, label: string) {
   return parsed;
 }
 
-// Counts the transaction-level filters shared by the transactions and
-// analytics pages; callers add their page-specific filters on top.
-export function countActiveTransactionFilters(
-  filters: TransactionsPageFilters,
-) {
+type SharedCountedFilters = Pick<
+  TransactionsPageFilters,
+  "search" | "fundIds" | "walletIds"
+>;
+
+// Counts the filters shared by the transactions and analytics pages; callers
+// add their page-specific filters on top.
+export function countActiveSharedFilters(filters: SharedCountedFilters) {
   let count = 0;
   if (filters.search.trim()) count += 1;
   if (filters.fundIds.length > 0) count += 1;
   if (filters.walletIds.length > 0) count += 1;
+  return count;
+}
+
+export function countActiveTransactionFilters(
+  filters: TransactionsPageFilters,
+) {
+  let count = countActiveSharedFilters(filters);
   if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
@@ -260,8 +270,9 @@ export function MultiSelectDropdown(args: {
 
 // The transactions and analytics pages render the same filter fields inside
 // different chrome (a Card vs a bordered div), so the fields are shared and the
-// wrapper is not. Analytics adds its own date-range and detail controls
-// alongside these.
+// wrapper is not. Analytics uses only the search field and the two account
+// dropdowns; the status/type/direction group and the amount range below are
+// transactions-only. See @/app/tracker/lib/analytics-page-query for why.
 
 type SharedFilterDraft = {
   pendingStatus: TransactionPendingFilter;
