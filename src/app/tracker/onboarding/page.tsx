@@ -394,15 +394,14 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Wallets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex justify-end">
+          <div className="flex items-center justify-between">
+            <CardTitle>Wallets</CardTitle>
             <Button onClick={() => setCreateWalletOpen(true)}>
               New wallet
             </Button>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -454,13 +453,12 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Funds</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex justify-end">
+          <div className="flex items-center justify-between">
+            <CardTitle>Funds</CardTitle>
             <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>

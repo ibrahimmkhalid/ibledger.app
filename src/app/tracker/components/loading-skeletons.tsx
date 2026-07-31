@@ -276,7 +276,6 @@ export function OverviewSkeleton() {
           <LoadingBlock className="h-4 w-24 rounded" />
           <LoadingBlock className="h-6 w-36 rounded" />
         </div>
-        <LoadingBlock className="mt-2 h-3 w-64 max-w-full rounded" />
       </LoadingPanel>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -351,7 +350,7 @@ export function FundsSkeleton() {
       <PageHeaderSkeleton titleWidth="w-24" actionWidths={["w-20", "w-24"]} />
 
       <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-36" descriptionWidth="w-72" />
+        <CardTitleSkeleton titleWidth="w-36" />
         <div className="mt-4">
           <AllocationSliderSkeleton />
         </div>
@@ -385,29 +384,17 @@ export function WalletsSkeleton() {
 export function OnboardingSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden>
-      <PageHeaderSkeleton
-        titleWidth="w-28"
-        subtitleWidth="w-[30rem]"
-        actionWidths={["w-40"]}
-      />
+      <PageHeaderSkeleton titleWidth="w-28" actionWidths={["w-40"]} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <LoadingPanel>
-          <CardTitleSkeleton
-            titleWidth="w-20"
-            descriptionWidth="w-72"
-            actionWidth="w-24"
-          />
+          <CardTitleSkeleton titleWidth="w-20" actionWidth="w-24" />
           <div className="mt-4">
             <TableSkeleton rows={3} columns={1} includeActions />
           </div>
         </LoadingPanel>
         <LoadingPanel>
-          <CardTitleSkeleton
-            titleWidth="w-16"
-            descriptionWidth="w-72"
-            actionWidth="w-20"
-          />
+          <CardTitleSkeleton titleWidth="w-16" actionWidth="w-20" />
           <div className="mt-4">
             <TableSkeleton rows={4} columns={3} includeActions />
           </div>
