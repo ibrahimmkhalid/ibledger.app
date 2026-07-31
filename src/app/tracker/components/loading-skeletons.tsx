@@ -78,7 +78,9 @@ function CardTitleSkeleton({
         ) : null}
       </div>
       {actionWidth ? (
-        <LoadingBlock className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)} />
+        <LoadingBlock
+          className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)}
+        />
       ) : null}
     </div>
   );
@@ -386,20 +388,19 @@ export function OnboardingSkeleton() {
     <div className="flex flex-col gap-6" aria-hidden>
       <PageHeaderSkeleton titleWidth="w-28" actionWidths={["w-40"]} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <LoadingPanel>
-          <CardTitleSkeleton titleWidth="w-20" actionWidth="w-24" />
-          <div className="mt-4">
-            <TableSkeleton rows={3} columns={1} includeActions />
-          </div>
-        </LoadingPanel>
-        <LoadingPanel>
-          <CardTitleSkeleton titleWidth="w-16" actionWidth="w-20" />
-          <div className="mt-4">
-            <TableSkeleton rows={4} columns={3} includeActions />
-          </div>
-        </LoadingPanel>
-      </div>
+      <LoadingPanel>
+        <CardTitleSkeleton titleWidth="w-20" actionWidth="w-24" />
+        <div className="mt-4">
+          <TableSkeleton rows={3} columns={1} includeActions />
+        </div>
+      </LoadingPanel>
+
+      <LoadingPanel>
+        <CardTitleSkeleton titleWidth="w-16" actionWidth="w-20" />
+        <div className="mt-4">
+          <TableSkeleton rows={4} columns={3} includeActions />
+        </div>
+      </LoadingPanel>
     </div>
   );
 }
