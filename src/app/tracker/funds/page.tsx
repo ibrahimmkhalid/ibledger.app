@@ -363,21 +363,12 @@ export default function FundsPage() {
           <CardHeader>
             <CardTitle>Income allocation</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-sm">
-              Set how each paycheck splits across your funds. Savings keeps
-              whatever&apos;s left over, so your shares always add up to 100%.
-            </p>
+          <CardContent>
             <MultiFundSlider
               funds={sliderFunds}
               onChange={handleSliderChange}
               disabled={busy}
             />
-            <p className="text-muted-foreground text-2xs">
-              Drag a divider, or focus it and use the arrow keys (hold Shift for
-              bigger steps). Nothing is saved until you press Confirm — Revert
-              undoes every change.
-            </p>
           </CardContent>
         </Card>
       )}
