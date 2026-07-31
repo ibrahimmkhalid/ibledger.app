@@ -708,15 +708,6 @@ export function TransactionModal(args: {
             </div>
           </div>
 
-          {!readOnly && (
-            <p className="text-muted-foreground text-2xs">
-              Amounts fill in cents-first — type 4200 for $42.00. Turn on{" "}
-              <span className="font-medium">Pending</span> for a line whose money
-              hasn&apos;t settled yet; it stays out of your cleared balance until
-              you clear it.
-            </p>
-          )}
-
           {renderBreakdown(isMobile)}
           {renderLinesEditor(isMobile)}
         </>
