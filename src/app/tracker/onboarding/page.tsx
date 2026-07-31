@@ -30,12 +30,11 @@ import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { holdsMoney } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
-  TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 type FundFormState = {
   name: string;
@@ -91,28 +90,7 @@ function FundModal(args: {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <div className="flex flex-row items-center gap-1">
-              <Label htmlFor={shareId}>Income share</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="What is income share?"
-                      className="text-muted-foreground shrink-0 opacity-65"
-                    >
-                      <CircleHelpIcon className="size-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">
-                      The share of each paycheck that flows into this fund.
-                      Whatever&apos;s left lands in savings.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <Label htmlFor={shareId}>Income share</Label>
             <Input
               id={shareId}
               inputMode="decimal"
@@ -335,35 +313,25 @@ export default function OnboardingPage() {
   return (
     <div className="flex flex-col gap-6">
       {confirmDialog}
-      <div className="flex flex-col gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Welcome</h1>
-          <div className="text-muted-foreground text-sm">
-            Set up the wallets your money sits in and the funds it&apos;s set
-            aside for. We&apos;ve started you with a Bank wallet and a Savings
-            fund — rename them, add your own, or head straight to the tracker.
-            Nothing here is permanent.
-          </div>
-        </div>
-        <div className="flex flex-row flex-wrap items-center gap-2">
-          <Button
-            onClick={async () => {
-              try {
-                await apiJson("/api/onboard", {
-                  method: "POST",
-                  body: "{}",
-                });
-              } catch {
-                // Do nothing
-              } finally {
-                router.push("/tracker");
-              }
-            }}
-            disabled={!canFinish}
-          >
-            Finish setup
-          </Button>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Welcome</h1>
+        <Button
+          onClick={async () => {
+            try {
+              await apiJson("/api/onboard", {
+                method: "POST",
+                body: "{}",
+              });
+            } catch {
+              // Do nothing
+            } finally {
+              router.push("/tracker");
+            }
+          }}
+          disabled={!canFinish}
+        >
+          Finish setup
+        </Button>
       </div>
 
       <WalletModal
@@ -429,11 +397,7 @@ export default function OnboardingPage() {
           <CardTitle>Wallets</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="text-muted-foreground text-sm">
-              Add every account your money actually sits in — checking, cash, a
-              card. We started you with a Bank wallet.
-            </div>
+          <div className="mb-4 flex justify-end">
             <Button onClick={() => setCreateWalletOpen(true)}>
               New wallet
             </Button>
@@ -493,11 +457,7 @@ export default function OnboardingPage() {
           <CardTitle>Funds</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="text-muted-foreground text-sm">
-              Add a fund for each thing you set money aside for. Savings catches
-              whatever the others don&apos;t claim.
-            </div>
+          <div className="mb-4 flex justify-end">
             <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
           </div>
 
