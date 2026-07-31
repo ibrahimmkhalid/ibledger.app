@@ -169,7 +169,7 @@ export default function TrackerPage() {
       />
 
       <Card size="sm">
-        <CardContent className="flex flex-col gap-1">
+        <CardContent>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-muted-foreground text-sm font-medium">
               Total balance
@@ -185,9 +185,6 @@ export default function TrackerPage() {
               <span className="text-muted-foreground">-</span>
             )}
           </div>
-          <p className="text-muted-foreground text-2xs">
-            Balances show your cleared total, with pending changes in brackets.
-          </p>
         </CardContent>
       </Card>
 
