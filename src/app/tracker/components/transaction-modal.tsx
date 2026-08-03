@@ -707,7 +707,6 @@ export function TransactionModal(args: {
               />
             </div>
           </div>
-
           {renderBreakdown(isMobile)}
           {renderLinesEditor(isMobile)}
         </>

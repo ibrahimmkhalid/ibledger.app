@@ -521,7 +521,6 @@ export default function TransactionsPage() {
         onSaved={handleSaved}
       />
 
-
       <Card>
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
@@ -652,7 +651,8 @@ export default function TransactionsPage() {
                         variant="outline"
                         onClick={() => void resetFilters()}
                         disabled={
-                          pageLoading || (activeFilterCount === 0 && !filtersDirty)
+                          pageLoading ||
+                          (activeFilterCount === 0 && !filtersDirty)
                         }
                       >
                         <XIcon />

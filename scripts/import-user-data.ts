@@ -364,9 +364,7 @@ async function main() {
 
       const isPendingRaw = (root.root as ImportTransactionLine).is_pending;
       const isPending =
-        isPendingRaw === undefined
-          ? true
-          : toBoolean(isPendingRaw);
+        isPendingRaw === undefined ? true : toBoolean(isPendingRaw);
 
       const incomePullRaw = (root.root as ImportTransactionLine).income_pull;
       const incomePull =
@@ -432,9 +430,7 @@ async function main() {
 
       const isPendingRaw = e.child.is_pending;
       const isPending =
-        isPendingRaw === undefined
-          ? true
-          : toBoolean(isPendingRaw);
+        isPendingRaw === undefined ? true : toBoolean(isPendingRaw);
 
       const incomePullRaw = e.child.income_pull;
       const incomePull =

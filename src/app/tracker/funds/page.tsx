@@ -518,7 +518,9 @@ export default function FundsPage() {
                     className="flex flex-wrap items-center gap-x-3 gap-y-0.5"
                   >
                     <span className="min-w-[100px] font-medium">{f.name}</span>
-                    <span className="tabular-nums">{displayPct} income share</span>
+                    <span className="tabular-nums">
+                      {displayPct} income share
+                    </span>
                     <span className="opacity-40">·</span>
                     <span className="tabular-nums">
                       {fmtAmount(f.balance)} balance

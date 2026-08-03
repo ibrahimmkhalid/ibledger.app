@@ -34,9 +34,12 @@ const buttonVariants = cva(
         sm: "h-9 gap-1 px-2.5 text-sm has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 sm:pointer-fine:h-6 sm:pointer-fine:px-2 sm:pointer-fine:text-xs/relaxed [&_svg:not([class*='size-'])]:size-3.5 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-3",
         lg: "h-11 gap-1.5 px-4 text-sm has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3 sm:pointer-fine:h-8 sm:pointer-fine:px-2.5 [&_svg:not([class*='size-'])]:size-4",
         icon: "size-11 sm:pointer-fine:size-7 [&_svg:not([class*='size-'])]:size-4 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-3.5",
-        "icon-xs": "size-8 rounded-sm sm:pointer-fine:size-5 [&_svg:not([class*='size-'])]:size-3 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-2.5",
-        "icon-sm": "size-10 sm:pointer-fine:size-6 [&_svg:not([class*='size-'])]:size-4 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-3",
-        "icon-lg": "size-11 sm:pointer-fine:size-8 [&_svg:not([class*='size-'])]:size-4",
+        "icon-xs":
+          "size-8 rounded-sm sm:pointer-fine:size-5 [&_svg:not([class*='size-'])]:size-3 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-2.5",
+        "icon-sm":
+          "size-10 sm:pointer-fine:size-6 [&_svg:not([class*='size-'])]:size-4 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-3",
+        "icon-lg":
+          "size-11 sm:pointer-fine:size-8 [&_svg:not([class*='size-'])]:size-4",
       },
     },
     defaultVariants: {

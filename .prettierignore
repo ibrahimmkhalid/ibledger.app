@@ -1,0 +1,15 @@
+# build output
+.next/
+out/
+build/
+coverage/
+
+# generated
+next-env.d.ts
+*.tsbuildinfo
+package-lock.json
+drizzle/meta/
+
+# not ours
+node_modules/
+public/

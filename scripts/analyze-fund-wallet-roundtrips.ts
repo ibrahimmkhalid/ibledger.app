@@ -218,7 +218,9 @@ async function main() {
   const jsonMode = flags.json === "true";
 
   if (!userIdRaw || Number.isNaN(userId)) {
-    throw new Error("Missing userId. Usage: npx tsx scripts/analyze-fund-wallet-roundtrips.ts --userId 123");
+    throw new Error(
+      "Missing userId. Usage: npx tsx scripts/analyze-fund-wallet-roundtrips.ts --userId 123",
+    );
   }
 
   const { db } = await import("../src/db");
@@ -253,8 +255,12 @@ async function main() {
         fundId: transactions.fundId,
       })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)))
-      .orderBy(asc(transactions.occurredAt), asc(transactions.id)) as Promise<TxRow[]>,
+      .where(
+        and(eq(transactions.userId, userId), isNull(transactions.deletedAt)),
+      )
+      .orderBy(asc(transactions.occurredAt), asc(transactions.id)) as Promise<
+      TxRow[]
+    >,
     db
       .select({ id: funds.id, name: funds.name })
       .from(funds)
@@ -265,7 +271,9 @@ async function main() {
       .where(and(eq(wallets.userId, userId), isNull(wallets.deletedAt))),
   ]);
 
-  const fundNameById = new Map(fundRows.map((row) => [row.id, String(row.name)]));
+  const fundNameById = new Map(
+    fundRows.map((row) => [row.id, String(row.name)]),
+  );
   const walletNameById = new Map(
     walletRows.map((row) => [row.id, String(row.name)]),
   );

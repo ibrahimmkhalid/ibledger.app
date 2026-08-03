@@ -254,8 +254,12 @@ function collectDescriptionStats(events: EventRow[]) {
     }
   }
 
-  const entries = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const descriptionVariants = entries.map(([key]) => displayByKey.get(key) ?? key);
+  const entries = [...counts.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  );
+  const descriptionVariants = entries.map(
+    ([key]) => displayByKey.get(key) ?? key,
+  );
   const winner = entries[0];
 
   if (!winner) {
@@ -377,7 +381,11 @@ function scoreSeries(args: {
   else if (args.amountSpreadPct <= 0.1) score += 8;
 
   if (args.medianIntervalDays !== null) {
-    const proximity = Math.max(0, 15 - Math.abs(args.medianIntervalDays - Math.round(args.medianIntervalDays)));
+    const proximity = Math.max(
+      0,
+      15 -
+        Math.abs(args.medianIntervalDays - Math.round(args.medianIntervalDays)),
+    );
     score += proximity;
   }
 
@@ -413,7 +421,9 @@ function buildCandidate(args: {
 
   const intervals = ordered
     .slice(1)
-    .map((event, index) => daysBetween(ordered[index]!.occurredAt, event.occurredAt));
+    .map((event, index) =>
+      daysBetween(ordered[index]!.occurredAt, event.occurredAt),
+    );
   const medianIntervalDays = median(intervals);
 
   const intervalMad =
@@ -428,7 +438,8 @@ function buildCandidate(args: {
 
   const regularEnough =
     intervals.length >= 2 &&
-    (intervalMad === null || intervalMad <= (args.source === "periodicity" ? 5 : 4)) &&
+    (intervalMad === null ||
+      intervalMad <= (args.source === "periodicity" ? 5 : 4)) &&
     amountSpreadPct <= (args.source === "periodicity" ? 0.15 : 0.12);
 
   if (!regularEnough) return null;
@@ -448,7 +459,9 @@ function buildCandidate(args: {
   const rootDescription =
     args.displayName ??
     descriptionStats.displayName ??
-    ordered.map((event) => collapseEventDescription(event)).find((value): value is string => Boolean(value));
+    ordered
+      .map((event) => collapseEventDescription(event))
+      .find((value): value is string => Boolean(value));
 
   const displayName = rootDescription ?? args.descriptionKey;
   const lastEvent = ordered[ordered.length - 1]!;
@@ -456,7 +469,9 @@ function buildCandidate(args: {
   const nextExpectedDate =
     medianIntervalDays === null
       ? null
-      : formatDate(addDays(lastEvent.occurredAt, Math.round(medianIntervalDays)));
+      : formatDate(
+          addDays(lastEvent.occurredAt, Math.round(medianIntervalDays)),
+        );
 
   return {
     source: args.source,
@@ -466,7 +481,8 @@ function buildCandidate(args: {
     descriptionKey: args.descriptionKey,
     displayName,
     sign,
-    descriptionVariants: args.descriptionVariants ?? descriptionStats.descriptionVariants,
+    descriptionVariants:
+      args.descriptionVariants ?? descriptionStats.descriptionVariants,
     descriptionModeShare:
       args.descriptionModeShare ?? descriptionStats.descriptionModeShare,
     count: ordered.length,
@@ -474,7 +490,9 @@ function buildCandidate(args: {
     lastDate: formatDate(lastEvent.occurredAt),
     nextExpectedDate,
     medianIntervalDays:
-      medianIntervalDays === null ? null : Number(medianIntervalDays.toFixed(1)),
+      medianIntervalDays === null
+        ? null
+        : Number(medianIntervalDays.toFixed(1)),
     cadence,
     medianAmount: Number(medianAmount.toFixed(2)),
     minAmount: Number(minAmount.toFixed(2)),
@@ -552,15 +570,22 @@ function tokenizeForMerge(input: string | null | undefined): string[] {
     .filter((token) => !/^\d+$/.test(token));
 }
 
-function textSimilarity(a: SubscriptionCandidate, b: SubscriptionCandidate): number {
+function textSimilarity(
+  a: SubscriptionCandidate,
+  b: SubscriptionCandidate,
+): number {
   const tokensA = new Set(
     tokenizeForMerge(
-      [a.displayName, a.descriptionKey, ...(a.descriptionVariants ?? [])].join(" "),
+      [a.displayName, a.descriptionKey, ...(a.descriptionVariants ?? [])].join(
+        " ",
+      ),
     ),
   );
   const tokensB = new Set(
     tokenizeForMerge(
-      [b.displayName, b.descriptionKey, ...(b.descriptionVariants ?? [])].join(" "),
+      [b.displayName, b.descriptionKey, ...(b.descriptionVariants ?? [])].join(
+        " ",
+      ),
     ),
   );
 
@@ -575,30 +600,40 @@ function textSimilarity(a: SubscriptionCandidate, b: SubscriptionCandidate): num
 
   const union = new Set([...tokensA, ...tokensB]).size;
   const jaccard = intersection / Math.max(1, union);
-  const minOverlap = intersection / Math.max(1, Math.min(tokensA.size, tokensB.size));
+  const minOverlap =
+    intersection / Math.max(1, Math.min(tokensA.size, tokensB.size));
 
   const flatA = [...tokensA].join(" ");
   const flatB = [...tokensB].join(" ");
-  const contains =
-    flatA.includes(flatB) || flatB.includes(flatA) ? 1 : 0;
+  const contains = flatA.includes(flatB) || flatB.includes(flatA) ? 1 : 0;
 
   return Math.max(jaccard, minOverlap, contains);
 }
 
-function cadenceClose(a: SubscriptionCandidate, b: SubscriptionCandidate): boolean {
+function cadenceClose(
+  a: SubscriptionCandidate,
+  b: SubscriptionCandidate,
+): boolean {
   if (a.cadence === b.cadence) return true;
-  if (a.medianIntervalDays === null || b.medianIntervalDays === null) return false;
+  if (a.medianIntervalDays === null || b.medianIntervalDays === null)
+    return false;
   return Math.abs(a.medianIntervalDays - b.medianIntervalDays) <= 6;
 }
 
-function amountClose(a: SubscriptionCandidate, b: SubscriptionCandidate): boolean {
+function amountClose(
+  a: SubscriptionCandidate,
+  b: SubscriptionCandidate,
+): boolean {
   const amountA = Math.abs(a.medianAmount);
   const amountB = Math.abs(b.medianAmount);
   const tolerance = Math.max(0.75, Math.max(amountA, amountB) * 0.05);
   return Math.abs(amountA - amountB) <= tolerance;
 }
 
-function shouldMergeCandidates(a: SubscriptionCandidate, b: SubscriptionCandidate): boolean {
+function shouldMergeCandidates(
+  a: SubscriptionCandidate,
+  b: SubscriptionCandidate,
+): boolean {
   if (a.userId !== b.userId) return false;
   if (a.sign !== b.sign) return false;
   if (!amountClose(a, b)) return false;
@@ -728,8 +763,16 @@ function mergeCandidates(args: {
         email: args.email,
       }),
     )
-    .filter((candidate): candidate is MergedSubscriptionCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score || b.count - a.count || a.displayName.localeCompare(b.displayName));
+    .filter(
+      (candidate): candidate is MergedSubscriptionCandidate =>
+        candidate !== null,
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.count - a.count ||
+        a.displayName.localeCompare(b.displayName),
+    );
 }
 
 function groupByDescriptionAndAmount(events: EventRow[]) {
@@ -801,9 +844,13 @@ function buildPeriodicityCandidates(args: {
   return groupPeriodicityOnly(args.events)
     .map((cluster) => {
       const stats = collectDescriptionStats(cluster);
-      const amount = Math.abs(median(cluster.map((event) => Math.abs(computeEventAmount(event)))) ?? 0);
+      const amount = Math.abs(
+        median(cluster.map((event) => Math.abs(computeEventAmount(event)))) ??
+          0,
+      );
       const displayName =
-        stats.displayName ?? (amount > 0 ? `Recurring ${formatMoney(amount)}` : "Recurring item");
+        stats.displayName ??
+        (amount > 0 ? `Recurring ${formatMoney(amount)}` : "Recurring item");
       const descriptionKey =
         stats.descriptionKey ?? `periodic-${Math.round(amount * 100)}`;
 
@@ -819,8 +866,15 @@ function buildPeriodicityCandidates(args: {
         descriptionModeShare: stats.descriptionModeShare,
       });
     })
-    .filter((candidate): candidate is SubscriptionCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score || b.count - a.count || a.displayName.localeCompare(b.displayName));
+    .filter(
+      (candidate): candidate is SubscriptionCandidate => candidate !== null,
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.count - a.count ||
+        a.displayName.localeCompare(b.displayName),
+    );
 }
 
 function buildTextCandidates(args: {
@@ -844,8 +898,15 @@ function buildTextCandidates(args: {
         descriptionModeShare: stats.descriptionModeShare,
       });
     })
-    .filter((candidate): candidate is SubscriptionCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score || b.count - a.count || a.displayName.localeCompare(b.displayName));
+    .filter(
+      (candidate): candidate is SubscriptionCandidate => candidate !== null,
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.count - a.count ||
+        a.displayName.localeCompare(b.displayName),
+    );
 }
 
 function isMergedCandidate(
@@ -856,9 +917,7 @@ function isMergedCandidate(
 
 function printCandidateSection(
   label: string,
-  candidates:
-    | SubscriptionCandidate[]
-    | MergedSubscriptionCandidate[],
+  candidates: SubscriptionCandidate[] | MergedSubscriptionCandidate[],
 ) {
   console.log(`  ${label}`);
 
@@ -871,7 +930,8 @@ function printCandidateSection(
     const medianDisplay = candidate.sign * candidate.medianAmount;
     const maxDisplay = candidate.sign * candidate.maxAmount;
     const minDisplay = candidate.sign * candidate.minAmount;
-    const sourceTag = candidate.source === "merged" ? "merged" : candidate.source;
+    const sourceTag =
+      candidate.source === "merged" ? "merged" : candidate.source;
     console.log(
       `    ${index + 1}. ${candidate.displayName} [${sourceTag}] | ${candidate.cadence} | count=${candidate.count} | amount=${formatMoney(medianDisplay)} | spread=${candidate.amountSpreadPct.toFixed(1)}% | score=${candidate.score}`,
     );
@@ -927,7 +987,9 @@ async function loadTransactions(db: Db, userId: number) {
     })
     .from(transactions)
     .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)))
-    .orderBy(asc(transactions.occurredAt), asc(transactions.id)) as Promise<TxRow[]>;
+    .orderBy(asc(transactions.occurredAt), asc(transactions.id)) as Promise<
+    TxRow[]
+  >;
 }
 
 async function main() {

@@ -78,9 +78,7 @@ export function TrendModeToggle({
 }) {
   return (
     <div className="flex items-center justify-end gap-2">
-      <span className="text-muted-foreground text-2xs font-medium">
-        View
-      </span>
+      <span className="text-muted-foreground text-2xs font-medium">View</span>
       <div
         role="group"
         aria-label="Trend view"
@@ -95,7 +93,7 @@ export function TrendModeToggle({
               aria-pressed={active}
               onClick={() => onChange(option.value)}
               className={cn(
-                "flex h-full items-center rounded-sm px-2 text-2xs font-medium transition-colors",
+                "text-2xs flex h-full items-center rounded-sm px-2 font-medium transition-colors",
                 active
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -717,7 +715,7 @@ export function SpendingBars({
               style={{ width: `${Math.min(100, Math.max(0, row.share))}%` }}
             />
           </div>
-          <div className="text-muted-foreground flex justify-between gap-3 text-2xs">
+          <div className="text-muted-foreground text-2xs flex justify-between gap-3">
             <span>{row.share.toFixed(1)}% of spending</span>
             <span className="tabular-nums">Net {fmtAmount(row.net)}</span>
           </div>

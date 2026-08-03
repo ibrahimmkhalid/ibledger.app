@@ -20,9 +20,9 @@ type ConfirmOptions = {
  * becomes a bottom drawer (via ResponsiveModal); on desktop a centered dialog.
  */
 export function useConfirm() {
-  const [state, setState] = useState<(ConfirmOptions & { open: boolean }) | null>(
-    null,
-  );
+  const [state, setState] = useState<
+    (ConfirmOptions & { open: boolean }) | null
+  >(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
   const descriptionId = useId();
 
