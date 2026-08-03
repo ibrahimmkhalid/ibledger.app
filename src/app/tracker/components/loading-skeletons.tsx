@@ -78,7 +78,9 @@ function CardTitleSkeleton({
         ) : null}
       </div>
       {actionWidth ? (
-        <LoadingBlock className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)} />
+        <LoadingBlock
+          className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)}
+        />
       ) : null}
     </div>
   );

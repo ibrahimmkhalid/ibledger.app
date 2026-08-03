@@ -222,7 +222,8 @@ export default function OnboardingPage() {
   async function deleteWallet(wallet: Wallet) {
     const ok = await confirm({
       title: `Delete "${wallet.name}"?`,
-      description: "This wallet and its history will be removed. You can't undo this.",
+      description:
+        "This wallet and its history will be removed. You can't undo this.",
       confirmLabel: "Delete wallet",
       destructive: true,
     });

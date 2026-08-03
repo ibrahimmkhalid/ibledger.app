@@ -104,8 +104,9 @@ export default function TrackerPage() {
           return;
         }
 
-        const overview =
-          await apiJson<OverviewResponse>("/api/tracker/overview");
+        const overview = await apiJson<OverviewResponse>(
+          "/api/tracker/overview",
+        );
 
         setWallets(overview.wallets);
         setFunds(overview.funds);

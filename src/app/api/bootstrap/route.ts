@@ -77,7 +77,7 @@ export async function POST() {
           .where(eq(users.id, existing.id))
           .returning()
           .then((res) => res[0])
-      : existing ??
+      : (existing ??
         (await db
           .insert(users)
           .values({
@@ -86,7 +86,7 @@ export async function POST() {
             username: usernameCandidate,
           })
           .returning()
-          .then((res) => res[0]));
+          .then((res) => res[0])));
 
     if (!dbUser) {
       return NextResponse.json(

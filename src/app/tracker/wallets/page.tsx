@@ -28,7 +28,6 @@ import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import type { Wallet } from "@/app/tracker/types";
 
-
 export default function WalletsPage() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
@@ -105,7 +104,8 @@ export default function WalletsPage() {
   async function deleteWallet(wallet: Wallet) {
     const ok = await confirm({
       title: `Delete "${wallet.name}"?`,
-      description: "This wallet and its history will be removed. You can't undo this.",
+      description:
+        "This wallet and its history will be removed. You can't undo this.",
       confirmLabel: "Delete wallet",
       destructive: true,
     });
@@ -188,7 +188,7 @@ export default function WalletsPage() {
               {wallets.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right text-sm tabular-nums whitespace-normal">
+                  <TableCell className="text-right text-sm whitespace-normal tabular-nums">
                     <ClearedWithPending
                       cleared={w.balance}
                       withPending={w.balanceWithPending}

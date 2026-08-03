@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "prettier --check . && eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "export": "tsx scripts/export-user-data.ts",
     "import": "tsx scripts/import-user-data.ts"
   },

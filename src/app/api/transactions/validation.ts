@@ -109,7 +109,9 @@ function parseLineBase(
     description: parseLineDescription(line.description),
     amount,
     isPending:
-      line.isPending === undefined ? fallbackIsPending : Boolean(line.isPending),
+      line.isPending === undefined
+        ? fallbackIsPending
+        : Boolean(line.isPending),
   };
 }
 
@@ -136,7 +138,10 @@ export function parseUpdateTransactionLines(
 
   return input.map((line) => {
     const record = parseJsonObject(line);
-    const transactionId = parseNullableId(record.transactionId, "transactionId");
+    const transactionId = parseNullableId(
+      record.transactionId,
+      "transactionId",
+    );
 
     return {
       ...parseLineBase(record, fallbackIsPending),
