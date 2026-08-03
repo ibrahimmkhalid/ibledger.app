@@ -373,8 +373,9 @@ export default function HowToUsePage() {
         <Section icon={TagIcon} title="Transactions with several lines">
           <p>
             A single transaction can split across several wallets and funds. Use
-            Add line in the transaction modal — each line carries its own wallet,
-            fund, description, direction (in or out), amount, and pending flag.
+            Add line in the transaction modal — each line carries its own
+            wallet, fund, description, direction (in or out), amount, and
+            pending flag.
           </p>
           <p>
             The transaction counts as pending if any one of its lines is
