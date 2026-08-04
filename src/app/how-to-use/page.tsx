@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function HowToUsePage() {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:py-16">
+    <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:py-16">
       <h1 className="text-3xl font-semibold tracking-tight">
         How to use ibLedger
       </h1>

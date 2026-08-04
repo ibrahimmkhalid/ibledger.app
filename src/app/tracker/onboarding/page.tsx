@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Pencil, Trash2 } from "lucide-react";
 
 type FundFormState = {
   name: string;
@@ -340,18 +340,24 @@ export default function OnboardingPage() {
 
   if (step === "guide") {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+      <div className="flex w-full flex-col gap-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">Welcome to ibLedger</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setStep("setup")}>Set up my ledger</Button>
+            <Button onClick={() => setStep("setup")}>
+              Set up my ledger
+              <ArrowRightIcon data-icon="inline-end" />
+            </Button>
           </div>
         </div>
 
         <HowToUseGuide />
 
         <div className="border-border flex justify-end border-t pt-6">
-          <Button onClick={() => setStep("setup")}>Set up my ledger</Button>
+          <Button onClick={() => setStep("setup")}>
+            Set up my ledger
+            <ArrowRightIcon data-icon="inline-end" />
+          </Button>
         </div>
       </div>
     );
@@ -364,10 +370,12 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-semibold">Set up your ledger</h1>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" onClick={() => setStep("guide")}>
+            <ArrowLeftIcon data-icon="inline-start" />
             How it works
           </Button>
           <Button onClick={() => void finishSetup()} disabled={!canFinish}>
             Finish setup
+            <ArrowRightIcon data-icon="inline-end" />
           </Button>
         </div>
       </div>
