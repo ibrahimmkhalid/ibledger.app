@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { HowToUseGuide } from "@/app/how-to-use/guide";
 import { apiJson } from "@/app/tracker/lib/api";
 import {
   WalletModal,
@@ -121,6 +122,14 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // A first run opens on the guide; a revisit (to tweak wallets and funds
+  // later) goes straight to setup. Decided once, on the first bootstrap —
+  // refresh() runs again after every create/delete, and onboarding stays
+  // "required" until Finish setup, so re-deciding would bounce the user back
+  // to the guide mid-setup.
+  const [step, setStep] = useState<"guide" | "setup">("setup");
+  const stepDecided = useRef(false);
+
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
 
@@ -136,10 +145,15 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      const ready = await checkBootstrapOrRedirect(router, {
+      const boot = await checkBootstrapOrRedirect(router, {
         skipOnboarding: true,
       });
-      if (!ready) return;
+      if (!boot) return;
+
+      if (!stepDecided.current) {
+        stepDecided.current = true;
+        setStep(boot.onboarding?.required ? "guide" : "setup");
+      }
 
       const [walletsRes, fundsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -307,32 +321,55 @@ export default function OnboardingPage() {
     }
   }
 
+  async function finishSetup() {
+    try {
+      await apiJson("/api/onboard", {
+        method: "POST",
+        body: "{}",
+      });
+    } catch {
+      // Do nothing
+    } finally {
+      router.push("/tracker");
+    }
+  }
+
   if (loading) {
     return <OnboardingSkeleton />;
+  }
+
+  if (step === "guide") {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-semibold">Welcome to ibLedger</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setStep("setup")}>Set up my ledger</Button>
+          </div>
+        </div>
+
+        <HowToUseGuide />
+
+        <div className="border-border flex justify-end border-t pt-6">
+          <Button onClick={() => setStep("setup")}>Set up my ledger</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
       {confirmDialog}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Welcome</h1>
-        <Button
-          onClick={async () => {
-            try {
-              await apiJson("/api/onboard", {
-                method: "POST",
-                body: "{}",
-              });
-            } catch {
-              // Do nothing
-            } finally {
-              router.push("/tracker");
-            }
-          }}
-          disabled={!canFinish}
-        >
-          Finish setup
-        </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold">Set up your ledger</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setStep("guide")}>
+            How it works
+          </Button>
+          <Button onClick={() => void finishSetup()} disabled={!canFinish}>
+            Finish setup
+          </Button>
+        </div>
       </div>
 
       <WalletModal

@@ -59,20 +59,22 @@ function checkBootstrap(): Promise<BootstrapResponse> {
   );
 }
 
-// Returns false when a redirect was issued and the caller should stop loading.
-// Every tracker page opens with this.
+// Returns null when a redirect was issued and the caller should stop loading,
+// otherwise the bootstrap payload. Every tracker page opens with this; most
+// only need the null check, but onboarding reads onboarding.required off the
+// payload to tell a first run from a revisit.
 export async function checkBootstrapOrRedirect(
   router: { replace: (href: string) => void },
   opts?: { skipOnboarding?: boolean },
-) {
+): Promise<BootstrapResponse | null> {
   const boot = await checkBootstrap();
 
   // The onboarding page passes skipOnboarding so users can revisit it to tweak
   // their initial setup after it is no longer required.
   if (!opts?.skipOnboarding && boot.onboarding?.required) {
     router.replace(boot.onboarding.redirectTo);
-    return false;
+    return null;
   }
 
-  return true;
+  return boot;
 }
