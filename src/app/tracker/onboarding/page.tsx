@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { HowToUseGuide } from "@/app/how-to-use/guide";
 import { apiJson } from "@/app/tracker/lib/api";
 import {
   WalletModal,
@@ -30,12 +31,11 @@ import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { holdsMoney } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
-  TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { CircleHelpIcon, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, Pencil, Trash2 } from "lucide-react";
 
 type FundFormState = {
   name: string;
@@ -91,28 +91,7 @@ function FundModal(args: {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <div className="flex flex-row items-center gap-1">
-              <Label htmlFor={shareId}>Income share</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="What is income share?"
-                      className="text-muted-foreground shrink-0 opacity-65"
-                    >
-                      <CircleHelpIcon className="size-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">
-                      The share of each paycheck that flows into this fund.
-                      Whatever&apos;s left lands in savings.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <Label htmlFor={shareId}>Income share</Label>
             <Input
               id={shareId}
               inputMode="decimal"
@@ -143,6 +122,14 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // A first run opens on the guide; a revisit (to tweak wallets and funds
+  // later) goes straight to setup. Decided once, on the first bootstrap —
+  // refresh() runs again after every create/delete, and onboarding stays
+  // "required" until Finish setup, so re-deciding would bounce the user back
+  // to the guide mid-setup.
+  const [step, setStep] = useState<"guide" | "setup">("setup");
+  const stepDecided = useRef(false);
+
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [funds, setFunds] = useState<Fund[]>([]);
 
@@ -158,10 +145,15 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      const ready = await checkBootstrapOrRedirect(router, {
+      const boot = await checkBootstrapOrRedirect(router, {
         skipOnboarding: true,
       });
-      if (!ready) return;
+      if (!boot) return;
+
+      if (!stepDecided.current) {
+        stepDecided.current = true;
+        setStep(boot.onboarding?.required ? "guide" : "setup");
+      }
 
       const [walletsRes, fundsRes] = await Promise.all([
         apiJson<{ wallets: Wallet[] }>("/api/wallets"),
@@ -329,40 +321,61 @@ export default function OnboardingPage() {
     }
   }
 
+  async function finishSetup() {
+    try {
+      await apiJson("/api/onboard", {
+        method: "POST",
+        body: "{}",
+      });
+    } catch {
+      // Do nothing
+    } finally {
+      router.push("/tracker");
+    }
+  }
+
   if (loading) {
     return <OnboardingSkeleton />;
+  }
+
+  if (step === "guide") {
+    return (
+      <div className="flex w-full flex-col gap-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-semibold">Welcome to ibLedger</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setStep("setup")}>
+              Set up my ledger
+              <ArrowRightIcon data-icon="inline-end" />
+            </Button>
+          </div>
+        </div>
+
+        <HowToUseGuide />
+
+        <div className="border-border flex justify-end border-t pt-6">
+          <Button onClick={() => setStep("setup")}>
+            Set up my ledger
+            <ArrowRightIcon data-icon="inline-end" />
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
       {confirmDialog}
-      <div className="flex flex-col gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Welcome</h1>
-          <div className="text-muted-foreground text-sm">
-            Set up the wallets your money sits in and the funds it&apos;s set
-            aside for. We&apos;ve started you with a Bank wallet and a Savings
-            fund — rename them, add your own, or head straight to the tracker.
-            Nothing here is permanent.
-          </div>
-        </div>
-        <div className="flex flex-row flex-wrap items-center gap-2">
-          <Button
-            onClick={async () => {
-              try {
-                await apiJson("/api/onboard", {
-                  method: "POST",
-                  body: "{}",
-                });
-              } catch {
-                // Do nothing
-              } finally {
-                router.push("/tracker");
-              }
-            }}
-            disabled={!canFinish}
-          >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold">Set up your ledger</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setStep("guide")}>
+            <ArrowLeftIcon data-icon="inline-start" />
+            How it works
+          </Button>
+          <Button onClick={() => void finishSetup()} disabled={!canFinish}>
             Finish setup
+            <ArrowRightIcon data-icon="inline-end" />
           </Button>
         </div>
       </div>
@@ -427,19 +440,14 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Wallets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="text-muted-foreground text-sm">
-              Add every account your money actually sits in — checking, cash, a
-              card. We started you with a Bank wallet.
-            </div>
+          <div className="flex items-center justify-between">
+            <CardTitle>Wallets</CardTitle>
             <Button onClick={() => setCreateWalletOpen(true)}>
               New wallet
             </Button>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -491,17 +499,12 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Funds</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="text-muted-foreground text-sm">
-              Add a fund for each thing you set money aside for. Savings catches
-              whatever the others don&apos;t claim.
-            </div>
+          <div className="flex items-center justify-between">
+            <CardTitle>Funds</CardTitle>
             <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>

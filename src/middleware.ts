@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { isDevTestingEnabled } from "@/lib/dev-testing";
 
-const isPublicRoute = createRouteMatcher(["/"]);
+const isPublicRoute = createRouteMatcher(["/", "/how-to-use"]);
 
 const middleware = isDevTestingEnabled()
   ? () => NextResponse.next()

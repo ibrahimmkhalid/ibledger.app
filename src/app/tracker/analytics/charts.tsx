@@ -111,7 +111,6 @@ export function TrendModeToggle({
 export function StatCard(args: {
   title: string;
   value: React.ReactNode;
-  detail: React.ReactNode;
   icon: React.ReactNode;
   tone?: "income" | "spending" | "neutral";
 }) {
@@ -133,9 +132,6 @@ export function StatCard(args: {
       <CardContent>
         <div className={cn("text-xl font-semibold tabular-nums", toneClass)}>
           {args.value}
-        </div>
-        <div className="text-muted-foreground mt-1 truncate text-xs">
-          {args.detail}
         </div>
       </CardContent>
     </Card>

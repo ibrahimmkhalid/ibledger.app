@@ -230,11 +230,6 @@ export function IncomeModal(args: {
                 disabled={readOnly}
                 placeholder="$0.00"
               />
-              {!readOnly && (
-                <span className="text-muted-foreground text-2xs">
-                  Fills in cents-first — type 4200 for $42.00.
-                </span>
-              )}
             </div>
           </div>
 
@@ -245,12 +240,7 @@ export function IncomeModal(args: {
                 : "flex items-center justify-between rounded-md border px-3 py-2"
             }
           >
-            <div className="flex flex-col">
-              <div className="text-sm font-medium">Pending</div>
-              <div className="text-muted-foreground text-xs">
-                While pending, this income stays out of your cleared balance
-              </div>
-            </div>
+            <div className="text-sm font-medium">Pending</div>
             <Switch
               checked={isPending}
               onCheckedChange={setIsPending}
@@ -267,9 +257,6 @@ export function IncomeModal(args: {
               }
             >
               <div className="text-sm font-medium">Breakdown</div>
-              <div className="text-muted-foreground text-xs">
-                Split across your funds by income share
-              </div>
 
               {isMobile ? (
                 <div className="mt-3 flex flex-col gap-2">

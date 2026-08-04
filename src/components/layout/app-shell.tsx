@@ -169,12 +169,20 @@ export function AppShell(args: {
       <footer className="border-t">
         <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6 text-xs">
           <div>{year}</div>
-          <Link
-            href="/"
-            className="hover:text-foreground focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
-          >
-            ibLedger
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/how-to-use"
+              className="hover:text-foreground focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              How to use
+            </Link>
+            <Link
+              href="/"
+              className="hover:text-foreground focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+            >
+              ibLedger
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

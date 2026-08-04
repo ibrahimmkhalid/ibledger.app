@@ -5,7 +5,6 @@ function SkeletonStatCard() {
     <div className="tracker-skeleton-panel bg-card ring-foreground/10 rounded-lg px-3 py-3 ring-1">
       <LoadingBlock className="h-3.5 w-20 rounded" />
       <LoadingBlock className="mt-3 h-6 w-28 rounded" />
-      <LoadingBlock className="mt-2 h-3 w-24 rounded" />
     </div>
   );
 }

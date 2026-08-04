@@ -309,10 +309,6 @@ export default function AnalyticsPage() {
     activeFilterCount === 0
       ? "No filters applied"
       : `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} applied`;
-  const spendingRate =
-    summary && summary.income > 0
-      ? (summary.spending / summary.income) * 100
-      : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -474,28 +470,24 @@ export default function AnalyticsPage() {
           <StatCard
             title="Net"
             value={fmtAmount(summary?.net ?? 0)}
-            detail={`Income minus spending · ${(summary?.count ?? 0).toLocaleString()} transactions`}
             icon={<BarChart3Icon className="size-4" />}
             tone={netTone}
           />
           <StatCard
             title="Income"
             value={fmtAmount(summary?.income ?? 0)}
-            detail="Money coming in"
             icon={<TrendingUpIcon className="size-4" />}
             tone="income"
           />
           <StatCard
             title="Spending"
             value={fmtAmount(summary?.spending ?? 0)}
-            detail={`${spendingRate.toFixed(1)}% of income`}
             icon={<TrendingDownIcon className="size-4" />}
             tone="spending"
           />
           <StatCard
             title="Pending"
             value={fmtAmount(summary?.pending ?? 0)}
-            detail={`Cleared ${fmtAmount(summary?.cleared ?? 0)}`}
             icon={<WalletCardsIcon className="size-4" />}
             tone="neutral"
           />
