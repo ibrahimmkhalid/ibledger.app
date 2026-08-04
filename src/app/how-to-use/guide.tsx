@@ -29,12 +29,15 @@ function Section(args: {
 }) {
   const { icon: Icon, title, children } = args;
   return (
-    <section className="border-border border-t pt-8">
-      <div className="flex items-center gap-2">
-        <Icon aria-hidden className="text-primary size-4 shrink-0" />
+    // The guide sits in the app's full-width container, but prose at that
+    // measure is unreadable. From lg up the heading moves into its own narrow
+    // column, so the wide frame is used while the text stays capped.
+    <section className="border-border grid gap-x-8 gap-y-3 border-t pt-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+      <div className="flex items-start gap-2">
+        <Icon aria-hidden className="text-primary mt-0.5 size-4 shrink-0" />
         <h2 className="text-base font-semibold">{title}</h2>
       </div>
-      <div className="text-muted-foreground mt-3 space-y-3 text-sm">
+      <div className="text-muted-foreground max-w-2xl space-y-3 text-sm">
         {children}
       </div>
     </section>
