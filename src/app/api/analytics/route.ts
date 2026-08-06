@@ -22,6 +22,7 @@ import {
   parseIdList,
 } from "@/app/api/query-params";
 import { requireUser } from "@/lib/auth";
+import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
@@ -296,7 +297,7 @@ export async function GET(request: NextRequest) {
           })
           .from(funds)
           .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-          .orderBy(asc(funds.name)),
+          .orderBy(...FUND_DISPLAY_ORDER),
         db
           .select({
             id: transactions.id,

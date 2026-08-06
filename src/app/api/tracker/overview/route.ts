@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
 import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { applySavingsDeficitClamp } from "@/lib/fund-balances";
+import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 
 export async function GET() {
   try {
@@ -35,7 +36,8 @@ export async function GET() {
           ),
         )
         .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
-        .groupBy(funds.id, funds.name, funds.isSavings, funds.pullPercentage),
+        .groupBy(funds.id, funds.name, funds.isSavings, funds.pullPercentage)
+        .orderBy(...FUND_DISPLAY_ORDER),
       db
         .select({
           id: wallets.id,
@@ -115,7 +117,7 @@ export async function GET() {
                 isNull(transactions.deletedAt),
               ),
             )
-            .orderBy(desc(transactions.id));
+            .orderBy(asc(transactions.id));
 
     const childrenByParentId = new Map<number, typeof children>();
     for (const child of children) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -27,6 +28,7 @@ import {
   parseRequestJsonObject,
 } from "@/app/api/transactions/validation";
 import { requireUser } from "@/lib/auth";
+import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 import {
   FUND_SHARE_SUM_ERROR,
   fundSharesExceedHundred,
@@ -313,7 +315,7 @@ export async function GET(request: NextRequest) {
                 isNull(transactions.deletedAt),
               ),
             )
-            .orderBy(desc(transactions.id));
+            .orderBy(asc(transactions.id));
 
     const childrenByParentId = new Map<number, typeof children>();
     for (const child of children) {
@@ -393,7 +395,8 @@ export async function POST(request: NextRequest) {
             pullPercentage: funds.pullPercentage,
           })
           .from(funds)
-          .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt))),
+          .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
+          .orderBy(...FUND_DISPLAY_ORDER),
         db
           .select({ id: wallets.id })
           .from(wallets)

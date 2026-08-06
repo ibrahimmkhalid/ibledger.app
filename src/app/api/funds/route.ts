@@ -7,6 +7,7 @@ import { BadRequestError } from "@/app/api/query-params";
 import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { applySavingsDeficitClamp } from "@/lib/fund-balances";
+import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 import {
   FUND_LOCK_NAMESPACE,
   FUND_SHARE_RANGE_ERROR,
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest) {
           updatedAt: funds.updatedAt,
         })
         .from(funds)
-        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)))
+        .orderBy(...FUND_DISPLAY_ORDER);
 
       return NextResponse.json({ funds: userFunds });
     }
@@ -69,7 +71,8 @@ export async function GET(request: NextRequest) {
         funds.pullPercentage,
         funds.createdAt,
         funds.updatedAt,
-      );
+      )
+      .orderBy(...FUND_DISPLAY_ORDER);
 
     return NextResponse.json({
       funds: applySavingsDeficitClamp(userFundsRaw),
