@@ -2,8 +2,12 @@ import {
   AlertTriangleIcon,
   ArrowLeftRightIcon,
   ClockIcon,
+  HandCoinsIcon,
   KeyboardIcon,
+  ListIcon,
   PercentIcon,
+  PiggyBankIcon,
+  ReceiptIcon,
   TagIcon,
   Trash2Icon,
   WalletIcon,
@@ -100,6 +104,44 @@ function ExampleTransaction() {
         </div>
       </div>
     </Card>
+  );
+}
+
+// The three icons a transaction card can carry, with what each one means.
+function CardIconLegend() {
+  const rows: Array<{ icon: LucideIcon; label: string; meaning: string }> = [
+    {
+      icon: ReceiptIcon,
+      label: "Single line",
+      meaning: "one wallet, one fund, one amount",
+    },
+    {
+      icon: ListIcon,
+      label: "Several lines",
+      meaning: "split across more than one line",
+    },
+    {
+      icon: HandCoinsIcon,
+      label: "Income",
+      meaning: "money in, divided by your income shares",
+    },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-baseline gap-2 text-xs">
+          <row.icon
+            aria-hidden
+            className="text-muted-foreground size-3.5 shrink-0 translate-y-0.5"
+          />
+          <span className="text-foreground w-28 shrink-0 font-semibold">
+            {row.label}
+          </span>
+          <span className="min-w-0">{row.meaning}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -373,9 +415,58 @@ export function HowToUseGuide() {
           A single transaction can split across several wallets and funds. Use
           Add line in the transaction modal — each line carries its own wallet,
           fund, description, direction (in or out), amount, and pending flag.
+          The editor shows a running net total as you go, so you can check what
+          the whole entry comes to.
         </p>
         <p>
           The transaction counts as pending if any one of its lines is pending.
+        </p>
+      </Section>
+
+      <Section icon={ListIcon} title="Reading a transaction card">
+        <p>
+          Every entry in a list carries a small icon on the left saying what
+          kind of entry it is.
+        </p>
+
+        <Figure caption="The icon is the quickest way to tell an income entry from an ordinary one.">
+          <CardIconLegend />
+        </Figure>
+
+        <p>
+          The grey line above the description is the entry&apos;s meta line. It
+          names the date, wallet and fund — and reads{" "}
+          <span className="text-foreground font-medium">Multiple</span> in place
+          of a name when the entry&apos;s lines span more than one wallet, or
+          more than one fund. Open the entry to see which.
+        </p>
+        <p>
+          A description in{" "}
+          <span className="text-foreground font-medium italic">italics</span>{" "}
+          means the transaction is still pending; the meta line spells that out
+          too.
+        </p>
+      </Section>
+
+      <Section icon={ArrowLeftRightIcon} title="Moving money between wallets">
+        <p>
+          There is no separate transfer screen. A transfer is one transaction
+          with two lines that use the{" "}
+          <span className="text-foreground font-medium">same fund</span> and
+          opposite directions: an{" "}
+          <span className="text-foreground font-medium">Out</span> line on the
+          wallet the money leaves, and an{" "}
+          <span className="text-foreground font-medium">In</span> line of the
+          same amount on the wallet it arrives in.
+        </p>
+        <p>
+          Keeping both lines on the same fund is what makes it a transfer rather
+          than a spend: your wallet balances change, your fund balances
+          don&apos;t, and the net total of the transaction comes to $0.00.
+        </p>
+        <p>
+          This is also how you empty a wallet you want to delete — a wallet
+          holding money can&apos;t be deleted.
         </p>
       </Section>
 
@@ -392,6 +483,27 @@ export function HowToUseGuide() {
         <p>
           A badge marked &ldquo;pending&rdquo; means the fund is fine today, but
           goes past zero once its pending transactions clear.
+        </p>
+      </Section>
+
+      <Section icon={PiggyBankIcon} title="Why Savings can go negative">
+        <p>
+          Savings is the buffer of last resort. Every other fund stops at $0.00
+          and shows an Overspent badge, and the shortfall does not vanish — it
+          is taken off Savings. Several overspent funds all come off the same
+          place, so the figure on Savings is your own savings minus everything
+          the other funds went over by.
+        </p>
+        <p>
+          That is why Savings has no Overspent badge of its own, and why it is
+          the one fund that can show a negative balance. A deeply negative
+          Savings means the ledger as a whole has paid out more than it has
+          taken in, not that one particular fund misbehaved.
+        </p>
+        <p>
+          To bring it back: record the income you have not entered yet, or lower
+          the other funds&apos; income shares so less is routed away from
+          Savings in the first place.
         </p>
       </Section>
 

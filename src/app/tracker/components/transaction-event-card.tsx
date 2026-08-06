@@ -11,7 +11,7 @@ import {
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import type { TransactionEvent } from "@/app/tracker/types";
 
-import { CopyIcon, SquareIcon, TagIcon } from "lucide-react";
+import { HandCoinsIcon, ListIcon, ReceiptIcon } from "lucide-react";
 
 export function TransactionEventCard(args: {
   event: TransactionEvent;
@@ -51,12 +51,30 @@ export function TransactionEventCard(args: {
 
           <div className="mt-0.5 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
+              {/* Three kinds of entry, explained in the how-to-use guide.
+                  The title is for pointer users; the meta line above already
+                  spells out "Multiple" and "pending" in text. */}
               {isIncomeLike(ev) ? (
-                <TagIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+                <HandCoinsIcon
+                  aria-hidden
+                  className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+                >
+                  <title>Income</title>
+                </HandCoinsIcon>
               ) : !ev.isPosting ? (
-                <CopyIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+                <ListIcon
+                  aria-hidden
+                  className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+                >
+                  <title>Several lines</title>
+                </ListIcon>
               ) : (
-                <SquareIcon className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65" />
+                <ReceiptIcon
+                  aria-hidden
+                  className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+                >
+                  <title>Single line</title>
+                </ReceiptIcon>
               )}
               <div
                 className={
