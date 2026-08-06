@@ -1,13 +1,30 @@
-import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 
 import { transactions } from "@/db/schema";
 import {
   BadRequestError,
   fuzzyLikePatterns,
   parseAmountParam,
+  parseDateParam,
   parseEnumParam,
   parseIdList,
 } from "@/app/api/query-params";
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
 
 export type PendingStatus = "all" | "pending" | "cleared";
 export type IncomeFilter = "all" | "income" | "not_income";
@@ -152,9 +169,15 @@ export function buildEventFilterConditions(
   const minAmount = parseAmountParam(searchParams, "minAmount");
   const maxAmount = parseAmountParam(searchParams, "maxAmount");
   const search = searchParams.get("search")?.trim() ?? "";
+  const startDate = parseDateParam(searchParams, "startDate");
+  const endDate = parseDateParam(searchParams, "endDate");
 
   if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
     throw new BadRequestError("minAmount cannot exceed maxAmount");
+  }
+
+  if (startDate && endDate && startDate > endDate) {
+    throw new BadRequestError("startDate cannot be after endDate");
   }
 
   const eventAmount = eventDisplayAmountSql(userId);
@@ -212,6 +235,16 @@ export function buildEventFilterConditions(
 
   if (maxAmount !== null) {
     conditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
+  }
+
+  if (startDate) {
+    conditions.push(gte(transactions.occurredAt, startDate));
+  }
+
+  // Both bounds are inclusive dates, so the end compares against the start of
+  // the following day rather than midnight on the day itself.
+  if (endDate) {
+    conditions.push(lt(transactions.occurredAt, addDays(endDate, 1)));
   }
 
   return conditions;

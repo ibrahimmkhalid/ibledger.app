@@ -70,6 +70,7 @@ export function countActiveTransactionFilters(
 ) {
   let count = countActiveSharedFilters(filters);
   if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
+  if (filters.startDate || filters.endDate) count += 1;
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
   if (filters.direction !== "all") count += 1;
@@ -328,7 +329,47 @@ type SharedFilterDraft = {
   walletIds: number[];
   minAmount: string;
   maxAmount: string;
+  startDate: string;
+  endDate: string;
 };
+
+// Transactions-only. Analytics has relative presets ("Last 6 months"), which
+// suit a trend chart; picking out "what did I spend in March" wants explicit
+// bounds instead.
+export function DateRangeFilters(args: {
+  draft: Pick<SharedFilterDraft, "startDate" | "endDate">;
+  onPatch: (patch: Partial<SharedFilterDraft>) => void;
+  startDateId: string;
+  endDateId: string;
+}) {
+  const { draft, onPatch, startDateId, endDateId } = args;
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={startDateId}>From</Label>
+        <Input
+          id={startDateId}
+          type="date"
+          value={draft.startDate}
+          max={draft.endDate || undefined}
+          onChange={(event) => onPatch({ startDate: event.target.value })}
+        />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={endDateId}>To</Label>
+        <Input
+          id={endDateId}
+          type="date"
+          value={draft.endDate}
+          min={draft.startDate || undefined}
+          onChange={(event) => onPatch({ endDate: event.target.value })}
+        />
+      </div>
+    </>
+  );
+}
 
 export function StatusTypeDirectionControls(args: {
   draft: Pick<SharedFilterDraft, "pendingStatus" | "income" | "direction">;

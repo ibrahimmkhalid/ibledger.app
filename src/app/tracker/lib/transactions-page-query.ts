@@ -13,6 +13,9 @@ export type TransactionsPageFilters = {
   walletIds: number[];
   minAmount: number | null;
   maxAmount: number | null;
+  /** Inclusive yyyy-mm-dd bounds on the transaction date; "" means unbounded. */
+  startDate: string;
+  endDate: string;
   pendingStatus: TransactionPendingFilter;
   income: TransactionIncomeFilter;
   direction: TransactionDirectionFilter;
@@ -24,6 +27,8 @@ export const DEFAULT_TRANSACTIONS_FILTERS: TransactionsPageFilters = {
   walletIds: [],
   minAmount: null,
   maxAmount: null,
+  startDate: "",
+  endDate: "",
   pendingStatus: "all",
   income: "all",
   direction: "all",
@@ -49,6 +54,8 @@ export function normalizeTransactionsFilters(
     walletIds: normalizeIds(filters.walletIds),
     minAmount: filters.minAmount,
     maxAmount: filters.maxAmount,
+    startDate: filters.startDate.trim(),
+    endDate: filters.endDate.trim(),
     pendingStatus: filters.pendingStatus,
     income: filters.income,
     direction: filters.direction,
@@ -83,6 +90,8 @@ export function appendTransactionFilterParams(
     params.set("minAmount", String(filters.minAmount));
   if (filters.maxAmount !== null)
     params.set("maxAmount", String(filters.maxAmount));
+  if (filters.startDate) params.set("startDate", filters.startDate);
+  if (filters.endDate) params.set("endDate", filters.endDate);
   if (filters.pendingStatus !== "all")
     params.set("pendingStatus", filters.pendingStatus);
   if (filters.income !== "all") params.set("income", filters.income);

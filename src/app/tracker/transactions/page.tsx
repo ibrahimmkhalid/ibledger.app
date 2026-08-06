@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 import {
   AmountAndAccountFilters,
+  DateRangeFilters,
   FilterSearchField,
   StatusTypeDirectionControls,
   countActiveTransactionFilters,
@@ -114,6 +115,11 @@ function draftToFilters(
     throw new Error("Minimum amount cannot exceed maximum amount");
   }
 
+  // ISO dates compare correctly as strings.
+  if (draft.startDate && draft.endDate && draft.startDate > draft.endDate) {
+    throw new Error("The From date cannot be after the To date");
+  }
+
   return normalizeTransactionsFilters({
     ...draft,
     minAmount,
@@ -145,6 +151,8 @@ export default function TransactionsPage() {
   const searchId = useId();
   const minAmountId = useId();
   const maxAmountId = useId();
+  const startDateId = useId();
+  const endDateId = useId();
 
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
@@ -638,6 +646,15 @@ export default function TransactionsPage() {
                     <StatusTypeDirectionControls
                       draft={filterDraft}
                       onPatch={patchFilterDraft}
+                    />
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <DateRangeFilters
+                      draft={filterDraft}
+                      onPatch={patchFilterDraft}
+                      startDateId={startDateId}
+                      endDateId={endDateId}
                     />
                   </div>
 
