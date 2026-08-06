@@ -1,5 +1,30 @@
+import { toast } from "sonner";
+
 import { apiJson } from "@/app/tracker/lib/api";
 import type { BootstrapResponse } from "@/app/tracker/types";
+
+// AppShell hides the nav while setup is unfinished, but it never calls the
+// bootstrap endpoint itself. The pages that do publish the answer here.
+type Listener = () => void;
+const onboardingListeners = new Set<Listener>();
+let onboardingRequired = false;
+
+function setOnboardingRequired(next: boolean) {
+  if (onboardingRequired === next) return;
+  onboardingRequired = next;
+  for (const listener of onboardingListeners) listener();
+}
+
+export function subscribeOnboardingRequired(listener: Listener) {
+  onboardingListeners.add(listener);
+  return () => {
+    onboardingListeners.delete(listener);
+  };
+}
+
+export function getOnboardingRequired() {
+  return onboardingRequired;
+}
 
 let settled: BootstrapResponse | null = null;
 let inFlight: Promise<BootstrapResponse> | null = null;
@@ -21,6 +46,7 @@ export function syncBootstrapIdentity(userId: string | null) {
   generation += 1;
   settled = null;
   inFlight = null;
+  setOnboardingRequired(false);
 }
 
 // POSTs /api/bootstrap once per app load and replays the result for later
@@ -37,8 +63,9 @@ function checkBootstrap(): Promise<BootstrapResponse> {
       body: "{}",
     })
       .then((boot) => {
-        if (requestGeneration === generation && !boot.onboarding?.required) {
-          settled = boot;
+        if (requestGeneration === generation) {
+          setOnboardingRequired(Boolean(boot.onboarding?.required));
+          if (!boot.onboarding?.required) settled = boot;
         }
         return boot;
       })
@@ -72,6 +99,14 @@ export async function checkBootstrapOrRedirect(
   // The onboarding page passes skipOnboarding so users can revisit it to tweak
   // their initial setup after it is no longer required.
   if (!opts?.skipOnboarding && boot.onboarding?.required) {
+    // The overview is where a new user lands, so bouncing from there is simply
+    // the start of setup. Anywhere else they clicked a link and the page
+    // flashed back to onboarding, which reads as broken unless we say why.
+    const path = typeof window === "undefined" ? "" : window.location.pathname;
+    if (path !== "/" && path !== "/tracker") {
+      toast.info("Finish setting up your ledger before opening this page.");
+    }
+
     router.replace(boot.onboarding.redirectTo);
     return null;
   }

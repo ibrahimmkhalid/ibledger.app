@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Inter, Merriweather } from "next/font/google";
@@ -26,7 +26,11 @@ import {
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { syncBootstrapIdentity } from "@/app/tracker/lib/bootstrap";
+import {
+  getOnboardingRequired,
+  subscribeOnboardingRequired,
+  syncBootstrapIdentity,
+} from "@/app/tracker/lib/bootstrap";
 
 // Reports the Clerk user id to the bootstrap cache so a session switch that
 // happens without a full page load drops the previous user's cached result.
@@ -84,9 +88,20 @@ export function AppShell(args: {
   const { children, devTesting } = args;
   const pathname = usePathname();
   const inTracker = pathname.startsWith("/tracker");
+
+  // Every nav link bounces straight back to onboarding until setup is done, so
+  // showing them just invites a page flash that reads as broken. The server is
+  // the authority; false until bootstrap answers.
+  const onboardingRequired = useSyncExternalStore(
+    subscribeOnboardingRequired,
+    getOnboardingRequired,
+    () => false,
+  );
+
   // The guide is one of the nav destinations, so the nav has to survive
   // landing on it — otherwise following the link strands the user there.
-  const showSectionNav = inTracker || pathname === "/how-to-use";
+  const showSectionNav =
+    (inTracker || pathname === "/how-to-use") && !onboardingRequired;
   const year = new Date().getFullYear();
 
   // Keep the active item visible in the horizontally-scrolling mobile nav.
