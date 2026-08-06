@@ -480,7 +480,15 @@ function compactAxisAmount(value: number) {
   return value < 0 ? `(${formatted})` : formatted;
 }
 
-function cashflowAxisTicks(maxAmount: number) {
+// Ticks sit on a symlog scale, so the small candidates bunch up around the
+// origin: once the largest net passes roughly $250, ($10), $0 and $10 land
+// within a couple of pixels of each other and render as an illegible smear.
+// Labels are 11px, so keep a label's height plus a little air between them.
+const MIN_TICK_GAP_PX = 14;
+const CASHFLOW_AXIS_PADDING = 1.08;
+const CASHFLOW_MARGIN = { t: 10, r: 20, b: 52, l: 74 };
+
+function cashflowAxisTicks(maxAmount: number, plotHeightPx: number) {
   const candidates = [
     10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000,
     250000, 500000, 1000000,
@@ -491,17 +499,43 @@ function cashflowAxisTicks(maxAmount: number) {
   );
   const unique = Array.from(new Set(selected));
 
+  const axisSpan = symlogAmount(maxAmount) * 2 * CASHFLOW_AXIS_PADDING;
+  const pxPerUnit =
+    axisSpan > 0 && plotHeightPx > 0 ? plotHeightPx / axisSpan : 0;
+
+  // Geometry unknown (zero-height plot): keep every tick rather than prune to
+  // nothing.
+  const gapPx = (a: number, b: number) =>
+    pxPerUnit === 0
+      ? Number.POSITIVE_INFINITY
+      : Math.abs(symlogAmount(a) - symlogAmount(b)) * pxPerUnit;
+
+  // Resolve collisions in favour of the larger magnitude, taking each ± pair as
+  // a unit so the axis stays symmetric. $0 goes last and so is dropped first —
+  // the zero line already marks the centre.
+  const kept: number[] = [];
+  for (const magnitude of [...unique].sort((a, b) => b - a)) {
+    const clears = (amount: number) =>
+      kept.every((other) => gapPx(amount, other) >= MIN_TICK_GAP_PX);
+
+    if (
+      gapPx(-magnitude, magnitude) >= MIN_TICK_GAP_PX &&
+      clears(-magnitude) &&
+      clears(magnitude)
+    ) {
+      kept.push(-magnitude, magnitude);
+    }
+  }
+
+  if (kept.every((other) => gapPx(0, other) >= MIN_TICK_GAP_PX)) {
+    kept.push(0);
+  }
+
+  kept.sort((a, b) => a - b);
+
   return {
-    tickvals: [
-      ...[...unique].reverse().map((amount) => symlogAmount(-amount)),
-      0,
-      ...unique.map((amount) => symlogAmount(amount)),
-    ],
-    ticktext: [
-      ...[...unique].reverse().map((amount) => compactAxisAmount(-amount)),
-      "$0",
-      ...unique.map((amount) => compactAxisAmount(amount)),
-    ],
+    tickvals: kept.map((amount) => symlogAmount(amount)),
+    ticktext: kept.map((amount) => compactAxisAmount(amount)),
   };
 }
 
@@ -546,7 +580,10 @@ export function cashflowNetPlot(
 
   const maxAbsNet = Math.max(1, ...data.map((point) => Math.abs(point.net)));
   const yMax = symlogAmount(maxAbsNet);
-  const yTicks = cashflowAxisTicks(maxAbsNet);
+  const yTicks = cashflowAxisTicks(
+    maxAbsNet,
+    height - CASHFLOW_MARGIN.t - CASHFLOW_MARGIN.b,
+  );
 
   return {
     data: [
@@ -569,13 +606,13 @@ export function cashflowNetPlot(
     layout: {
       ...basePlotLayout(theme, height),
       bargap: 0.2,
-      margin: { t: 10, r: 20, b: 52, l: 74 },
+      margin: CASHFLOW_MARGIN,
       showlegend: false,
       xaxis: timeAxis(theme),
       yaxis: {
         title: { text: "" },
         automargin: true,
-        range: [-yMax * 1.08, yMax * 1.08],
+        range: [-yMax * CASHFLOW_AXIS_PADDING, yMax * CASHFLOW_AXIS_PADDING],
         tickmode: "array",
         tickvals: yTicks.tickvals,
         ticktext: yTicks.ticktext,
