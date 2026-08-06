@@ -18,7 +18,7 @@ export function ClearedWithPending(args: {
       <span className="font-semibold">{fmtAmount(cleared)}</span>
       {deltaCents !== 0 && (
         <span className="text-muted-foreground ml-2">
-          [{sign}${fmtAmount(deltaCents / 100, "plain")}]
+          {`[${sign}${fmtAmount(deltaCents / 100, "plain")}]`}
         </span>
       )}
     </>

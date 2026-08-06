@@ -1,3 +1,10 @@
+const plainMoneyFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 let moneyFormatter: Intl.NumberFormat;
 
 try {
@@ -10,12 +17,7 @@ try {
     maximumFractionDigits: 2,
   });
 } catch {
-  moneyFormatter = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  moneyFormatter = plainMoneyFormatter;
 }
 
 export function fmtAmount(
@@ -26,8 +28,11 @@ export function fmtAmount(
     return moneyFormatter.format(Number(n));
   }
 
-  // "plain" drops the sign: callers pair it with their own +/- treatment.
-  return Number(n).toFixed(2).replace(/-/, "");
+  // "plain" drops the sign: callers pair it with their own +/- treatment. It
+  // still goes through the currency formatter, so a pending delta reads
+  // "[+$3,000.00]" beside a "$10,918.50" balance rather than "[+$3000.00]",
+  // and both halves of the figure follow the same locale.
+  return plainMoneyFormatter.format(Math.abs(Number(n)));
 }
 
 export function isoToday() {
