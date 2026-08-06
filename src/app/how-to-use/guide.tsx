@@ -385,7 +385,7 @@ export function HowToUseGuide() {
           <div className="space-y-2">
             <KeystrokeRow typed="4200" result="$42.00" />
             <KeystrokeRow typed="5" result="$0.05" />
-            <KeystrokeRow typed="120000" result="$1200.00" />
+            <KeystrokeRow typed="120000" result="$1,200.00" />
           </div>
         </Figure>
       </Section>

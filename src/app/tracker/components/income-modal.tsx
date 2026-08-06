@@ -22,14 +22,11 @@ import {
 } from "@/components/ui/table";
 
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
+import { AmountInput } from "@/app/tracker/components/amount-input";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { apiJson } from "@/app/tracker/lib/api";
 import { useBusy } from "@/app/tracker/components/use-busy";
-import {
-  formatCentsToDisplay,
-  parseInputAsCents,
-} from "@/app/tracker/lib/cents";
 import {
   fmtAmount,
   isoToday,
@@ -236,11 +233,10 @@ export function IncomeModal(args: {
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor={amountId}>Amount</Label>
-                <Input
+                <AmountInput
                   id={amountId}
-                  inputMode="numeric"
-                  value={formatCentsToDisplay(amount)}
-                  onChange={(e) => setAmount(parseInputAsCents(e.target.value))}
+                  value={amount}
+                  onValueChange={setAmount}
                   disabled={readOnly}
                   placeholder="$0.00"
                 />

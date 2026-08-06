@@ -5,10 +5,7 @@ import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  formatCentsToDisplay,
-  parseInputAsCents,
-} from "@/app/tracker/lib/cents";
+import { AmountInput } from "@/app/tracker/components/amount-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -430,29 +427,21 @@ export function AmountAndAccountFilters(args: {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <div className="flex min-w-0 flex-col gap-1.5">
         <Label htmlFor={minAmountId}>Minimum</Label>
-        <Input
+        <AmountInput
           id={minAmountId}
-          inputMode="numeric"
-          value={formatCentsToDisplay(draft.minAmount)}
-          onChange={(event) =>
-            onPatch({ minAmount: parseInputAsCents(event.target.value) })
-          }
+          value={draft.minAmount}
+          onValueChange={(minAmount) => onPatch({ minAmount })}
           placeholder="$0.00"
-          className="text-right tabular-nums"
         />
       </div>
 
       <div className="flex min-w-0 flex-col gap-1.5">
         <Label htmlFor={maxAmountId}>Maximum</Label>
-        <Input
+        <AmountInput
           id={maxAmountId}
-          inputMode="numeric"
-          value={formatCentsToDisplay(draft.maxAmount)}
-          onChange={(event) =>
-            onPatch({ maxAmount: parseInputAsCents(event.target.value) })
-          }
+          value={draft.maxAmount}
+          onValueChange={(maxAmount) => onPatch({ maxAmount })}
           placeholder="Any"
-          className="text-right tabular-nums"
         />
       </div>
 

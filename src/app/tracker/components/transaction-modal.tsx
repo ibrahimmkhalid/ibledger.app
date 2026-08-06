@@ -24,14 +24,11 @@ import {
 
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
+import { AmountInput } from "@/app/tracker/components/amount-input";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { apiJson } from "@/app/tracker/lib/api";
 import { useBusy } from "@/app/tracker/components/use-busy";
-import {
-  formatCentsToDisplay,
-  parseInputAsCents,
-} from "@/app/tracker/lib/cents";
 import {
   fmtAmount,
   isoToday,
@@ -540,17 +537,11 @@ export function TransactionModal(args: {
                     </SelectContent>
                   </Select>
 
-                  <Input
-                    inputMode="numeric"
+                  <AmountInput
                     aria-label={`Amount for line ${index + 1}`}
-                    value={formatCentsToDisplay(l.amount)}
-                    onChange={(e) =>
-                      patchLine(l.key, {
-                        amount: parseInputAsCents(e.target.value),
-                      })
-                    }
+                    value={l.amount}
+                    onValueChange={(amount) => patchLine(l.key, { amount })}
                     placeholder="$0.00"
-                    className="text-right tabular-nums"
                     disabled={busy}
                   />
                 </div>
@@ -710,17 +701,11 @@ export function TransactionModal(args: {
                   </Select>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  <Input
-                    inputMode="numeric"
+                  <AmountInput
                     aria-label={`Amount for line ${index + 1}`}
-                    value={formatCentsToDisplay(l.amount)}
-                    onChange={(e) =>
-                      patchLine(l.key, {
-                        amount: parseInputAsCents(e.target.value),
-                      })
-                    }
+                    value={l.amount}
+                    onValueChange={(amount) => patchLine(l.key, { amount })}
                     placeholder="$0.00"
-                    className="text-right tabular-nums"
                     disabled={busy}
                   />
                 </TableCell>
