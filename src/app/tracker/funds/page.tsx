@@ -439,15 +439,19 @@ export default function FundsPage() {
 
                     {/* Name */}
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {/* This is the page for editing fund names, so the
+                            field takes the width the table has spare rather
+                            than truncating mid-name inside 200px. */}
                         <Input
                           value={f.name}
                           onChange={(e) =>
                             updateDraft(f.key, { name: e.target.value })
                           }
                           placeholder="Fund name"
+                          aria-label={`Name of ${f.name || "new fund"}`}
                           disabled={busy}
-                          className="max-w-[200px]"
+                          className="w-full min-w-0"
                         />
                         {!f.id && (
                           <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
