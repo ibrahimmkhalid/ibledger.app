@@ -27,6 +27,10 @@ import {
   parseRequestJsonObject,
 } from "@/app/api/transactions/validation";
 import { requireUser } from "@/lib/auth";
+import {
+  FUND_SHARE_SUM_ERROR,
+  fundSharesExceedHundred,
+} from "@/lib/fund-shares";
 
 type PendingStatus = "all" | "pending" | "cleared";
 type IncomeFilter = "all" | "income" | "not_income";
@@ -436,9 +440,9 @@ export async function POST(request: NextRequest) {
         0,
       );
 
-      if (pullSum > 100) {
+      if (fundSharesExceedHundred(pullSum)) {
         return NextResponse.json(
-          { error: "Invalid fund pulls: sum exceeds 100" },
+          { error: FUND_SHARE_SUM_ERROR },
           { status: 400 },
         );
       }

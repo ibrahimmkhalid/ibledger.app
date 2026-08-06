@@ -28,6 +28,7 @@ import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { FUND_SHARE_RANGE_ERROR, isValidFundShare } from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
@@ -241,12 +242,8 @@ export default function OnboardingPage() {
     try {
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (
-        Number.isNaN(pullPercentage) ||
-        pullPercentage < 0 ||
-        pullPercentage > 100
-      ) {
-        throw new Error("Invalid pull percentage");
+      if (!isValidFundShare(pullPercentage)) {
+        throw new Error(FUND_SHARE_RANGE_ERROR);
       }
 
       await apiJson("/api/funds", {
@@ -271,12 +268,8 @@ export default function OnboardingPage() {
     try {
       const pullPercentage = Number(data.pullPercentage);
       if (!data.name.trim()) throw new Error("Name is required");
-      if (
-        Number.isNaN(pullPercentage) ||
-        pullPercentage < 0 ||
-        pullPercentage > 100
-      ) {
-        throw new Error("Invalid pull percentage");
+      if (!isValidFundShare(pullPercentage)) {
+        throw new Error(FUND_SHARE_RANGE_ERROR);
       }
 
       await apiJson("/api/funds", {

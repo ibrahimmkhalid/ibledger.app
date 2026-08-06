@@ -3,9 +3,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
+import { BadRequestError } from "@/app/api/query-params";
 import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import { applySavingsDeficitClamp } from "@/lib/fund-balances";
+import {
+  FUND_LOCK_NAMESPACE,
+  FUND_SHARE_RANGE_ERROR,
+  FUND_SHARE_SUM_ERROR,
+  fundSharesExceedHundred,
+  isValidFundShare,
+} from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 
 export async function GET(request: NextRequest) {
@@ -89,29 +97,57 @@ export async function POST(request: NextRequest) {
     const pullPercentage =
       data.pullPercentage === undefined ? 0 : Number(data.pullPercentage);
 
-    if (
-      Number.isNaN(pullPercentage) ||
-      pullPercentage < 0 ||
-      pullPercentage > 100
-    ) {
+    if (!isValidFundShare(pullPercentage)) {
       return NextResponse.json(
-        { error: "Invalid pullPercentage" },
+        { error: FUND_SHARE_RANGE_ERROR },
         { status: 400 },
       );
     }
 
-    const newFund = await db
-      .insert(funds)
-      .values({
-        userId: user.id,
-        name: String(data.name),
-        isSavings: false,
-        pullPercentage,
-      })
-      .returning();
+    // Income allocation rejects a total over 100 when the user later records
+    // income, so a fund created past the cap locks them out of the feature with
+    // nothing on screen explaining why. Reject it at the point of creation.
+    const newFund = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${FUND_LOCK_NAMESPACE}, ${user.id})`,
+      );
 
-    return NextResponse.json({ fund: newFund[0] });
+      const activeFunds = await tx
+        .select({
+          isSavings: funds.isSavings,
+          pullPercentage: funds.pullPercentage,
+        })
+        .from(funds)
+        .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+
+      const currentSum = activeFunds.reduce(
+        (acc, fund) =>
+          fund.isSavings ? acc : acc + Number(fund.pullPercentage ?? 0),
+        0,
+      );
+
+      if (fundSharesExceedHundred(currentSum + pullPercentage)) {
+        throw new BadRequestError(FUND_SHARE_SUM_ERROR);
+      }
+
+      return tx
+        .insert(funds)
+        .values({
+          userId: user.id,
+          name: String(data.name),
+          isSavings: false,
+          pullPercentage,
+        })
+        .returning()
+        .then((res) => res[0]);
+    });
+
+    return NextResponse.json({ fund: newFund });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error("API: Error creating fund", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -135,41 +171,71 @@ export async function PATCH(request: NextRequest) {
     const nextPullPercentage =
       data?.pullPercentage !== undefined ? Number(data.pullPercentage) : null;
 
-    if (
-      nextPullPercentage !== null &&
-      (Number.isNaN(nextPullPercentage) ||
-        nextPullPercentage < 0 ||
-        nextPullPercentage > 100)
-    ) {
+    if (nextPullPercentage !== null && !isValidFundShare(nextPullPercentage)) {
       return NextResponse.json(
-        { error: "Invalid pullPercentage" },
+        { error: FUND_SHARE_RANGE_ERROR },
         { status: 400 },
       );
     }
 
-    const updatedFund = await db
-      .update(funds)
-      .set({
-        ...(data?.name ? { name: String(data.name) } : {}),
-        pullPercentage:
-          nextPullPercentage === null
-            ? sql<number>`
+    const updatedFund = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${FUND_LOCK_NAMESPACE}, ${user.id})`,
+      );
+
+      // Same cap as POST: check the total this edit would leave behind, with
+      // the edited fund's own current share swapped out for the new one.
+      if (nextPullPercentage !== null) {
+        const activeFunds = await tx
+          .select({
+            id: funds.id,
+            isSavings: funds.isSavings,
+            pullPercentage: funds.pullPercentage,
+          })
+          .from(funds)
+          .where(and(eq(funds.userId, user.id), isNull(funds.deletedAt)));
+
+        const target = activeFunds.find((fund) => fund.id === fundId);
+
+        // Savings has no share of its own — it takes whatever is left over —
+        // so an edit to it can't move the total.
+        if (target && !target.isSavings) {
+          const resultingSum = activeFunds.reduce((acc, fund) => {
+            if (fund.isSavings) return acc;
+            if (fund.id === fundId) return acc + nextPullPercentage;
+            return acc + Number(fund.pullPercentage ?? 0);
+          }, 0);
+
+          if (fundSharesExceedHundred(resultingSum)) {
+            throw new BadRequestError(FUND_SHARE_SUM_ERROR);
+          }
+        }
+      }
+
+      return tx
+        .update(funds)
+        .set({
+          ...(data?.name ? { name: String(data.name) } : {}),
+          pullPercentage:
+            nextPullPercentage === null
+              ? sql<number>`
                 CASE WHEN ${funds.isSavings} THEN 0 ELSE ${funds.pullPercentage} END
               `
-            : sql<number>`
+              : sql<number>`
                 CASE WHEN ${funds.isSavings} THEN 0 ELSE ${nextPullPercentage} END
               `,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(funds.id, fundId),
-          eq(funds.userId, user.id),
-          isNull(funds.deletedAt),
-        ),
-      )
-      .returning()
-      .then((res) => res[0]);
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(funds.id, fundId),
+            eq(funds.userId, user.id),
+            isNull(funds.deletedAt),
+          ),
+        )
+        .returning()
+        .then((res) => res[0]);
+    });
 
     if (!updatedFund) {
       return NextResponse.json({ error: "Fund not found" }, { status: 404 });
@@ -177,6 +243,10 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ fund: updatedFund });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error("API: Error updating fund", error);
     return NextResponse.json(
       { error: "Internal server error" },

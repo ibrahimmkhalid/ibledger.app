@@ -172,6 +172,7 @@ export default function FundsPage() {
   const [draftFunds, setDraftFunds] = useState<DraftFund[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [rescaledFromServer, setRescaledFromServer] = useState(false);
 
   const [busy, setBusy] = useState(false);
 
@@ -228,9 +229,22 @@ export default function FundsPage() {
 
   /** Re-initialise draft from serverFunds. */
   const resetDraft = useCallback(() => {
-    setDraftFunds(normaliseDraft(serverFunds.map(fundToDraft)));
+    const fromServer = serverFunds.map(fundToDraft);
+    const normalised = normaliseDraft(fromServer);
+
+    // Scaling only happens for a saved total over 100, which blocks recording
+    // income. The scaled figures are numbers the user never typed, so leaving
+    // the form clean would show a healthy allocation that does not match the
+    // database, with Confirm disabled and no way to write the fix. Start dirty
+    // and say why instead.
+    const scaled = normalised.some(
+      (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
+    );
+
+    setDraftFunds(normalised);
     setDeletedIds([]);
-    setDirty(false);
+    setDirty(scaled);
+    setRescaledFromServer(scaled);
   }, [serverFunds]);
 
   useEffect(() => {
@@ -356,6 +370,17 @@ export default function FundsPage() {
           </Button>
         </div>
       </div>
+
+      {rescaledFromServer && (
+        <div
+          role="status"
+          className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
+        >
+          Your saved income shares added up to more than 100%, which stops new
+          income from being recorded. They have been scaled back to fit — check
+          the numbers below and press Confirm to save the correction.
+        </div>
+      )}
 
       {/* ── Allocation slider ───────────────────────────────────── */}
       {sliderFunds.length > 1 && (
