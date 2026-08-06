@@ -35,10 +35,12 @@ import {
   TrackerActions,
 } from "@/app/tracker/components/tracker-actions";
 import { OverviewSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { TransactionEventCard } from "@/app/tracker/components/transaction-event-card";
 import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { fmtAmount } from "@/app/tracker/lib/format";
+import { CheckCircle2Icon } from "lucide-react";
 import type {
   EventsResponse,
   Fund,
@@ -74,6 +76,7 @@ function overspentBadge(args: { raw: number; label?: string }) {
 
 export default function TrackerPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,6 +132,33 @@ export default function TrackerPage() {
     [router],
   );
 
+  const pendingEventCount = totals?.pendingEventCount ?? 0;
+
+  const clearAllPending = useCallback(async () => {
+    const noun = pendingEventCount === 1 ? "transaction" : "transactions";
+    const ok = await confirm({
+      title: `Clear all ${pendingEventCount.toLocaleString()} pending ${noun}?`,
+      description: `This settles every pending ${noun} in your ledger, folding ${pendingEventCount === 1 ? "it" : "them"} into your real balance right away. To settle only some of them, filter the Transactions page first.`,
+      confirmLabel: "Clear all pending",
+    });
+    if (!ok) return;
+
+    try {
+      const { cleared } = await apiJson<{ cleared: number }>(
+        "/api/transactions/clear-pending",
+        { method: "POST" },
+      );
+      await refresh();
+      toast.success(
+        `Cleared ${cleared.toLocaleString()} pending ${
+          cleared === 1 ? "transaction" : "transactions"
+        }`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to clear pending");
+    }
+  }, [confirm, pendingEventCount, refresh]);
+
   // Prefetch sibling routes for instant navigation
   useEffect(() => {
     router.prefetch("/tracker/transactions");
@@ -146,6 +176,7 @@ export default function TrackerPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {confirmDialog}
       <AddTransactionFab onClick={() => setCreateTransactionOpen(true)} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Overview</h1>
@@ -186,6 +217,30 @@ export default function TrackerPage() {
               <span className="text-muted-foreground">-</span>
             )}
           </div>
+
+          {/* The ledger-wide settle lives here, beside the ledger-wide total.
+              The Transactions page's button is scoped to its filters. */}
+          {pendingEventCount > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+              <span className="text-muted-foreground text-xs">
+                {pendingEventCount.toLocaleString()}{" "}
+                {pendingEventCount === 1
+                  ? "transaction is"
+                  : "transactions are"}{" "}
+                still pending across your ledger.
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void clearAllPending()}
+                disabled={refreshing}
+              >
+                <CheckCircle2Icon />
+                Clear all pending
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

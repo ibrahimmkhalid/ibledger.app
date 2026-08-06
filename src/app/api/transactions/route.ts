@@ -1,141 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  or,
-  sql,
-  type SQL,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
-import {
-  BadRequestError,
-  fuzzyLikePatterns,
-  parseAmountParam,
-  parseEnumParam,
-  parseIdList,
-  parseIntegerParam,
-} from "@/app/api/query-params";
+import { BadRequestError, parseIntegerParam } from "@/app/api/query-params";
 import {
   parseCreateTransactionLines,
   parseOccurredAt,
   parseRequestJsonObject,
 } from "@/app/api/transactions/validation";
+import { buildEventFilters } from "@/app/api/transactions/event-filters";
 import { requireUser } from "@/lib/auth";
 import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 import {
   FUND_SHARE_SUM_ERROR,
   fundSharesExceedHundred,
 } from "@/lib/fund-shares";
-
-type PendingStatus = "all" | "pending" | "cleared";
-type IncomeFilter = "all" | "income" | "not_income";
-type DirectionFilter = "all" | "in" | "out";
-
-function sqlNumberList(ids: number[]) {
-  return sql.join(
-    ids.map((id) => sql`${id}`),
-    sql`, `,
-  );
-}
-
-function childExistsSql(userId: number, condition: SQL<unknown>) {
-  return sql<boolean>`exists (
-    select 1
-    from "transactions" child
-    where child."user_id" = ${userId}
-      and child."parent_id" = ${transactions.id}
-      and child."is_posting" = true
-      and child."deleted_at" is null
-      and ${condition}
-  )`;
-}
-
-function eventDisplayAmountSql(userId: number) {
-  return sql<number>`(
-    case
-      when ${transactions.isPosting} = true then ${transactions.amount}
-      else coalesce(
-        nullif((
-          select coalesce(sum(child."amount"), 0)
-          from "transactions" child
-          where child."user_id" = ${userId}
-            and child."parent_id" = ${transactions.id}
-            and child."is_posting" = true
-            and child."deleted_at" is null
-            and child."wallet_id" is not null
-        ), 0),
-        (
-          select coalesce(sum(child."amount"), 0)
-          from "transactions" child
-          where child."user_id" = ${userId}
-            and child."parent_id" = ${transactions.id}
-            and child."is_posting" = true
-            and child."deleted_at" is null
-            and child."fund_id" is not null
-        ),
-        0
-      )
-    end
-  )`;
-}
-
-function incomeExistsSql(userId: number) {
-  return childExistsSql(userId, sql`child."income_pull" is not null`);
-}
-
-// Unlike the posting-level search in /api/analytics, this matches at event
-// granularity and reaches down into children.
-function textSearchSql(userId: number, pattern: string) {
-  const escapeChar = "\\";
-
-  return sql<boolean>`(
-    lower(coalesce(${transactions.description}, '')) like ${pattern} escape ${escapeChar}
-    or exists (
-      select 1
-      from "wallets" direct_wallet
-      where direct_wallet."id" = ${transactions.walletId}
-        and direct_wallet."user_id" = ${userId}
-        and direct_wallet."deleted_at" is null
-        and lower(coalesce(direct_wallet."name", '')) like ${pattern} escape ${escapeChar}
-    )
-    or exists (
-      select 1
-      from "funds" direct_fund
-      where direct_fund."id" = ${transactions.fundId}
-        and direct_fund."user_id" = ${userId}
-        and direct_fund."deleted_at" is null
-        and lower(coalesce(direct_fund."name", '')) like ${pattern} escape ${escapeChar}
-    )
-    or exists (
-      select 1
-      from "transactions" child
-      left join "wallets" child_wallet
-        on child_wallet."id" = child."wallet_id"
-       and child_wallet."user_id" = ${userId}
-       and child_wallet."deleted_at" is null
-      left join "funds" child_fund
-        on child_fund."id" = child."fund_id"
-       and child_fund."user_id" = ${userId}
-       and child_fund."deleted_at" is null
-      where child."user_id" = ${userId}
-        and child."parent_id" = ${transactions.id}
-        and child."is_posting" = true
-        and child."deleted_at" is null
-        and (
-          lower(coalesce(child."description", '')) like ${pattern} escape ${escapeChar}
-          or lower(coalesce(child_wallet."name", '')) like ${pattern} escape ${escapeChar}
-          or lower(coalesce(child_fund."name", '')) like ${pattern} escape ${escapeChar}
-        )
-    )
-  )`;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -156,101 +36,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid pageSize" }, { status: 400 });
     }
 
-    const pendingStatus =
-      searchParams.get("pendingOnly") === "true"
-        ? "pending"
-        : parseEnumParam<PendingStatus>(
-            searchParams,
-            "pendingStatus",
-            ["all", "pending", "cleared"],
-            "all",
-          );
-    const incomeFilter = parseEnumParam<IncomeFilter>(
-      searchParams,
-      "income",
-      ["all", "income", "not_income"],
-      "all",
-    );
-    const direction = parseEnumParam<DirectionFilter>(
-      searchParams,
-      "direction",
-      ["all", "in", "out"],
-      "all",
-    );
-    const fundIds = parseIdList(searchParams, "fundIds");
-    const walletIds = parseIdList(searchParams, "walletIds");
-    const minAmount = parseAmountParam(searchParams, "minAmount");
-    const maxAmount = parseAmountParam(searchParams, "maxAmount");
-    const search = searchParams.get("search")?.trim() ?? "";
-
-    if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
-      return NextResponse.json(
-        { error: "minAmount cannot exceed maxAmount" },
-        { status: 400 },
-      );
-    }
-
-    const eventAmount = eventDisplayAmountSql(user.id);
-    const incomeExists = incomeExistsSql(user.id);
-    const filterConditions: SQL<unknown>[] = [
-      eq(transactions.userId, user.id),
-      isNull(transactions.parentId),
-      isNull(transactions.deletedAt),
-    ];
-
-    if (pendingStatus === "pending") {
-      filterConditions.push(eq(transactions.isPending, true));
-    } else if (pendingStatus === "cleared") {
-      filterConditions.push(eq(transactions.isPending, false));
-    }
-
-    if (fundIds.length > 0) {
-      const ids = sqlNumberList(fundIds);
-      const fundFilter = or(
-        inArray(transactions.fundId, fundIds),
-        childExistsSql(user.id, sql`child."fund_id" in (${ids})`),
-      );
-      if (fundFilter) {
-        filterConditions.push(fundFilter);
-      }
-    }
-
-    if (walletIds.length > 0) {
-      const ids = sqlNumberList(walletIds);
-      const walletFilter = or(
-        inArray(transactions.walletId, walletIds),
-        childExistsSql(user.id, sql`child."wallet_id" in (${ids})`),
-      );
-      if (walletFilter) {
-        filterConditions.push(walletFilter);
-      }
-    }
-
-    if (incomeFilter === "income") {
-      filterConditions.push(incomeExists);
-    } else if (incomeFilter === "not_income") {
-      filterConditions.push(sql`not (${incomeExists})`);
-    }
-
-    if (direction === "in") {
-      filterConditions.push(sql`${eventAmount} > 0`);
-    } else if (direction === "out") {
-      filterConditions.push(sql`${eventAmount} < 0`);
-    }
-
-    for (const pattern of fuzzyLikePatterns(search)) {
-      filterConditions.push(textSearchSql(user.id, pattern));
-    }
-
-    if (minAmount !== null) {
-      filterConditions.push(sql`abs(${eventAmount}) >= ${minAmount}`);
-    }
-
-    if (maxAmount !== null) {
-      filterConditions.push(sql`abs(${eventAmount}) <= ${maxAmount}`);
-    }
-
-    const filters = and(...filterConditions);
+    const filters = buildEventFilters(searchParams, user.id);
 
     const [countRows, events] = await Promise.all([
       db.select({ value: count() }).from(transactions).where(filters),

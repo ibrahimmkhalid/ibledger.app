@@ -60,6 +60,7 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
+  appendTransactionFilterParams,
   fetchTransactionsPage,
   getAdjacentPages,
   normalizeTransactionsFilters,
@@ -421,17 +422,29 @@ export default function TransactionsPage() {
     await refresh({ page, pageSize, filters }, { fullScreen: false });
   }, [clearPageCache, filters, page, pageSize, refresh]);
 
-  const clearAllPending = useCallback(async () => {
+  // Scoped to the filters currently applied, because the button sits right
+  // beside the filtered count and reads as if it were. The whole-ledger version
+  // lives on the Overview, where a ledger-wide action belongs.
+  const clearFilteredPending = useCallback(async () => {
+    const noun = totalCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({
-      title: "Clear all pending transactions?",
-      description:
-        "Pending transactions are ones you've recorded but marked as not-yet-settled. Clearing folds every one of them into your real balance right away.",
-      confirmLabel: "Clear pending",
+      title: `Clear ${totalCount.toLocaleString()} pending ${noun}?`,
+      description: `Pending transactions are ones you've recorded but marked as not-yet-settled. This settles the ${totalCount.toLocaleString()} ${noun} matching your current filters, folding them into your real balance right away. Anything outside the filters is left pending.`,
+      confirmLabel: `Clear ${totalCount.toLocaleString()} pending`,
     });
     if (!ok) return;
 
     try {
-      await apiJson("/api/transactions/clear-pending", { method: "POST" });
+      const params = new URLSearchParams();
+      appendTransactionFilterParams(
+        params,
+        normalizeTransactionsFilters(filters),
+      );
+      const { cleared } = await apiJson<{ cleared: number }>(
+        `/api/transactions/clear-pending?${params.toString()}`,
+        { method: "POST" },
+      );
+
       const nextFilters = normalizeTransactionsFilters({
         ...filters,
         pendingStatus: "all",
@@ -443,11 +456,15 @@ export default function TransactionsPage() {
         { page: 0, pageSize, filters: nextFilters },
         { fullScreen: false },
       );
-      toast.success("All pending transactions cleared");
+      toast.success(
+        `Cleared ${cleared.toLocaleString()} pending ${
+          cleared === 1 ? "transaction" : "transactions"
+        }`,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to clear pending");
     }
-  }, [confirm, clearPageCache, filters, pageSize, refresh]);
+  }, [confirm, clearPageCache, filters, pageSize, refresh, totalCount]);
 
   useEffect(() => {
     router.prefetch("/tracker");
@@ -534,12 +551,11 @@ export default function TransactionsPage() {
             {filters.pendingStatus === "pending" && totalCount > 0 ? (
               <Button
                 type="button"
-                variant="destructive"
-                onClick={() => void clearAllPending()}
+                onClick={() => void clearFilteredPending()}
                 disabled={pageLoading}
               >
                 <CheckCircle2Icon />
-                Clear pending
+                Clear {totalCount.toLocaleString()} pending
               </Button>
             ) : null}
           </div>

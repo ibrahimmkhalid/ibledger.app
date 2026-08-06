@@ -360,9 +360,11 @@ export function HowToUseGuide() {
         </Figure>
 
         <p>
-          To settle everything at once, filter the Transactions page to Status
-          &ldquo;Pending&rdquo; and use Clear pending. It folds every pending
-          transaction into your real balance right away.
+          To settle several at once, filter the Transactions page to Status
+          &ldquo;Pending&rdquo; and use Clear pending. It settles exactly the
+          transactions matching your filters — the button says how many — and
+          leaves everything outside them pending. To settle the whole ledger in
+          one go, use Clear all pending on the Overview instead.
         </p>
       </Section>
 
