@@ -24,6 +24,7 @@ import {
 
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { apiJson } from "@/app/tracker/lib/api";
 import { useBusy } from "@/app/tracker/components/use-busy";
 import {
@@ -89,6 +90,7 @@ export function TransactionModal(args: {
   } = args;
 
   const { busy, error, setBusy, setError, runWithBusy } = useBusy();
+  const { confirm, confirmDialog } = useConfirm();
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
@@ -263,6 +265,15 @@ export function TransactionModal(args: {
 
   async function deleteEvent() {
     if (!initialEvent) return;
+
+    const ok = await confirm({
+      title: "Delete this transaction?",
+      description:
+        "Every line of it is removed and the wallet and fund balances it moved go back. You can't undo this.",
+      confirmLabel: "Delete transaction",
+      destructive: true,
+    });
+    if (!ok) return;
 
     await runWithBusy(async () => {
       await apiJson(`/api/transactions/${initialEvent.id}`, {
@@ -671,58 +682,61 @@ export function TransactionModal(args: {
   }
 
   return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
-      desktopFooterClassName="flex items-center justify-between gap-2"
-      renderBody={({ isMobile }) => (
-        <>
-          {error && <div className="text-destructive text-sm">{error}</div>}
+    <>
+      {confirmDialog}
+      <ResponsiveModal
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
+        desktopFooterClassName="flex items-center justify-between gap-2"
+        renderBody={({ isMobile }) => (
+          <>
+            {error && <div className="text-destructive text-sm">{error}</div>}
 
-          <div
-            className={
-              isMobile ? "mt-3 grid gap-3" : "grid gap-4 md:grid-cols-2"
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={dateId}>Date</Label>
-              <Input
-                id={dateId}
-                type="date"
-                value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
-                disabled={readOnly}
-              />
+            <div
+              className={
+                isMobile ? "mt-3 grid gap-3" : "grid gap-4 md:grid-cols-2"
+              }
+            >
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={dateId}>Date</Label>
+                <Input
+                  id={dateId}
+                  type="date"
+                  value={occurredAt}
+                  onChange={(e) => setOccurredAt(e.target.value)}
+                  disabled={readOnly}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={descriptionId}>Description</Label>
+                <Input
+                  id={descriptionId}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Grocery run"
+                  disabled={readOnly}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={descriptionId}>Description</Label>
-              <Input
-                id={descriptionId}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. Grocery run"
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-          {renderBreakdown(isMobile)}
-          {renderLinesEditor(isMobile)}
-        </>
-      )}
-      renderFooter={() => (
-        <EventModalActions
-          hasInitialEvent={Boolean(initialEvent)}
-          editing={editing}
-          busy={busy}
-          onDelete={deleteEvent}
-          onStartEdit={() => setEditing(true)}
-          onCancelEdit={() => setEditing(false)}
-          onCreate={saveCreate}
-          onSaveEdit={saveEdit}
-        />
-      )}
-    />
+            {renderBreakdown(isMobile)}
+            {renderLinesEditor(isMobile)}
+          </>
+        )}
+        renderFooter={() => (
+          <EventModalActions
+            hasInitialEvent={Boolean(initialEvent)}
+            editing={editing}
+            busy={busy}
+            onDelete={deleteEvent}
+            onStartEdit={() => setEditing(true)}
+            onCancelEdit={() => setEditing(false)}
+            onCreate={saveCreate}
+            onSaveEdit={saveEdit}
+          />
+        )}
+      />
+    </>
   );
 }

@@ -31,7 +31,9 @@ export function EventModalActions(args: {
   } = args;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    // w-full: as a content-sized flex child of DialogFooter, justify-between
+    // had nothing to distribute and Delete ended up 8px from Edit.
+    <div className="flex w-full flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         {hasInitialEvent && (
           <Button
