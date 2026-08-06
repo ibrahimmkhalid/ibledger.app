@@ -25,6 +25,7 @@ import {
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { apiJson } from "@/app/tracker/lib/api";
 import { useBusy } from "@/app/tracker/components/use-busy";
 import {
@@ -36,6 +37,7 @@ import {
   isoToday,
   toDateInputValue,
 } from "@/app/tracker/lib/format";
+import { cn } from "@/lib/utils";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
 import { TrashIcon } from "lucide-react";
@@ -303,6 +305,38 @@ export function TransactionModal(args: {
           ]
         : [];
 
+  // What the transaction adds up to: "out" lines count against "in" ones, so a
+  // several-line entry has a single net figure the user can check as they type.
+  const draftTotal = lines.reduce((acc, line) => {
+    const abs = Number(line.amount) / 100;
+    if (!Number.isFinite(abs)) return acc;
+    return acc + (line.direction === "out" ? -abs : abs);
+  }, 0);
+
+  const breakdownTotal = breakdown.reduce(
+    (acc, child) => acc + Number(child.amount),
+    0,
+  );
+
+  const removeLineReason =
+    lines.length <= 1 ? "A transaction needs at least one line" : null;
+
+  function renderTotalRow(label: string, total: number) {
+    return (
+      <div className="mt-3 flex items-baseline justify-between gap-3 border-t pt-2">
+        <span className="text-sm font-medium">{label}</span>
+        <span
+          className={cn(
+            "text-sm font-semibold tabular-nums",
+            total < 0 && "text-destructive",
+          )}
+        >
+          {fmtAmount(total)}
+        </span>
+      </div>
+    );
+  }
+
   function renderBreakdown(isMobile: boolean) {
     if (!initialEvent || editing) return null;
 
@@ -351,6 +385,7 @@ export function TransactionModal(args: {
               );
             })}
           </div>
+          {renderTotalRow("Net total", breakdownTotal)}
         </div>
       );
     }
@@ -395,6 +430,7 @@ export function TransactionModal(args: {
             </TableBody>
           </Table>
         </div>
+        {renderTotalRow("Net total", breakdownTotal)}
       </div>
     );
   }
@@ -419,7 +455,7 @@ export function TransactionModal(args: {
           </div>
 
           <div className="mt-3 flex flex-col gap-2">
-            {lines.map((l) => (
+            {lines.map((l, index) => (
               <div key={l.key} className="rounded-md border p-2">
                 <div className="grid grid-cols-2 gap-2">
                   <Select
@@ -431,7 +467,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Wallet for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -452,7 +491,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Fund for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -471,6 +513,7 @@ export function TransactionModal(args: {
                     onChange={(e) =>
                       patchLine(l.key, { description: e.target.value })
                     }
+                    aria-label={`Description for line ${index + 1}`}
                     placeholder="Description (optional)"
                     disabled={busy}
                   />
@@ -485,7 +528,10 @@ export function TransactionModal(args: {
                     }}
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0 capitalize">
+                    <SelectTrigger
+                      aria-label={`Direction for line ${index + 1}`}
+                      className="w-full min-w-0 capitalize"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -496,6 +542,7 @@ export function TransactionModal(args: {
 
                   <Input
                     inputMode="numeric"
+                    aria-label={`Amount for line ${index + 1}`}
                     value={formatCentsToDisplay(l.amount)}
                     onChange={(e) =>
                       patchLine(l.key, {
@@ -516,23 +563,37 @@ export function TransactionModal(args: {
                       onCheckedChange={(checked) =>
                         patchLine(l.key, { isPending: checked })
                       }
+                      aria-label={`Pending for line ${index + 1}`}
                       disabled={busy}
                     />
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeLine(l.key)}
-                    disabled={busy || lines.length <= 1}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {removeLineReason ? (
+                    <UnavailableActionButton
+                      variant="outline"
+                      size="sm"
+                      label={`Can't remove line ${index + 1}`}
+                      reason={removeLineReason}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </UnavailableActionButton>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeLine(l.key)}
+                      aria-label={`Remove line ${index + 1}`}
+                      disabled={busy}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+          {renderTotalRow("Net total", draftTotal)}
         </div>
       );
     }
@@ -564,7 +625,7 @@ export function TransactionModal(args: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lines.map((l) => (
+            {lines.map((l, index) => (
               <TableRow key={l.key}>
                 <TableCell>
                   <Select
@@ -576,7 +637,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Wallet for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -598,7 +662,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Fund for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -616,6 +683,7 @@ export function TransactionModal(args: {
                     onChange={(e) =>
                       patchLine(l.key, { description: e.target.value })
                     }
+                    aria-label={`Description for line ${index + 1}`}
                     placeholder="(optional)"
                     disabled={busy}
                   />
@@ -629,7 +697,10 @@ export function TransactionModal(args: {
                     }}
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0 capitalize">
+                    <SelectTrigger
+                      aria-label={`Direction for line ${index + 1}`}
+                      className="w-full min-w-0 capitalize"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -641,6 +712,7 @@ export function TransactionModal(args: {
                 <TableCell className="text-right tabular-nums">
                   <Input
                     inputMode="numeric"
+                    aria-label={`Amount for line ${index + 1}`}
                     value={formatCentsToDisplay(l.amount)}
                     onChange={(e) =>
                       patchLine(l.key, {
@@ -659,24 +731,38 @@ export function TransactionModal(args: {
                       onCheckedChange={(checked) =>
                         patchLine(l.key, { isPending: checked })
                       }
+                      aria-label={`Pending for line ${index + 1}`}
                       disabled={busy}
                     />
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => removeLine(l.key)}
-                    disabled={busy || lines.length <= 1}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {removeLineReason ? (
+                    <UnavailableActionButton
+                      variant="outline"
+                      size="default"
+                      label={`Can't remove line ${index + 1}`}
+                      reason={removeLineReason}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </UnavailableActionButton>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => removeLine(l.key)}
+                      aria-label={`Remove line ${index + 1}`}
+                      disabled={busy}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        {renderTotalRow("Net total", draftTotal)}
       </div>
     );
   }

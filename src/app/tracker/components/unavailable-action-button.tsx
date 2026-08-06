@@ -26,18 +26,26 @@ export function UnavailableActionButton(args: {
   reason: string;
   /** What the button would have done, e.g. "Delete Groceries". */
   label: string;
-  size?: "icon" | "icon-sm" | "icon-xs";
+  size?: "icon" | "icon-sm" | "icon-xs" | "default" | "sm";
+  variant?: "ghost" | "outline";
   className?: string;
   children: ReactNode;
 }) {
-  const { reason, label, size = "icon", className, children } = args;
+  const {
+    reason,
+    label,
+    size = "icon",
+    variant = "ghost",
+    className,
+    children,
+  } = args;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant={variant}
           size={size}
           aria-disabled="true"
           aria-label={`${label}: ${reason}`}
