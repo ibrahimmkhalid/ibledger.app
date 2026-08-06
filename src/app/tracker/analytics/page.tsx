@@ -47,7 +47,9 @@ import {
 } from "@/app/tracker/analytics/charts";
 import {
   DATE_RANGE_PRESETS,
+  GRANULARITY_EMPTY_LABEL,
   GRANULARITY_LEVELS,
+  GROUP_BY_LABELS,
   dateRangeForPreset,
   groupByForGranularity,
   syncGranularityDraft,
@@ -406,11 +408,17 @@ export default function AnalyticsPage() {
                     onChange={(granularityLevel) =>
                       patchFilterDraft({ granularityLevel })
                     }
-                    options={GRANULARITY_LEVELS.map((level) => ({
-                      value: level.value,
-                      label: level.label,
-                      disabled: granularityState.slots[level.value].disabled,
-                    }))}
+                    options={GRANULARITY_LEVELS.map((level) => {
+                      const slot = granularityState.slots[level];
+                      return {
+                        value: level,
+                        label: slot.groupBy
+                          ? GROUP_BY_LABELS[slot.groupBy]
+                          : GRANULARITY_EMPTY_LABEL,
+                        disabled: slot.disabled,
+                        reason: slot.reason ?? undefined,
+                      };
+                    })}
                   />
 
                   <MultiSelectDropdown

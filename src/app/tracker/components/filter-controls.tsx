@@ -3,6 +3,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import {
   formatCentsToDisplay,
@@ -11,6 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -104,7 +110,13 @@ export function FilterSearchField(args: {
 export function SegmentedControl<T extends string>(args: {
   label: string;
   value: T;
-  options: ReadonlyArray<{ value: T; label: string; disabled?: boolean }>;
+  options: ReadonlyArray<{
+    value: T;
+    label: string;
+    disabled?: boolean;
+    /** Why this option is unavailable. Shown on hover, focus and tap. */
+    reason?: string;
+  }>;
   onChange: (value: T) => void;
   hint?: string;
 }) {
@@ -123,17 +135,31 @@ export function SegmentedControl<T extends string>(args: {
       >
         {options.map((option) => {
           const active = option.value === value;
-          return (
+          const button = (
             <button
               key={option.value}
               type="button"
               aria-pressed={active}
-              disabled={option.disabled}
-              onClick={() => onChange(option.value)}
+              // An option with a reason stays focusable and clickable so the
+              // explanation is reachable: tooltips never open on touch, and a
+              // truly disabled segment would just sit there greyed out.
+              disabled={option.disabled && !option.reason}
+              aria-disabled={option.disabled || undefined}
+              aria-label={
+                option.reason ? `${option.label}: ${option.reason}` : undefined
+              }
+              onClick={() => {
+                if (option.reason) {
+                  toast.info(option.reason);
+                  return;
+                }
+                if (option.disabled) return;
+                onChange(option.value);
+              }}
               className={cn(
                 "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-sm font-medium transition-colors sm:text-xs",
                 option.disabled
-                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  ? "text-muted-foreground/40 cursor-help"
                   : active
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -141,6 +167,15 @@ export function SegmentedControl<T extends string>(args: {
             >
               <span className="truncate">{option.label}</span>
             </button>
+          );
+
+          if (!option.reason) return button;
+
+          return (
+            <Tooltip key={option.value}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent>{option.reason}</TooltipContent>
+            </Tooltip>
           );
         })}
       </div>

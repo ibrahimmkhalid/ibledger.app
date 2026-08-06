@@ -8,14 +8,23 @@ import type {
 export const DEFAULT_DATE_PRESET: DateRangePreset = "last_6_months";
 export const DEFAULT_GRANULARITY_LEVEL: GranularityLevel = "fine";
 
-export const GRANULARITY_LEVELS: ReadonlyArray<{
-  value: GranularityLevel;
-  label: string;
-}> = [
-  { value: "fine", label: "Fine" },
-  { value: "medium", label: "Medium" },
-  { value: "coarse", label: "Coarse" },
+export const GRANULARITY_LEVELS: ReadonlyArray<GranularityLevel> = [
+  "fine",
+  "medium",
+  "coarse",
 ];
+
+// The Detail control is labelled with the bucket a slot actually resolves to
+// for the current range, rather than an abstract Fine/Medium/Coarse that means
+// something different on every range.
+export const GROUP_BY_LABELS: Record<GroupBy, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+};
+
+// Shown on a slot with no bucket to offer.
+export const GRANULARITY_EMPTY_LABEL = "—";
 
 // Base (range, zoom) → bucket size before data-span capping.
 export const GRANULARITY_SLOT_MAP: Record<
@@ -159,11 +168,6 @@ function estimatedBars(groupBy: GroupBy, spanDays: number) {
   return Math.max(1, Math.ceil(spanDays / 30));
 }
 
-function isGranularityValid(groupBy: GroupBy, spanDays: number) {
-  const bars = estimatedBars(groupBy, spanDays);
-  return bars >= 2 && bars <= 120;
-}
-
 function dynamicGranularitySlots(spanDays: number) {
   if (spanDays <= 14) {
     return { fine: "day" as const, medium: null, coarse: null };
@@ -195,7 +199,26 @@ function dynamicGranularitySlots(spanDays: number) {
 type GranularitySlotState = {
   groupBy: GroupBy | null;
   disabled: boolean;
+  /** Why this slot is unavailable, for the user. null when it is available. */
+  reason: string | null;
 };
+
+function slotReason(groupBy: GroupBy | null, spanDays: number): string | null {
+  if (groupBy === null) {
+    return "No bucket size sits between the other two for this date range.";
+  }
+
+  const bars = estimatedBars(groupBy, spanDays);
+  const label = GROUP_BY_LABELS[groupBy].toLowerCase();
+
+  if (bars < 2) {
+    return `Too little data to chart ${label} over this date range.`;
+  }
+  if (bars > 120) {
+    return `${GROUP_BY_LABELS[groupBy]} would draw too many points to read over this date range.`;
+  }
+  return null;
+}
 
 function resolveGranularitySlots(
   preset: DateRangePreset,
@@ -216,9 +239,8 @@ function resolveGranularitySlots(
   return (["fine", "medium", "coarse"] as const).reduce(
     (acc, level) => {
       const groupBy = slots[level];
-      const disabled =
-        groupBy === null || !isGranularityValid(groupBy, spanDays);
-      acc[level] = { groupBy, disabled };
+      const reason = slotReason(groupBy, spanDays);
+      acc[level] = { groupBy, disabled: reason !== null, reason };
       return acc;
     },
     {} as Record<GranularityLevel, GranularitySlotState>,

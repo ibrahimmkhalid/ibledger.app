@@ -47,8 +47,10 @@ const TREND_MODE_OPTIONS: ReadonlyArray<{
   value: TrendMode;
   label: string;
 }> = [
-  { value: "cumulative", label: "Change" },
-  { value: "raw", label: "Value" },
+  // "cumulative" plots movement since the start of the range; "raw" plots the
+  // balance at each point. The labels say which, so the toggle needs no gloss.
+  { value: "cumulative", label: "Net change" },
+  { value: "raw", label: "Balance" },
 ];
 
 const CASHFLOW_SYMLOG_SCALE = 100;
@@ -645,7 +647,7 @@ export function trendPlot(
   }
 
   const rollingWindow = ROLLING_AVERAGE_WINDOWS[groupBy];
-  const valueLabel = mode === "raw" ? "Value" : "Cumulative change";
+  const valueLabel = mode === "raw" ? "Balance" : "Net change";
 
   return {
     data: visible.flatMap((item) => {
