@@ -11,7 +11,7 @@ import {
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import type { TransactionEvent } from "@/app/tracker/types";
 
-import { HandCoinsIcon, ListIcon, ReceiptIcon } from "lucide-react";
+import { HandCoinsIcon, TagIcon, TagsIcon } from "lucide-react";
 
 export function TransactionEventCard(args: {
   event: TransactionEvent;
@@ -62,19 +62,19 @@ export function TransactionEventCard(args: {
                   <title>Income</title>
                 </HandCoinsIcon>
               ) : !ev.isPosting ? (
-                <ListIcon
+                <TagsIcon
                   aria-hidden
                   className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                 >
                   <title>Several lines</title>
-                </ListIcon>
+                </TagsIcon>
               ) : (
-                <ReceiptIcon
+                <TagIcon
                   aria-hidden
                   className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                 >
                   <title>Single line</title>
-                </ReceiptIcon>
+                </TagIcon>
               )}
               <div
                 className={
