@@ -1,6 +1,11 @@
+// An empty amount must render as an empty field, not "$0.00". Leaving content
+// in the input hides the placeholder and, because the text is right-aligned,
+// lets a caret clicked into the empty left margin prepend digits — typing 4200
+// at index 0 of "$0.00" yields $42,000.00 rather than $42.00.
 export function formatCentsToDisplay(cents: number | string): string {
-  const n = typeof cents === "string" ? Number(cents) || 0 : cents;
-  if (!n && n !== 0) return "$0.00";
+  if (typeof cents === "string" && cents.trim() === "") return "";
+  const n = typeof cents === "string" ? Number(cents) : cents;
+  if (!Number.isFinite(n)) return "";
   return `$${(n / 100).toFixed(2)}`;
 }
 

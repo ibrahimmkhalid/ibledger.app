@@ -44,6 +44,7 @@ import {
   FilterSearchField,
   StatusTypeDirectionControls,
   countActiveTransactionFilters,
+  formatFilterAmount,
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
 import { EventModals } from "@/app/tracker/components/event-modals";
@@ -91,10 +92,6 @@ const DEFAULT_FILTER_DRAFT: TransactionsFilterDraft = {
   minAmount: "",
   maxAmount: "",
 };
-
-function formatFilterAmount(value: number | null) {
-  return value === null ? "" : String(value);
-}
 
 function filtersToDraft(
   filters: TransactionsPageFilters,

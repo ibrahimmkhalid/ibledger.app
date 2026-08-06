@@ -4,6 +4,10 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
+import {
+  formatCentsToDisplay,
+  parseInputAsCents,
+} from "@/app/tracker/lib/cents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,16 +25,23 @@ export type MultiSelectOption = {
   name: string;
 };
 
+// The draft holds the same cents string the modal amount fields use, so typing
+// 1000 means $10.00 here exactly as it does in a transaction. The API filters
+// on dollars, so convert on the way out.
 export function parseFilterAmount(value: string, label: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const parsed = Number(trimmed.replace(/[$,]/g, ""));
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  const cents = Number(trimmed);
+  if (!Number.isFinite(cents) || cents < 0) {
     throw new Error(`${label} amount must be zero or greater`);
   }
 
-  return parsed;
+  return cents / 100;
+}
+
+export function formatFilterAmount(dollars: number | null) {
+  return dollars === null ? "" : String(Math.round(dollars * 100));
 }
 
 type SharedCountedFilters = Pick<
@@ -345,10 +356,13 @@ export function AmountAndAccountFilters(args: {
         <Label htmlFor={minAmountId}>Minimum</Label>
         <Input
           id={minAmountId}
-          inputMode="decimal"
-          value={draft.minAmount}
-          onChange={(event) => onPatch({ minAmount: event.target.value })}
-          placeholder="$0"
+          inputMode="numeric"
+          value={formatCentsToDisplay(draft.minAmount)}
+          onChange={(event) =>
+            onPatch({ minAmount: parseInputAsCents(event.target.value) })
+          }
+          placeholder="$0.00"
+          className="text-right tabular-nums"
         />
       </div>
 
@@ -356,10 +370,13 @@ export function AmountAndAccountFilters(args: {
         <Label htmlFor={maxAmountId}>Maximum</Label>
         <Input
           id={maxAmountId}
-          inputMode="decimal"
-          value={draft.maxAmount}
-          onChange={(event) => onPatch({ maxAmount: event.target.value })}
+          inputMode="numeric"
+          value={formatCentsToDisplay(draft.maxAmount)}
+          onChange={(event) =>
+            onPatch({ maxAmount: parseInputAsCents(event.target.value) })
+          }
           placeholder="Any"
+          className="text-right tabular-nums"
         />
       </div>
 
