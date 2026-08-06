@@ -45,6 +45,7 @@ const NAV_ITEMS = [
   { href: "/tracker/analytics", label: "Analytics" },
   { href: "/tracker/funds", label: "Funds" },
   { href: "/tracker/wallets", label: "Wallets" },
+  { href: "/how-to-use", label: "How to use" },
 ] as const;
 
 function navLinkClassName(args: { href: string; pathname: string }) {
@@ -83,6 +84,9 @@ export function AppShell(args: {
   const { children, devTesting } = args;
   const pathname = usePathname();
   const inTracker = pathname.startsWith("/tracker");
+  // The guide is one of the nav destinations, so the nav has to survive
+  // landing on it — otherwise following the link strands the user there.
+  const showSectionNav = inTracker || pathname === "/how-to-use";
   const year = new Date().getFullYear();
 
   // Keep the active item visible in the horizontally-scrolling mobile nav.
@@ -107,7 +111,7 @@ export function AppShell(args: {
                 Ledger
               </span>
             </Link>
-            {inTracker && (
+            {showSectionNav && (
               <nav className="hidden items-center gap-1 sm:flex">
                 <NavLinks pathname={pathname} />
               </nav>
@@ -151,7 +155,7 @@ export function AppShell(args: {
           </div>
         </div>
 
-        {inTracker && (
+        {showSectionNav && (
           <div className="border-t sm:hidden">
             <nav
               ref={mobileNavRef}
@@ -167,7 +171,10 @@ export function AppShell(args: {
       <main className="flex-1">{children}</main>
 
       <footer className="border-t">
-        <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6 text-xs">
+        {/* The mobile FAB is fixed to the bottom-right of the viewport, which
+            is exactly where these links land once the page is scrolled to the
+            end — enough padding to clear it keeps them tappable. */}
+        <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 pt-6 pb-24 text-xs sm:pb-6">
           <div>{year}</div>
           <div className="flex items-center gap-4">
             <Link
