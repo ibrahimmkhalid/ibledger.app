@@ -26,7 +26,29 @@ import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
+import { holdsMoney } from "@/lib/money";
 import type { Wallet } from "@/app/tracker/types";
+
+// Mirrors the guard the DELETE handler enforces, so the button is never
+// offered for a deletion that is certain to fail. The last-wallet rule is a
+// client-side rule: a ledger with no wallet has nowhere to record anything.
+function canDeleteWallet(
+  wallet: Wallet,
+  walletCount: number,
+): { ok: boolean; reason?: string } {
+  if (walletCount <= 1) {
+    return { ok: false, reason: "Your last wallet can't be deleted" };
+  }
+  if (holdsMoney(Number(wallet.balanceWithPending))) {
+    return {
+      ok: false,
+      reason:
+        "Still holds money (including pending). Move it to another wallet first — see How to use for how to transfer between wallets.",
+    };
+  }
+  return { ok: true };
+}
 
 export default function WalletsPage() {
   const router = useRouter();
@@ -185,40 +207,53 @@ export default function WalletsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((w) => (
-                <TableRow key={w.id}>
-                  <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right text-sm whitespace-normal tabular-nums">
-                    <ClearedWithPending
-                      cleared={w.balance}
-                      withPending={w.balanceWithPending}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2 sm:gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditWallet(w)}
-                        disabled={busy}
-                        aria-label={`Edit ${w.name}`}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => void deleteWallet(w)}
-                        disabled={busy || wallets.length <= 1}
-                        aria-label={`Delete ${w.name}`}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {wallets.map((w) => {
+                const del = canDeleteWallet(w, wallets.length);
+
+                return (
+                  <TableRow key={w.id}>
+                    <TableCell className="font-medium">{w.name}</TableCell>
+                    <TableCell className="text-right text-sm whitespace-normal tabular-nums">
+                      <ClearedWithPending
+                        cleared={w.balance}
+                        withPending={w.balanceWithPending}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditWallet(w)}
+                          disabled={busy}
+                          aria-label={`Edit ${w.name}`}
+                        >
+                          <Pencil />
+                        </Button>
+                        {del.ok ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void deleteWallet(w)}
+                            disabled={busy}
+                            aria-label={`Delete ${w.name}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 />
+                          </Button>
+                        ) : (
+                          <UnavailableActionButton
+                            label={`Can't delete ${w.name}`}
+                            reason={del.reason ?? "Unavailable"}
+                          >
+                            <Trash2 />
+                          </UnavailableActionButton>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

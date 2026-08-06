@@ -30,11 +30,7 @@ import {
 } from "@/components/ui/multi-fund-slider";
 import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
 import { Swatch } from "@/components/ui/swatch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 type DraftFund = {
@@ -488,30 +484,12 @@ export default function FundsPage() {
                             <Trash2 />
                           </Button>
                         ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              {/* The span (not the inert Button) takes focus,
-                                  so it must carry the control's semantics. */}
-                              <span
-                                tabIndex={0}
-                                role="button"
-                                aria-disabled="true"
-                                aria-label={`Can't delete ${f.name || "fund"}: ${del.reason}`}
-                                className="inline-flex"
-                              >
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled
-                                  aria-hidden
-                                  className="text-muted-foreground pointer-events-none"
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>{del.reason}</TooltipContent>
-                          </Tooltip>
+                          <UnavailableActionButton
+                            label={`Can't delete ${f.name || "fund"}`}
+                            reason={del.reason ?? "Unavailable"}
+                          >
+                            <Trash2 />
+                          </UnavailableActionButton>
                         ))}
                     </TableCell>
                   </TableRow>
