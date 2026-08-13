@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { ArrowLeftRightIcon, TagIcon, WalletIcon } from "lucide-react";
+import { ArrowLeftRightIcon, FolderIcon, WalletIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -62,7 +62,7 @@ function ExampleTransactionCard(args: {
             tone="border-border text-muted-foreground"
           />
           <MetaChip
-            icon={TagIcon}
+            icon={FolderIcon}
             label={args.fundName}
             tone="border-primary/40 text-primary"
           />
@@ -193,7 +193,7 @@ export default function Home() {
           <ConceptColumn icon={WalletIcon} title="Wallets">
             Checking, cash, cards. Where the money sits.
           </ConceptColumn>
-          <ConceptColumn icon={TagIcon} title="Funds">
+          <ConceptColumn icon={FolderIcon} title="Funds">
             Rent, food, travel. What the money is for.
           </ConceptColumn>
           <ConceptColumn icon={ArrowLeftRightIcon} title="Transactions">

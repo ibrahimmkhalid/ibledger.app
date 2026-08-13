@@ -2,13 +2,14 @@ import {
   AlertTriangleIcon,
   ArrowLeftRightIcon,
   ClockIcon,
+  FolderIcon,
   HandCoinsIcon,
   KeyboardIcon,
   ListIcon,
   PercentIcon,
   PiggyBankIcon,
-  ReceiptIcon,
   TagIcon,
+  TagsIcon,
   Trash2Icon,
   WalletIcon,
 } from "lucide-react";
@@ -97,7 +98,7 @@ function ExampleTransaction() {
             tone="border-border text-muted-foreground"
           />
           <MetaChip
-            icon={TagIcon}
+            icon={FolderIcon}
             label="Groceries"
             tone="border-primary/40 text-primary"
           />
@@ -111,12 +112,12 @@ function ExampleTransaction() {
 function CardIconLegend() {
   const rows: Array<{ icon: LucideIcon; label: string; meaning: string }> = [
     {
-      icon: ReceiptIcon,
+      icon: TagIcon,
       label: "Single line",
       meaning: "one wallet, one fund, one amount",
     },
     {
-      icon: ListIcon,
+      icon: TagsIcon,
       label: "Several lines",
       meaning: "split across more than one line",
     },
@@ -410,7 +411,7 @@ export function HowToUseGuide() {
         </p>
       </Section>
 
-      <Section icon={TagIcon} title="Transactions with several lines">
+      <Section icon={TagsIcon} title="Transactions with several lines">
         <p>
           A single transaction can split across several wallets and funds. Use
           Add line in the transaction modal — each line carries its own wallet,
