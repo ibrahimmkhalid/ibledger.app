@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { ArrowLeftRightIcon, FolderIcon, WalletIcon } from "lucide-react";
+import {
+  ArrowLeftRightIcon,
+  FolderIcon,
+  TagIcon,
+  WalletIcon,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { isDevTestingEnabled } from "@/lib/dev-testing";
@@ -16,21 +20,8 @@ import { isDevTestingEnabled } from "@/lib/dev-testing";
 const heroCtaClass =
   "h-12 rounded-lg px-6 text-base font-semibold sm:h-12 sm:px-6 sm:text-base";
 
-function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
-  const { icon: Icon, label, tone } = args;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
-        tone,
-      )}
-    >
-      <Icon aria-hidden className="size-3 shrink-0" />
-      <span className="min-w-0 truncate">{label}</span>
-    </span>
-  );
-}
-
+// Mirrors the tracker's TransactionEventCard so the landing page shows the
+// same card the app renders.
 function ExampleTransactionCard(args: {
   occurredAt: Date;
   walletName: string;
@@ -38,12 +29,16 @@ function ExampleTransactionCard(args: {
   description: string;
   net: number;
 }) {
+  const meta = [fmtDateShort(args.occurredAt), args.walletName, args.fundName]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <Card size="sm" className="gap-2 py-2">
+    <Card size="sm" className="min-h-11 gap-1 py-1.5">
       <div className="px-3">
         <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0 truncate text-sm font-medium">
-            {args.description}
+          <div className="text-muted-foreground min-w-0 truncate text-xs">
+            <span className="tabular-nums">{meta}</span>
           </div>
           <div className="text-sm tabular-nums">
             <span className={args.net < 0 ? "text-destructive" : ""}>
@@ -52,20 +47,16 @@ function ExampleTransactionCard(args: {
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {fmtDateShort(args.occurredAt)}
-          </span>
-          <MetaChip
-            icon={WalletIcon}
-            label={args.walletName}
-            tone="border-border text-muted-foreground"
-          />
-          <MetaChip
-            icon={FolderIcon}
-            label={args.fundName}
-            tone="border-primary/40 text-primary"
-          />
+        <div className="mt-0.5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <TagIcon
+              aria-hidden
+              className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+            />
+            <div className="min-w-0 truncate text-sm font-medium">
+              {args.description}
+            </div>
+          </div>
         </div>
       </div>
     </Card>

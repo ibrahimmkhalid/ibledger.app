@@ -2,7 +2,6 @@ import {
   AlertTriangleIcon,
   ArrowLeftRightIcon,
   ClockIcon,
-  FolderIcon,
   HandCoinsIcon,
   KeyboardIcon,
   ListIcon,
@@ -17,12 +16,14 @@ import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Swatch } from "@/components/ui/swatch";
-import { fmtAmount } from "@/app/tracker/lib/format";
+import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { SAVINGS_COLOR, seriesColor } from "@/app/tracker/lib/series-colors";
-import { cn } from "@/lib/utils";
 
 const HATCH =
   "repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.18) 3px,rgba(255,255,255,.18) 6px)";
+
+// Fixed so the example card renders the same on server and client.
+const EXAMPLE_DATE = new Date(2026, 0, 12);
 
 const GROCERIES = seriesColor(2);
 const RENT = seriesColor(0);
@@ -64,44 +65,32 @@ function Figure(args: { children: React.ReactNode; caption?: string }) {
   );
 }
 
-function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
-  const { icon: Icon, label, tone } = args;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
-        tone,
-      )}
-    >
-      <Icon aria-hidden className="size-3 shrink-0" />
-      <span className="min-w-0 truncate">{label}</span>
-    </span>
-  );
-}
-
-// A transaction as the tracker renders it, with the wallet and fund it picked
-// called out as chips.
+// A transaction exactly as the tracker renders it: the meta line names the
+// wallet and fund it picked, matching TransactionEventCard.
 function ExampleTransaction() {
   return (
-    <Card size="sm" className="gap-2 py-2">
+    <Card size="sm" className="min-h-11 gap-1 py-1.5">
       <div className="px-3">
         <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0 truncate text-sm font-medium">Market run</div>
+          <div className="text-muted-foreground min-w-0 truncate text-xs">
+            <span className="tabular-nums">
+              {fmtDateShort(EXAMPLE_DATE)} · Checking · Groceries
+            </span>
+          </div>
           <div className="text-destructive text-sm tabular-nums">
             {fmtAmount(-42.18)}
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <MetaChip
-            icon={WalletIcon}
-            label="Checking"
-            tone="border-border text-muted-foreground"
-          />
-          <MetaChip
-            icon={FolderIcon}
-            label="Groceries"
-            tone="border-primary/40 text-primary"
-          />
+        <div className="mt-0.5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <TagIcon
+              aria-hidden
+              className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+            />
+            <div className="min-w-0 truncate text-sm font-medium">
+              Market run
+            </div>
+          </div>
         </div>
       </div>
     </Card>
