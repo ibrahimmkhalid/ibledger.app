@@ -85,11 +85,12 @@ export default function WalletsPage() {
     void refresh();
   }, [refresh]);
 
+  // These rethrow instead of toasting: WalletModal shows the reason next to
+  // the name field, the same as during onboarding. It also blocks an empty
+  // name before calling in, so there is nothing to check for here.
   async function createWallet(data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "POST",
         body: JSON.stringify({ name: data.name }),
@@ -97,8 +98,6 @@ export default function WalletsPage() {
       setCreateOpen(false);
       toast.success("Wallet created");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create wallet");
     } finally {
       setBusy(false);
     }
@@ -107,8 +106,6 @@ export default function WalletsPage() {
   async function updateWallet(wallet: Wallet, data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "PATCH",
         body: JSON.stringify({ id: wallet.id, name: data.name }),
@@ -116,8 +113,6 @@ export default function WalletsPage() {
       setEditWallet(null);
       toast.success("Wallet updated");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
     } finally {
       setBusy(false);
     }

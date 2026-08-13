@@ -90,13 +90,19 @@ function FundModal(args: {
   const nameErrorId = useId();
   const shareErrorId = useId();
 
+  // Same reason as WalletModal: `initial` is built inline by the caller, so
+  // depending on its identity would re-run this on the re-render a failed save
+  // causes and wipe the errors before they are painted.
+  const initialName = initial?.name ?? "";
+  const initialShare = initial?.pullPercentage ?? "0";
+
   useEffect(() => {
     if (!open) return;
-    setName(initial?.name ?? "");
-    setPullPercentage(initial?.pullPercentage ?? "0");
+    setName(initialName);
+    setPullPercentage(initialShare);
     setNameError(null);
     setShareError(null);
-  }, [open, initial]);
+  }, [open, initialName, initialShare]);
 
   const share = Number(pullPercentage);
   const remaining = isValidFundShare(share)
