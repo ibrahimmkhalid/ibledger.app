@@ -255,7 +255,7 @@ export function MultiSelectDropdown(args: {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={`Search ${label.toLowerCase()}`}
                 aria-label={`Search ${label.toLowerCase()}`}
-                className="pl-7"
+                className="pl-7 sm:pointer-fine:pl-7"
               />
             </div>
             <div className="mt-2 flex items-center justify-between gap-2">
