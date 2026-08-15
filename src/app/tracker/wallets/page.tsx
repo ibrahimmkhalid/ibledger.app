@@ -40,7 +40,14 @@ function canDeleteWallet(
   if (walletCount <= 1) {
     return { ok: false, reason: "Your last wallet can't be deleted" };
   }
-  if (holdsMoney(Number(wallet.balanceWithPending))) {
+  // Cleared and pending are weighed apart so they cannot cancel each other
+  // out. A wallet holding $500 against a pending -$500 bill nets to zero, but
+  // there is still $500 in it, and deleting it drops that from the wallet
+  // totals while the funds side keeps counting it.
+  if (
+    holdsMoney(Number(wallet.balance)) ||
+    holdsMoney(Number(wallet.balanceWithPending))
+  ) {
     return {
       ok: false,
       reason:
