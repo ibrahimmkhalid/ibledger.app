@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  CheckIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -347,6 +353,7 @@ export default function FundsPage() {
         <div className="flex items-center gap-2">
           {dirty ? (
             <Button variant="outline" onClick={revert} disabled={busy}>
+              <RotateCcwIcon />
               Revert
             </Button>
           ) : (
@@ -355,6 +362,7 @@ export default function FundsPage() {
               onClick={() => void refresh()}
               disabled={busy}
             >
+              <RefreshCwIcon />
               Refresh
             </Button>
           )}
@@ -362,6 +370,7 @@ export default function FundsPage() {
             onClick={() => void confirmChanges()}
             disabled={busy || !dirty}
           >
+            <CheckIcon />
             Confirm
           </Button>
         </div>
@@ -405,7 +414,7 @@ export default function FundsPage() {
               onClick={addFund}
               disabled={busy}
             >
-              <Plus />
+              <PlusIcon />
               Add fund
             </Button>
           </div>
@@ -485,14 +494,14 @@ export default function FundsPage() {
                             aria-label={`Delete ${f.name || "fund"}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 />
+                            <Trash2Icon />
                           </Button>
                         ) : (
                           <UnavailableActionButton
                             label={`Can't delete ${f.name || "fund"}`}
                             reason={del.reason ?? "Unavailable"}
                           >
-                            <Trash2 />
+                            <Trash2Icon />
                           </UnavailableActionButton>
                         ))}
                     </TableCell>

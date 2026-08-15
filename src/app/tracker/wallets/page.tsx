@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,9 +154,13 @@ export default function WalletsPage() {
         <h1 className="text-2xl font-semibold">Wallets</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => void refresh()}>
+            <RefreshCwIcon />
             Refresh
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>New wallet</Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <PlusIcon />
+            New wallet
+          </Button>
         </div>
       </div>
 
@@ -223,7 +227,7 @@ export default function WalletsPage() {
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >
-                          <Pencil />
+                          <PencilIcon />
                         </Button>
                         {del.ok ? (
                           <Button
@@ -234,14 +238,14 @@ export default function WalletsPage() {
                             aria-label={`Delete ${w.name}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 />
+                            <Trash2Icon />
                           </Button>
                         ) : (
                           <UnavailableActionButton
                             label={`Can't delete ${w.name}`}
                             reason={del.reason ?? "Unavailable"}
                           >
-                            <Trash2 />
+                            <Trash2Icon />
                           </UnavailableActionButton>
                         )}
                       </div>

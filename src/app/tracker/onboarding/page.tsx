@@ -44,7 +44,13 @@ import { FUND_SHARE_RANGE_ERROR, isValidFundShare } from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { Fund, Wallet } from "@/app/tracker/types";
-import { ArrowLeftIcon, ArrowRightIcon, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 type FundFormState = {
   name: string;
@@ -549,6 +555,7 @@ export default function OnboardingPage() {
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Wallets</CardTitle>
             <Button onClick={() => setCreateWalletOpen(true)}>
+              <PlusIcon />
               New wallet
             </Button>
           </div>
@@ -587,7 +594,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >
-                          <Pencil />
+                          <PencilIcon />
                         </Button>
                         <Button
                           variant="ghost"
@@ -597,7 +604,7 @@ export default function OnboardingPage() {
                           aria-label={`Delete ${w.name}`}
                           className="text-muted-foreground hover:text-destructive"
                         >
-                          <Trash2 />
+                          <Trash2Icon />
                         </Button>
                       </div>
                     </TableCell>
@@ -613,7 +620,10 @@ export default function OnboardingPage() {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Funds</CardTitle>
-            <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
+            <Button onClick={() => setCreateFundOpen(true)}>
+              <PlusIcon />
+              New fund
+            </Button>
           </div>
           <CardDescription>
             Funds are what the money is for — rent, groceries, anything you
@@ -661,7 +671,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${f.name}`}
                         >
-                          <Pencil />
+                          <PencilIcon />
                         </Button>
                         {f.isSavings
                           ? null
@@ -683,7 +693,7 @@ export default function OnboardingPage() {
                                     aria-label={`Delete ${f.name}`}
                                     className="text-muted-foreground hover:text-destructive"
                                   >
-                                    <Trash2 />
+                                    <Trash2Icon />
                                   </Button>
                                 );
                               }
@@ -693,7 +703,7 @@ export default function OnboardingPage() {
                                   label={`Can't delete ${f.name}`}
                                   reason="Still holds money (including pending). Move it out and clear pending transactions first."
                                 >
-                                  <Trash2 />
+                                  <Trash2Icon />
                                 </UnavailableActionButton>
                               );
                             })()}

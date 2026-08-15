@@ -1,16 +1,17 @@
 import {
-  AlertTriangleIcon,
   ArrowLeftRightIcon,
   ClockIcon,
-  HandCoinsIcon,
+  CoinsIcon,
   KeyboardIcon,
   ListIcon,
   PercentIcon,
   PiggyBankIcon,
+  ScaleIcon,
+  SettingsIcon,
   TagIcon,
   TagsIcon,
   Trash2Icon,
-  WalletIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -111,7 +112,7 @@ function CardIconLegend() {
       meaning: "split across more than one line",
     },
     {
-      icon: HandCoinsIcon,
+      icon: CoinsIcon,
       label: "Income",
       meaning: "money in, divided by your income shares",
     },
@@ -282,7 +283,7 @@ function OverspentFigure() {
 export function HowToUseGuide() {
   return (
     <div className="flex flex-col gap-8">
-      <Section icon={ArrowLeftRightIcon} title="Wallets and funds">
+      <Section icon={ScaleIcon} title="Wallets and funds">
         <p>
           Every transaction line picks a{" "}
           <span className="text-foreground font-medium">wallet</span> — where
@@ -327,7 +328,7 @@ export function HowToUseGuide() {
         </p>
       </Section>
 
-      <Section icon={WalletIcon} title="Setting up">
+      <Section icon={SettingsIcon} title="Setting up">
         <p>
           Add every account your money actually sits in as a wallet, and add a
           fund for each thing you set money aside for. You start with a Bank
@@ -460,7 +461,7 @@ export function HowToUseGuide() {
         </p>
       </Section>
 
-      <Section icon={AlertTriangleIcon} title="Overspending">
+      <Section icon={TriangleAlertIcon} title="Overspending">
         <p>
           Funds don&apos;t go below $0. When one would, it floors at zero, shows
           an Overspent badge, and Savings covers the difference.

@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  BarChart3Icon,
+  CheckIcon,
   ChevronDownIcon,
+  ClockIcon,
   ListFilterIcon,
   RefreshCwIcon,
-  SearchIcon,
+  RotateCcwIcon,
   TrendingDownIcon,
+  TrendingUpDownIcon,
   TrendingUpIcon,
-  WalletCardsIcon,
-  XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -442,7 +442,7 @@ export default function AnalyticsPage() {
               <div className="border-border mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="submit" disabled={pageLoading || !filtersDirty}>
-                    <SearchIcon />
+                    <CheckIcon />
                     {filtersDirty ? "Apply" : "Applied"}
                   </Button>
                   <Button
@@ -454,7 +454,7 @@ export default function AnalyticsPage() {
                       (isDefaultAnalyticsFilters(filters) && !filtersDirty)
                     }
                   >
-                    <XIcon />
+                    <RotateCcwIcon />
                     Reset
                   </Button>
                 </div>
@@ -478,7 +478,7 @@ export default function AnalyticsPage() {
           <StatCard
             title="Net"
             value={fmtAmount(summary?.net ?? 0)}
-            icon={<BarChart3Icon className="size-4" />}
+            icon={<TrendingUpDownIcon className="size-4" />}
             tone={netTone}
           />
           <StatCard
@@ -496,7 +496,7 @@ export default function AnalyticsPage() {
           <StatCard
             title="Pending"
             value={fmtAmount(summary?.pending ?? 0)}
-            icon={<WalletCardsIcon className="size-4" />}
+            icon={<ClockIcon className="size-4" />}
             tone="neutral"
           />
         </div>

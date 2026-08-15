@@ -11,7 +11,7 @@ import {
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import type { TransactionEvent } from "@/app/tracker/types";
 
-import { HandCoinsIcon, TagIcon, TagsIcon } from "lucide-react";
+import { CoinsIcon, TagIcon, TagsIcon } from "lucide-react";
 
 export function TransactionEventCard(args: {
   event: TransactionEvent;
@@ -55,12 +55,12 @@ export function TransactionEventCard(args: {
                   The title is for pointer users; the meta line above already
                   spells out "Multiple" and "pending" in text. */}
               {isIncomeLike(ev) ? (
-                <HandCoinsIcon
+                <CoinsIcon
                   aria-hidden
                   className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
                 >
                   <title>Income</title>
-                </HandCoinsIcon>
+                </CoinsIcon>
               ) : !ev.isPosting ? (
                 <TagsIcon
                   aria-hidden

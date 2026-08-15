@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
-import {
-  ArrowLeftRightIcon,
-  FolderIcon,
-  TagIcon,
-  WalletIcon,
-} from "lucide-react";
+import { FolderIcon, TagIcon, WalletIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -187,7 +182,10 @@ export default function Home() {
           <ConceptColumn icon={FolderIcon} title="Funds">
             Rent, food, travel. What the money is for.
           </ConceptColumn>
-          <ConceptColumn icon={ArrowLeftRightIcon} title="Transactions">
+          {/* Tag is the app's transaction glyph — the same one the example
+              cards above carry, and the one the guide's card legend explains.
+              ArrowLeftRight is reserved for transfers between wallets. */}
+          <ConceptColumn icon={TagIcon} title="Transactions">
             Every line picks one of each. Both views stay balanced.
           </ConceptColumn>
         </div>

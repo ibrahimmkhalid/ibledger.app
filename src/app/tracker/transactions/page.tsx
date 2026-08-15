@@ -13,11 +13,11 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  CheckCircle2Icon,
+  CheckIcon,
   ChevronDownIcon,
+  CircleCheckIcon,
   ListFilterIcon,
-  SearchIcon,
-  XIcon,
+  RotateCcwIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -562,7 +562,7 @@ export default function TransactionsPage() {
                 onClick={() => void clearFilteredPending()}
                 disabled={pageLoading}
               >
-                <CheckCircle2Icon />
+                <CircleCheckIcon />
                 Clear {totalCount.toLocaleString()} pending
               </Button>
             ) : null}
@@ -673,7 +673,7 @@ export default function TransactionsPage() {
                         type="submit"
                         disabled={pageLoading || !filtersDirty}
                       >
-                        <SearchIcon />
+                        <CheckIcon />
                         {filtersDirty ? "Apply" : "Applied"}
                       </Button>
                       <Button
@@ -685,7 +685,7 @@ export default function TransactionsPage() {
                           (activeFilterCount === 0 && !filtersDirty)
                         }
                       >
-                        <XIcon />
+                        <RotateCcwIcon />
                         Reset
                       </Button>
                       <span className="text-muted-foreground text-xs">
@@ -722,7 +722,7 @@ export default function TransactionsPage() {
                     onClick={() => void resetFilters()}
                     disabled={pageLoading}
                   >
-                    <XIcon />
+                    <RotateCcwIcon />
                     Clear filters
                   </Button>
                 )}

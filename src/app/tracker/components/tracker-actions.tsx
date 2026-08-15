@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDollarSignIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { CoinsIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,9 @@ export function TrackerActions(props: {
         onClick={props.onAddIncome}
         disabled={props.disabled}
       >
-        <CircleDollarSignIcon />
+        {/* Same icon the cards give an income entry, so the button and the
+            row it produces read as the same thing. */}
+        <CoinsIcon />
         Add income
       </Button>
     </div>

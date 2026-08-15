@@ -37,7 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
-import { TrashIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 
 type Direction = "out" | "in";
 
@@ -566,7 +566,7 @@ export function TransactionModal(args: {
                       label={`Can't remove line ${index + 1}`}
                       reason={removeLineReason}
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <Trash2Icon />
                     </UnavailableActionButton>
                   ) : (
                     <Button
@@ -577,7 +577,7 @@ export function TransactionModal(args: {
                       aria-label={`Remove line ${index + 1}`}
                       disabled={busy}
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <Trash2Icon />
                     </Button>
                   )}
                 </div>
@@ -729,7 +729,7 @@ export function TransactionModal(args: {
                       label={`Can't remove line ${index + 1}`}
                       reason={removeLineReason}
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <Trash2Icon />
                     </UnavailableActionButton>
                   ) : (
                     <Button
@@ -739,7 +739,7 @@ export function TransactionModal(args: {
                       aria-label={`Remove line ${index + 1}`}
                       disabled={busy}
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <Trash2Icon />
                     </Button>
                   )}
                 </TableCell>

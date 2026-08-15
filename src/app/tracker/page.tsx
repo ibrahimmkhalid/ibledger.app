@@ -40,7 +40,7 @@ import { TransactionEventCard } from "@/app/tracker/components/transaction-event
 import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { fmtAmount } from "@/app/tracker/lib/format";
-import { CheckCircle2Icon } from "lucide-react";
+import { CircleCheckIcon } from "lucide-react";
 import type {
   EventsResponse,
   Fund,
@@ -236,7 +236,7 @@ export default function TrackerPage() {
                 onClick={() => void clearAllPending()}
                 disabled={refreshing}
               >
-                <CheckCircle2Icon />
+                <CircleCheckIcon />
                 Clear all pending
               </Button>
             </div>
