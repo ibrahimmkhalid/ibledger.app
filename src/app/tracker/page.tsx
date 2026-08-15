@@ -138,7 +138,7 @@ export default function TrackerPage() {
     const noun = pendingEventCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({
       title: `Clear all ${pendingEventCount.toLocaleString()} pending ${noun}?`,
-      description: `This settles every pending ${noun} in your ledger, folding ${pendingEventCount === 1 ? "it" : "them"} into your real balance right away. To settle only some of them, filter the Transactions page first.`,
+      description: `${pendingEventCount === 1 ? "It folds" : "They fold"} into your cleared balance right away.`,
       confirmLabel: "Clear all pending",
     });
     if (!ok) return;
@@ -221,14 +221,7 @@ export default function TrackerPage() {
           {/* The ledger-wide settle lives here, beside the ledger-wide total.
               The Transactions page's button is scoped to its filters. */}
           {pendingEventCount > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-              <span className="text-muted-foreground text-xs">
-                {pendingEventCount.toLocaleString()}{" "}
-                {pendingEventCount === 1
-                  ? "transaction is"
-                  : "transactions are"}{" "}
-                still pending across your ledger.
-              </span>
+            <div className="mt-3 flex justify-end border-t pt-3">
               <Button
                 type="button"
                 variant="outline"
@@ -237,7 +230,7 @@ export default function TrackerPage() {
                 disabled={refreshing}
               >
                 <CircleCheckIcon />
-                Clear all pending
+                Clear all {pendingEventCount.toLocaleString()} pending
               </Button>
             </div>
           )}

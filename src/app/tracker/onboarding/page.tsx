@@ -481,15 +481,6 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      <p className="text-muted-foreground max-w-2xl text-sm">
-        Two lists to fill in.{" "}
-        <strong className="text-foreground">Wallets</strong> are where your
-        money physically sits;{" "}
-        <strong className="text-foreground">funds</strong> are what it is set
-        aside for. Every transaction names one of each. You can change all of
-        this later.
-      </p>
-
       <WalletModal
         open={createWalletOpen}
         onOpenChange={setCreateWalletOpen}
@@ -560,10 +551,7 @@ export default function OnboardingPage() {
             </Button>
           </div>
           <CardDescription>
-            Add every account your money actually sits in — a current account, a
-            savings account, cash in your pocket. Balances come from the
-            transactions you record, so there is nothing to enter here but a
-            name.
+            Where your money sits — one for each account, card, or cash pile.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -626,9 +614,8 @@ export default function OnboardingPage() {
             </Button>
           </div>
           <CardDescription>
-            Funds are what the money is for — rent, groceries, anything you
-            budget separately. Each one takes a share of every income you
-            record, and Savings keeps whatever is left over.
+            What your money is for. Each fund takes a share of your income;
+            Savings keeps the rest.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -654,13 +641,9 @@ export default function OnboardingPage() {
                     <TableCell className="font-medium">{f.name}</TableCell>
                     <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {f.isSavings ? (
-                        <span title="Whatever the other funds don't take">
-                          {fmtPercent(savingsShare)}
-                        </span>
-                      ) : (
-                        fmtPercent(Number(f.pullPercentage ?? 0))
-                      )}
+                      {f.isSavings
+                        ? fmtPercent(savingsShare)
+                        : fmtPercent(Number(f.pullPercentage ?? 0))}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2 sm:gap-1">
@@ -730,34 +713,12 @@ export default function OnboardingPage() {
                 onChange={() => {}}
                 disabled
               />
+              {/* The bar is read-only here, so say where the shares are set. */}
               <p className="text-muted-foreground mt-3 text-xs">
-                Edit a fund to change its share. Adjust them freely later on the
-                Funds page, where this bar is draggable.
+                Edit a fund to change its share.
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>One more thing: what you already have</CardTitle>
-          <CardDescription>
-            Your ledger starts at $0.00 — there is no opening-balance field,
-            because every balance is worked out from the transactions you
-            record.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            So if you already have money in these accounts, record it once as
-            your first transaction: <strong>Add transaction</strong>, one line
-            per wallet, direction <strong>In</strong>, for the amount that is
-            sitting there. Put it against{" "}
-            <strong>{savingsFund?.name ?? "Savings"}</strong> unless it is
-            already earmarked for something — money entered this way is not
-            split by your income shares, so it lands exactly where you put it.
-          </p>
         </CardContent>
       </Card>
     </div>

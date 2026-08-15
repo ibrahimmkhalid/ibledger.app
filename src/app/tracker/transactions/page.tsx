@@ -437,7 +437,7 @@ export default function TransactionsPage() {
     const noun = totalCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({
       title: `Clear ${totalCount.toLocaleString()} pending ${noun}?`,
-      description: `Pending transactions are ones you've recorded but marked as not-yet-settled. This settles the ${totalCount.toLocaleString()} ${noun} matching your current filters, folding them into your real balance right away. Anything outside the filters is left pending.`,
+      description: `Pending transactions are ones you've recorded but marked as not-yet-settled. Clearing folds the ${noun} matching your current filters into your real balance right away.`,
       confirmLabel: `Clear ${totalCount.toLocaleString()} pending`,
     });
     if (!ok) return;

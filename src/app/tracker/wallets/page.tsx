@@ -44,7 +44,7 @@ function canDeleteWallet(
     return {
       ok: false,
       reason:
-        "Still holds money (including pending). Move it to another wallet first — see How to use for how to transfer between wallets.",
+        "Still holds money (including pending). Move it to another wallet first.",
     };
   }
   return { ok: true };

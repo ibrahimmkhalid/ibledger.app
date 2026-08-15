@@ -267,8 +267,7 @@ export function TransactionModal(args: {
 
     const ok = await confirm({
       title: "Delete this transaction?",
-      description:
-        "Every line of it is removed and the wallet and fund balances it moved go back. You can't undo this.",
+      description: "This can't be undone.",
       confirmLabel: "Delete transaction",
       destructive: true,
     });

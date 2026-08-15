@@ -381,9 +381,8 @@ export default function FundsPage() {
           role="status"
           className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
         >
-          Your saved income shares added up to more than 100%, which stops new
-          income from being recorded. They have been scaled back to fit — check
-          the numbers below and press Confirm to save the correction.
+          Your saved income shares added up to more than 100%. They have been
+          scaled back to fit — press Confirm to save the correction.
         </div>
       )}
 

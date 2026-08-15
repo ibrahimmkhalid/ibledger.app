@@ -147,8 +147,7 @@ export function IncomeModal(args: {
 
     const ok = await confirm({
       title: "Delete this income?",
-      description:
-        "The entry and the fund splits it created are removed, and the wallet and fund balances it moved go back. You can't undo this.",
+      description: "Its fund splits go with it. This can't be undone.",
       confirmLabel: "Delete income",
       destructive: true,
     });

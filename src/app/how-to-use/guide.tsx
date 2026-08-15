@@ -339,6 +339,17 @@ export function HowToUseGuide() {
           Nothing you choose here is permanent. Wallets and funds can be
           renamed, added, or removed later from the Wallets and Funds pages.
         </p>
+        <p>
+          A new ledger starts at $0.00, so if you already have money in these
+          accounts, record it once as your first transaction — one line per
+          wallet, direction{" "}
+          <span className="text-foreground font-medium">In</span>, for the
+          amount sitting there. Put it against{" "}
+          <span className="text-foreground font-medium">Savings</span> unless it
+          is already earmarked for something. Money entered as a transaction
+          isn&apos;t split by your income shares, so it lands exactly where you
+          put it.
+        </p>
       </Section>
 
       <Section icon={PercentIcon} title="Income shares">

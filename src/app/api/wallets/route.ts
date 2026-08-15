@@ -198,7 +198,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Wallet has a non-zero balance. Move the money to another wallet, then try again — see How to use for the two-line transfer that does it.",
+            "Wallet has a non-zero balance. Move the money to another wallet, then try again.",
         },
         { status: 400 },
       );
