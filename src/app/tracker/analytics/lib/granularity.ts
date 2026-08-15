@@ -204,8 +204,11 @@ type GranularitySlotState = {
 };
 
 function slotReason(groupBy: GroupBy | null, spanDays: number): string | null {
+  // Any of the three slots can come up empty — Last week fills only fine,
+  // Last year and long spans leave coarse unfilled — so this cannot describe
+  // where the missing slot sits relative to the others.
   if (groupBy === null) {
-    return "No bucket size sits between the other two for this date range.";
+    return "This date range has no other bucket size to offer.";
   }
 
   const bars = estimatedBars(groupBy, spanDays);
