@@ -711,7 +711,7 @@ export function trendPlot(
       },
       xaxis: timeAxis(theme),
       yaxis: {
-        title: { text: mode === "raw" ? "Value" : "Cumulative net" },
+        title: { text: valueLabel },
         automargin: true,
         tickprefix: "$",
         separatethousands: true,
