@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Inter, Merriweather } from "next/font/google";
@@ -26,7 +26,11 @@ import {
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { syncBootstrapIdentity } from "@/app/tracker/lib/bootstrap";
+import {
+  getOnboardingRequired,
+  subscribeOnboardingRequired,
+  syncBootstrapIdentity,
+} from "@/app/tracker/lib/bootstrap";
 
 // Reports the Clerk user id to the bootstrap cache so a session switch that
 // happens without a full page load drops the previous user's cached result.
@@ -45,6 +49,7 @@ const NAV_ITEMS = [
   { href: "/tracker/analytics", label: "Analytics" },
   { href: "/tracker/funds", label: "Funds" },
   { href: "/tracker/wallets", label: "Wallets" },
+  { href: "/how-to-use", label: "How to use" },
 ] as const;
 
 function navLinkClassName(args: { href: string; pathname: string }) {
@@ -83,6 +88,20 @@ export function AppShell(args: {
   const { children, devTesting } = args;
   const pathname = usePathname();
   const inTracker = pathname.startsWith("/tracker");
+
+  // Every nav link bounces straight back to onboarding until setup is done, so
+  // showing them just invites a page flash that reads as broken. The server is
+  // the authority; false until bootstrap answers.
+  const onboardingRequired = useSyncExternalStore(
+    subscribeOnboardingRequired,
+    getOnboardingRequired,
+    () => false,
+  );
+
+  // The guide is one of the nav destinations, so the nav has to survive
+  // landing on it — otherwise following the link strands the user there.
+  const showSectionNav =
+    (inTracker || pathname === "/how-to-use") && !onboardingRequired;
   const year = new Date().getFullYear();
 
   // Keep the active item visible in the horizontally-scrolling mobile nav.
@@ -107,7 +126,7 @@ export function AppShell(args: {
                 Ledger
               </span>
             </Link>
-            {inTracker && (
+            {showSectionNav && (
               <nav className="hidden items-center gap-1 sm:flex">
                 <NavLinks pathname={pathname} />
               </nav>
@@ -151,7 +170,7 @@ export function AppShell(args: {
           </div>
         </div>
 
-        {inTracker && (
+        {showSectionNav && (
           <div className="border-t sm:hidden">
             <nav
               ref={mobileNavRef}
@@ -167,7 +186,10 @@ export function AppShell(args: {
       <main className="flex-1">{children}</main>
 
       <footer className="border-t">
-        <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-6 text-xs">
+        {/* The mobile FAB is fixed to the bottom-right of the viewport, which
+            is exactly where these links land once the page is scrolled to the
+            end — enough padding to clear it keeps them tappable. */}
+        <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 pt-6 pb-24 text-xs sm:pb-6">
           <div>{year}</div>
           <div className="flex items-center gap-4">
             <Link

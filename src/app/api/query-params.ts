@@ -1,4 +1,16 @@
-export class BadRequestError extends Error {}
+export class BadRequestError extends Error {
+  /**
+   * Which form field the complaint belongs under, when the route knows. Lets a
+   * client file the message beside the input that caused it without reading the
+   * prose, so the copy can be reworded without breaking the routing.
+   */
+  readonly field?: string;
+
+  constructor(message: string, field?: string) {
+    super(message);
+    this.field = field;
+  }
+}
 
 export function parseIntegerParam(
   searchParams: URLSearchParams,

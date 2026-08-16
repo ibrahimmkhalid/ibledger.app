@@ -19,6 +19,8 @@ export type Fund = {
 export type OverviewTotals = {
   grandTotal: number;
   grandTotalWithPending: number;
+  /** Pending events across the whole ledger, not just the page shown. */
+  pendingEventCount: number;
   wallets: Wallet[];
   funds: Fund[];
 };

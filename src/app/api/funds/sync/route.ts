@@ -6,6 +6,14 @@ import { funds, transactions } from "@/db/schema";
 import { BadRequestError } from "@/app/api/query-params";
 import { pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
+import {
+  FUND_LOCK_NAMESPACE,
+  FUND_SHARE_FIELD,
+  FUND_SHARE_SUM_ERROR,
+  fundShareRangeError,
+  fundSharesExceedHundred,
+  isValidFundShare,
+} from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 
 /**
@@ -48,9 +56,9 @@ export async function PUT(request: NextRequest) {
         );
       }
       const pp = Number(f.pullPercentage);
-      if (Number.isNaN(pp) || pp < 0 || pp > 100) {
+      if (!isValidFundShare(pp)) {
         return NextResponse.json(
-          { error: `Invalid pull percentage for "${f.name}"` },
+          { error: fundShareRangeError(f.name), field: FUND_SHARE_FIELD },
           { status: 400 },
         );
       }
@@ -94,12 +102,10 @@ export async function PUT(request: NextRequest) {
     }
 
     await db.transaction(async (tx) => {
-      // Serialise syncs per user: two concurrent syncs could otherwise both
-      // validate the 100% pull cap against the same pre-update state and
-      // together commit an over-100% total. The lock releases on commit or
-      // rollback. First argument namespaces this lock ("fund" in ASCII).
+      // Serialise fund writes per user; the lock releases on commit or
+      // rollback. See FUND_LOCK_NAMESPACE for why.
       await tx.execute(
-        sql`select pg_advisory_xact_lock(${0x66756e64}, ${user.id})`,
+        sql`select pg_advisory_xact_lock(${FUND_LOCK_NAMESPACE}, ${user.id})`,
       );
 
       const now = new Date();
@@ -147,8 +153,8 @@ export async function PUT(request: NextRequest) {
         resultingPullSum += Number(fund.pullPercentage);
       }
 
-      if (resultingPullSum > 100) {
-        throw new BadRequestError("Invalid fund pulls: sum exceeds 100");
+      if (fundSharesExceedHundred(resultingPullSum)) {
+        throw new BadRequestError(FUND_SHARE_SUM_ERROR, FUND_SHARE_FIELD);
       }
 
       // Verify zero balance for all deletions in one grouped read.
@@ -237,7 +243,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof BadRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: error.message, field: error.field },
+        { status: 400 },
+      );
     }
 
     // The remaining domain errors thrown inside the transaction ("Fund N not

@@ -13,11 +13,11 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  CheckCircle2Icon,
+  CheckIcon,
   ChevronDownIcon,
+  CircleCheckIcon,
   ListFilterIcon,
-  SearchIcon,
-  XIcon,
+  RotateCcwIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,11 @@ import { cn } from "@/lib/utils";
 
 import {
   AmountAndAccountFilters,
+  DateRangeFilters,
   FilterSearchField,
   StatusTypeDirectionControls,
   countActiveTransactionFilters,
+  formatFilterAmount,
   parseFilterAmount,
 } from "@/app/tracker/components/filter-controls";
 import { EventModals } from "@/app/tracker/components/event-modals";
@@ -59,6 +61,7 @@ import { apiJson } from "@/app/tracker/lib/api";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import {
   DEFAULT_TRANSACTIONS_FILTERS,
+  appendTransactionFilterParams,
   fetchTransactionsPage,
   getAdjacentPages,
   normalizeTransactionsFilters,
@@ -92,10 +95,6 @@ const DEFAULT_FILTER_DRAFT: TransactionsFilterDraft = {
   maxAmount: "",
 };
 
-function formatFilterAmount(value: number | null) {
-  return value === null ? "" : String(value);
-}
-
 function filtersToDraft(
   filters: TransactionsPageFilters,
 ): TransactionsFilterDraft {
@@ -114,6 +113,11 @@ function draftToFilters(
 
   if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
     throw new Error("Minimum amount cannot exceed maximum amount");
+  }
+
+  // ISO dates compare correctly as strings.
+  if (draft.startDate && draft.endDate && draft.startDate > draft.endDate) {
+    throw new Error("The From date cannot be after the To date");
   }
 
   return normalizeTransactionsFilters({
@@ -147,6 +151,8 @@ export default function TransactionsPage() {
   const searchId = useId();
   const minAmountId = useId();
   const maxAmountId = useId();
+  const startDateId = useId();
+  const endDateId = useId();
 
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
@@ -424,17 +430,29 @@ export default function TransactionsPage() {
     await refresh({ page, pageSize, filters }, { fullScreen: false });
   }, [clearPageCache, filters, page, pageSize, refresh]);
 
-  const clearAllPending = useCallback(async () => {
+  // Scoped to the filters currently applied, because the button sits right
+  // beside the filtered count and reads as if it were. The whole-ledger version
+  // lives on the Overview, where a ledger-wide action belongs.
+  const clearFilteredPending = useCallback(async () => {
+    const noun = totalCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({
-      title: "Clear all pending transactions?",
-      description:
-        "Pending transactions are ones you've recorded but marked as not-yet-settled. Clearing folds every one of them into your real balance right away.",
-      confirmLabel: "Clear pending",
+      title: `Clear ${totalCount.toLocaleString()} pending ${noun}?`,
+      description: `Pending transactions are ones you've recorded but marked as not-yet-settled. Clearing folds the ${noun} matching your current filters into your real balance right away.`,
+      confirmLabel: `Clear ${totalCount.toLocaleString()} pending`,
     });
     if (!ok) return;
 
     try {
-      await apiJson("/api/transactions/clear-pending", { method: "POST" });
+      const params = new URLSearchParams();
+      appendTransactionFilterParams(
+        params,
+        normalizeTransactionsFilters(filters),
+      );
+      const { cleared } = await apiJson<{ cleared: number }>(
+        `/api/transactions/clear-pending?${params.toString()}`,
+        { method: "POST" },
+      );
+
       const nextFilters = normalizeTransactionsFilters({
         ...filters,
         pendingStatus: "all",
@@ -446,11 +464,15 @@ export default function TransactionsPage() {
         { page: 0, pageSize, filters: nextFilters },
         { fullScreen: false },
       );
-      toast.success("All pending transactions cleared");
+      toast.success(
+        `Cleared ${cleared.toLocaleString()} pending ${
+          cleared === 1 ? "transaction" : "transactions"
+        }`,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to clear pending");
     }
-  }, [confirm, clearPageCache, filters, pageSize, refresh]);
+  }, [confirm, clearPageCache, filters, pageSize, refresh, totalCount]);
 
   useEffect(() => {
     router.prefetch("/tracker");
@@ -537,12 +559,11 @@ export default function TransactionsPage() {
             {filters.pendingStatus === "pending" && totalCount > 0 ? (
               <Button
                 type="button"
-                variant="destructive"
-                onClick={() => void clearAllPending()}
+                onClick={() => void clearFilteredPending()}
                 disabled={pageLoading}
               >
-                <CheckCircle2Icon />
-                Clear pending
+                <CircleCheckIcon />
+                Clear {totalCount.toLocaleString()} pending
               </Button>
             ) : null}
           </div>
@@ -628,6 +649,15 @@ export default function TransactionsPage() {
                     />
                   </div>
 
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <DateRangeFilters
+                      draft={filterDraft}
+                      onPatch={patchFilterDraft}
+                      startDateId={startDateId}
+                      endDateId={endDateId}
+                    />
+                  </div>
+
                   <AmountAndAccountFilters
                     draft={filterDraft}
                     onPatch={patchFilterDraft}
@@ -643,7 +673,7 @@ export default function TransactionsPage() {
                         type="submit"
                         disabled={pageLoading || !filtersDirty}
                       >
-                        <SearchIcon />
+                        <CheckIcon />
                         {filtersDirty ? "Apply" : "Applied"}
                       </Button>
                       <Button
@@ -655,7 +685,7 @@ export default function TransactionsPage() {
                           (activeFilterCount === 0 && !filtersDirty)
                         }
                       >
-                        <XIcon />
+                        <RotateCcwIcon />
                         Reset
                       </Button>
                       <span className="text-muted-foreground text-xs">
@@ -692,7 +722,7 @@ export default function TransactionsPage() {
                     onClick={() => void resetFilters()}
                     disabled={pageLoading}
                   >
-                    <XIcon />
+                    <RotateCcwIcon />
                     Clear filters
                   </Button>
                 )}

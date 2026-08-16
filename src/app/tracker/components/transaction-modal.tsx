@@ -24,20 +24,20 @@ import {
 
 import { EventModalActions } from "@/app/tracker/components/event-modal-actions";
 import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
+import { AmountInput } from "@/app/tracker/components/amount-input";
+import { useConfirm } from "@/app/tracker/components/confirm-dialog";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { apiJson } from "@/app/tracker/lib/api";
 import { useBusy } from "@/app/tracker/components/use-busy";
-import {
-  formatCentsToDisplay,
-  parseInputAsCents,
-} from "@/app/tracker/lib/cents";
 import {
   fmtAmount,
   isoToday,
   toDateInputValue,
 } from "@/app/tracker/lib/format";
+import { cn } from "@/lib/utils";
 import type { Fund, TransactionEvent, Wallet } from "@/app/tracker/types";
 
-import { TrashIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 
 type Direction = "out" | "in";
 
@@ -89,6 +89,7 @@ export function TransactionModal(args: {
   } = args;
 
   const { busy, error, setBusy, setError, runWithBusy } = useBusy();
+  const { confirm, confirmDialog } = useConfirm();
   const [editing, setEditing] = useState(false);
 
   const [occurredAt, setOccurredAt] = useState(isoToday());
@@ -264,6 +265,14 @@ export function TransactionModal(args: {
   async function deleteEvent() {
     if (!initialEvent) return;
 
+    const ok = await confirm({
+      title: "Delete this transaction?",
+      description: "This can't be undone.",
+      confirmLabel: "Delete transaction",
+      destructive: true,
+    });
+    if (!ok) return;
+
     await runWithBusy(async () => {
       await apiJson(`/api/transactions/${initialEvent.id}`, {
         method: "DELETE",
@@ -291,6 +300,38 @@ export function TransactionModal(args: {
             },
           ]
         : [];
+
+  // What the transaction adds up to: "out" lines count against "in" ones, so a
+  // several-line entry has a single net figure the user can check as they type.
+  const draftTotal = lines.reduce((acc, line) => {
+    const abs = Number(line.amount) / 100;
+    if (!Number.isFinite(abs)) return acc;
+    return acc + (line.direction === "out" ? -abs : abs);
+  }, 0);
+
+  const breakdownTotal = breakdown.reduce(
+    (acc, child) => acc + Number(child.amount),
+    0,
+  );
+
+  const removeLineReason =
+    lines.length <= 1 ? "A transaction needs at least one line" : null;
+
+  function renderTotalRow(label: string, total: number) {
+    return (
+      <div className="mt-3 flex items-baseline justify-between gap-3 border-t pt-2">
+        <span className="text-sm font-medium">{label}</span>
+        <span
+          className={cn(
+            "text-sm font-semibold tabular-nums",
+            total < 0 && "text-destructive",
+          )}
+        >
+          {fmtAmount(total)}
+        </span>
+      </div>
+    );
+  }
 
   function renderBreakdown(isMobile: boolean) {
     if (!initialEvent || editing) return null;
@@ -340,6 +381,7 @@ export function TransactionModal(args: {
               );
             })}
           </div>
+          {renderTotalRow("Net total", breakdownTotal)}
         </div>
       );
     }
@@ -384,6 +426,7 @@ export function TransactionModal(args: {
             </TableBody>
           </Table>
         </div>
+        {renderTotalRow("Net total", breakdownTotal)}
       </div>
     );
   }
@@ -408,7 +451,7 @@ export function TransactionModal(args: {
           </div>
 
           <div className="mt-3 flex flex-col gap-2">
-            {lines.map((l) => (
+            {lines.map((l, index) => (
               <div key={l.key} className="rounded-md border p-2">
                 <div className="grid grid-cols-2 gap-2">
                   <Select
@@ -420,7 +463,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Wallet for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -441,7 +487,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Fund for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -460,6 +509,7 @@ export function TransactionModal(args: {
                     onChange={(e) =>
                       patchLine(l.key, { description: e.target.value })
                     }
+                    aria-label={`Description for line ${index + 1}`}
                     placeholder="Description (optional)"
                     disabled={busy}
                   />
@@ -474,7 +524,10 @@ export function TransactionModal(args: {
                     }}
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0 capitalize">
+                    <SelectTrigger
+                      aria-label={`Direction for line ${index + 1}`}
+                      className="w-full min-w-0 capitalize"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -483,16 +536,11 @@ export function TransactionModal(args: {
                     </SelectContent>
                   </Select>
 
-                  <Input
-                    inputMode="numeric"
-                    value={formatCentsToDisplay(l.amount)}
-                    onChange={(e) =>
-                      patchLine(l.key, {
-                        amount: parseInputAsCents(e.target.value),
-                      })
-                    }
+                  <AmountInput
+                    aria-label={`Amount for line ${index + 1}`}
+                    value={l.amount}
+                    onValueChange={(amount) => patchLine(l.key, { amount })}
                     placeholder="$0.00"
-                    className="text-right tabular-nums"
                     disabled={busy}
                   />
                 </div>
@@ -505,23 +553,37 @@ export function TransactionModal(args: {
                       onCheckedChange={(checked) =>
                         patchLine(l.key, { isPending: checked })
                       }
+                      aria-label={`Pending for line ${index + 1}`}
                       disabled={busy}
                     />
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeLine(l.key)}
-                    disabled={busy || lines.length <= 1}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {removeLineReason ? (
+                    <UnavailableActionButton
+                      variant="outline"
+                      size="sm"
+                      label={`Can't remove line ${index + 1}`}
+                      reason={removeLineReason}
+                    >
+                      <Trash2Icon />
+                    </UnavailableActionButton>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeLine(l.key)}
+                      aria-label={`Remove line ${index + 1}`}
+                      disabled={busy}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+          {renderTotalRow("Net total", draftTotal)}
         </div>
       );
     }
@@ -553,7 +615,7 @@ export function TransactionModal(args: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lines.map((l) => (
+            {lines.map((l, index) => (
               <TableRow key={l.key}>
                 <TableCell>
                   <Select
@@ -565,7 +627,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Wallet for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -587,7 +652,10 @@ export function TransactionModal(args: {
                     }
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger
+                      aria-label={`Fund for line ${index + 1}`}
+                      className="w-full min-w-0"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -605,6 +673,7 @@ export function TransactionModal(args: {
                     onChange={(e) =>
                       patchLine(l.key, { description: e.target.value })
                     }
+                    aria-label={`Description for line ${index + 1}`}
                     placeholder="(optional)"
                     disabled={busy}
                   />
@@ -618,7 +687,10 @@ export function TransactionModal(args: {
                     }}
                     disabled={busy}
                   >
-                    <SelectTrigger className="w-full min-w-0 capitalize">
+                    <SelectTrigger
+                      aria-label={`Direction for line ${index + 1}`}
+                      className="w-full min-w-0 capitalize"
+                    >
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -628,16 +700,11 @@ export function TransactionModal(args: {
                   </Select>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  <Input
-                    inputMode="numeric"
-                    value={formatCentsToDisplay(l.amount)}
-                    onChange={(e) =>
-                      patchLine(l.key, {
-                        amount: parseInputAsCents(e.target.value),
-                      })
-                    }
+                  <AmountInput
+                    aria-label={`Amount for line ${index + 1}`}
+                    value={l.amount}
+                    onValueChange={(amount) => patchLine(l.key, { amount })}
                     placeholder="$0.00"
-                    className="text-right tabular-nums"
                     disabled={busy}
                   />
                 </TableCell>
@@ -648,81 +715,98 @@ export function TransactionModal(args: {
                       onCheckedChange={(checked) =>
                         patchLine(l.key, { isPending: checked })
                       }
+                      aria-label={`Pending for line ${index + 1}`}
                       disabled={busy}
                     />
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => removeLine(l.key)}
-                    disabled={busy || lines.length <= 1}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
+                  {removeLineReason ? (
+                    <UnavailableActionButton
+                      variant="outline"
+                      size="default"
+                      label={`Can't remove line ${index + 1}`}
+                      reason={removeLineReason}
+                    >
+                      <Trash2Icon />
+                    </UnavailableActionButton>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => removeLine(l.key)}
+                      aria-label={`Remove line ${index + 1}`}
+                      disabled={busy}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        {renderTotalRow("Net total", draftTotal)}
       </div>
     );
   }
 
   return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
-      desktopFooterClassName="flex items-center justify-between gap-2"
-      renderBody={({ isMobile }) => (
-        <>
-          {error && <div className="text-destructive text-sm">{error}</div>}
+    <>
+      {confirmDialog}
+      <ResponsiveModal
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        desktopContentClassName="sm:max-w-[min(56rem,calc(100vw-2rem))]"
+        desktopFooterClassName="flex items-center justify-between gap-2"
+        renderBody={({ isMobile }) => (
+          <>
+            {error && <div className="text-destructive text-sm">{error}</div>}
 
-          <div
-            className={
-              isMobile ? "mt-3 grid gap-3" : "grid gap-4 md:grid-cols-2"
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={dateId}>Date</Label>
-              <Input
-                id={dateId}
-                type="date"
-                value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
-                disabled={readOnly}
-              />
+            <div
+              className={
+                isMobile ? "mt-3 grid gap-3" : "grid gap-4 md:grid-cols-2"
+              }
+            >
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={dateId}>Date</Label>
+                <Input
+                  id={dateId}
+                  type="date"
+                  value={occurredAt}
+                  onChange={(e) => setOccurredAt(e.target.value)}
+                  disabled={readOnly}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={descriptionId}>Description</Label>
+                <Input
+                  id={descriptionId}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Grocery run"
+                  disabled={readOnly}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={descriptionId}>Description</Label>
-              <Input
-                id={descriptionId}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. Grocery run"
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-          {renderBreakdown(isMobile)}
-          {renderLinesEditor(isMobile)}
-        </>
-      )}
-      renderFooter={() => (
-        <EventModalActions
-          hasInitialEvent={Boolean(initialEvent)}
-          editing={editing}
-          busy={busy}
-          onDelete={deleteEvent}
-          onStartEdit={() => setEditing(true)}
-          onCancelEdit={() => setEditing(false)}
-          onCreate={saveCreate}
-          onSaveEdit={saveEdit}
-        />
-      )}
-    />
+            {renderBreakdown(isMobile)}
+            {renderLinesEditor(isMobile)}
+          </>
+        )}
+        renderFooter={() => (
+          <EventModalActions
+            hasInitialEvent={Boolean(initialEvent)}
+            editing={editing}
+            busy={busy}
+            onDelete={deleteEvent}
+            onStartEdit={() => setEditing(true)}
+            onCancelEdit={() => setEditing(false)}
+            onCreate={saveCreate}
+            onSaveEdit={saveEdit}
+          />
+        )}
+      />
+    </>
   );
 }

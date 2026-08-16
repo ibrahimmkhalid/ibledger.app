@@ -1,8 +1,23 @@
+// Every formatter here names its locale rather than taking the runtime's.
+// The landing page and the how-to-use guide are server components that format
+// at render, so an implicit locale is the server's on the way out and the
+// browser's on hydration — two different strings for the same figure, which
+// React reports as a hydration mismatch. The amounts are already fixed to USD,
+// so there was never a second locale for them to follow.
+const LOCALE = "en-US";
+
+const plainMoneyFormatter = new Intl.NumberFormat(LOCALE, {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 let moneyFormatter: Intl.NumberFormat;
 
 try {
   // currencySign: "accounting" renders negatives as parentheses in most runtimes.
-  moneyFormatter = new Intl.NumberFormat(undefined, {
+  moneyFormatter = new Intl.NumberFormat(LOCALE, {
     style: "currency",
     currency: "USD",
     currencySign: "accounting",
@@ -10,12 +25,7 @@ try {
     maximumFractionDigits: 2,
   });
 } catch {
-  moneyFormatter = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  moneyFormatter = plainMoneyFormatter;
 }
 
 export function fmtAmount(
@@ -26,8 +36,11 @@ export function fmtAmount(
     return moneyFormatter.format(Number(n));
   }
 
-  // "plain" drops the sign: callers pair it with their own +/- treatment.
-  return Number(n).toFixed(2).replace(/-/, "");
+  // "plain" drops the sign: callers pair it with their own +/- treatment. It
+  // still goes through the currency formatter, so a pending delta reads
+  // "[+$3,000.00]" beside a "$10,918.50" balance rather than "[+$3000.00]",
+  // and both halves of the figure follow the same locale.
+  return plainMoneyFormatter.format(Math.abs(Number(n)));
 }
 
 export function isoToday() {
@@ -51,7 +64,7 @@ export function toDateInputValue(input: string | Date) {
 
 export function fmtDateShort(input: string | Date) {
   const d = input instanceof Date ? input : new Date(input);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(LOCALE, {
     year: "numeric",
     month: "short",
     day: "2-digit",

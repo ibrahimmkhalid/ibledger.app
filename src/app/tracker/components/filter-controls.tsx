@@ -3,10 +3,17 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
+import { toast } from "sonner";
 
+import { AmountInput } from "@/app/tracker/components/amount-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -21,16 +28,23 @@ export type MultiSelectOption = {
   name: string;
 };
 
+// The draft holds the same cents string the modal amount fields use, so typing
+// 1000 means $10.00 here exactly as it does in a transaction. The API filters
+// on dollars, so convert on the way out.
 export function parseFilterAmount(value: string, label: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const parsed = Number(trimmed.replace(/[$,]/g, ""));
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  const cents = Number(trimmed);
+  if (!Number.isFinite(cents) || cents < 0) {
     throw new Error(`${label} amount must be zero or greater`);
   }
 
-  return parsed;
+  return cents / 100;
+}
+
+export function formatFilterAmount(dollars: number | null) {
+  return dollars === null ? "" : String(Math.round(dollars * 100));
 }
 
 type SharedCountedFilters = Pick<
@@ -53,6 +67,7 @@ export function countActiveTransactionFilters(
 ) {
   let count = countActiveSharedFilters(filters);
   if (filters.minAmount !== null || filters.maxAmount !== null) count += 1;
+  if (filters.startDate || filters.endDate) count += 1;
   if (filters.pendingStatus !== "all") count += 1;
   if (filters.income !== "all") count += 1;
   if (filters.direction !== "all") count += 1;
@@ -93,7 +108,13 @@ export function FilterSearchField(args: {
 export function SegmentedControl<T extends string>(args: {
   label: string;
   value: T;
-  options: ReadonlyArray<{ value: T; label: string; disabled?: boolean }>;
+  options: ReadonlyArray<{
+    value: T;
+    label: string;
+    disabled?: boolean;
+    /** Why this option is unavailable. Shown on hover, focus and tap. */
+    reason?: string;
+  }>;
   onChange: (value: T) => void;
   hint?: string;
 }) {
@@ -112,17 +133,37 @@ export function SegmentedControl<T extends string>(args: {
       >
         {options.map((option) => {
           const active = option.value === value;
-          return (
+          // Carrying a reason is itself a statement that the option can't be
+          // picked, and the click handler below already refuses one. Both prop
+          // and reason feed one flag so the two can't disagree: keyed on
+          // `disabled` alone, a reason-only option would look and announce like
+          // an ordinary segment while silently refusing every click.
+          const unavailable = Boolean(option.disabled || option.reason);
+          const button = (
             <button
               key={option.value}
               type="button"
               aria-pressed={active}
-              disabled={option.disabled}
-              onClick={() => onChange(option.value)}
+              // An option with a reason stays focusable and clickable so the
+              // explanation is reachable: tooltips never open on touch, and a
+              // truly disabled segment would just sit there greyed out.
+              disabled={unavailable && !option.reason}
+              aria-disabled={unavailable || undefined}
+              aria-label={
+                option.reason ? `${option.label}: ${option.reason}` : undefined
+              }
+              onClick={() => {
+                if (option.reason) {
+                  toast.info(option.reason);
+                  return;
+                }
+                if (unavailable) return;
+                onChange(option.value);
+              }}
               className={cn(
                 "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-sm font-medium transition-colors sm:text-xs",
-                option.disabled
-                  ? "text-muted-foreground/40 cursor-not-allowed"
+                unavailable
+                  ? "text-muted-foreground/40 cursor-help"
                   : active
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
@@ -130,6 +171,15 @@ export function SegmentedControl<T extends string>(args: {
             >
               <span className="truncate">{option.label}</span>
             </button>
+          );
+
+          if (!option.reason) return button;
+
+          return (
+            <Tooltip key={option.value}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent>{option.reason}</TooltipContent>
+            </Tooltip>
           );
         })}
       </div>
@@ -211,7 +261,7 @@ export function MultiSelectDropdown(args: {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={`Search ${label.toLowerCase()}`}
                 aria-label={`Search ${label.toLowerCase()}`}
-                className="pl-7"
+                className="pl-7 sm:pointer-fine:pl-7"
               />
             </div>
             <div className="mt-2 flex items-center justify-between gap-2">
@@ -282,7 +332,47 @@ type SharedFilterDraft = {
   walletIds: number[];
   minAmount: string;
   maxAmount: string;
+  startDate: string;
+  endDate: string;
 };
+
+// Transactions-only. Analytics has relative presets ("Last 6 months"), which
+// suit a trend chart; picking out "what did I spend in March" wants explicit
+// bounds instead.
+export function DateRangeFilters(args: {
+  draft: Pick<SharedFilterDraft, "startDate" | "endDate">;
+  onPatch: (patch: Partial<SharedFilterDraft>) => void;
+  startDateId: string;
+  endDateId: string;
+}) {
+  const { draft, onPatch, startDateId, endDateId } = args;
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={startDateId}>From</Label>
+        <Input
+          id={startDateId}
+          type="date"
+          value={draft.startDate}
+          max={draft.endDate || undefined}
+          onChange={(event) => onPatch({ startDate: event.target.value })}
+        />
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label htmlFor={endDateId}>To</Label>
+        <Input
+          id={endDateId}
+          type="date"
+          value={draft.endDate}
+          min={draft.startDate || undefined}
+          onChange={(event) => onPatch({ endDate: event.target.value })}
+        />
+      </div>
+    </>
+  );
+}
 
 export function StatusTypeDirectionControls(args: {
   draft: Pick<SharedFilterDraft, "pendingStatus" | "income" | "direction">;
@@ -343,22 +433,20 @@ export function AmountAndAccountFilters(args: {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <div className="flex min-w-0 flex-col gap-1.5">
         <Label htmlFor={minAmountId}>Minimum</Label>
-        <Input
+        <AmountInput
           id={minAmountId}
-          inputMode="decimal"
           value={draft.minAmount}
-          onChange={(event) => onPatch({ minAmount: event.target.value })}
-          placeholder="$0"
+          onValueChange={(minAmount) => onPatch({ minAmount })}
+          placeholder="$0.00"
         />
       </div>
 
       <div className="flex min-w-0 flex-col gap-1.5">
         <Label htmlFor={maxAmountId}>Maximum</Label>
-        <Input
+        <AmountInput
           id={maxAmountId}
-          inputMode="decimal"
           value={draft.maxAmount}
-          onChange={(event) => onPatch({ maxAmount: event.target.value })}
+          onValueChange={(maxAmount) => onPatch({ maxAmount })}
           placeholder="Any"
         />
       </div>

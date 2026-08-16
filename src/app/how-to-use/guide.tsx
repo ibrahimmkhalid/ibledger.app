@@ -1,23 +1,34 @@
 import {
-  AlertTriangleIcon,
   ArrowLeftRightIcon,
   ClockIcon,
+  CoinsIcon,
   KeyboardIcon,
+  ListIcon,
   PercentIcon,
+  PiggyBankIcon,
+  ScaleIcon,
+  SettingsIcon,
   TagIcon,
+  TagsIcon,
   Trash2Icon,
-  WalletIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Swatch } from "@/components/ui/swatch";
-import { fmtAmount } from "@/app/tracker/lib/format";
+import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { SAVINGS_COLOR, seriesColor } from "@/app/tracker/lib/series-colors";
-import { cn } from "@/lib/utils";
 
 const HATCH =
   "repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.18) 3px,rgba(255,255,255,.18) 6px)";
+
+// Fixed so the example card renders the same on server and client. The guide
+// is a server component on /how-to-use and a client one inside onboarding, so
+// this module is evaluated in both runtimes; built from a local midnight it
+// would be a different instant in each, and fmtDateShort reads it as UTC, so a
+// browser far enough east of UTC showed the 11th.
+const EXAMPLE_DATE = new Date(Date.UTC(2026, 0, 12));
 
 const GROCERIES = seriesColor(2);
 const RENT = seriesColor(0);
@@ -59,47 +70,73 @@ function Figure(args: { children: React.ReactNode; caption?: string }) {
   );
 }
 
-function MetaChip(args: { icon: LucideIcon; label: string; tone: string }) {
-  const { icon: Icon, label, tone } = args;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
-        tone,
-      )}
-    >
-      <Icon aria-hidden className="size-3 shrink-0" />
-      <span className="min-w-0 truncate">{label}</span>
-    </span>
-  );
-}
-
-// A transaction as the tracker renders it, with the wallet and fund it picked
-// called out as chips.
+// A transaction exactly as the tracker renders it: the meta line names the
+// wallet and fund it picked, matching TransactionEventCard.
 function ExampleTransaction() {
   return (
-    <Card size="sm" className="gap-2 py-2">
+    <Card size="sm" className="min-h-11 gap-1 py-1.5">
       <div className="px-3">
         <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0 truncate text-sm font-medium">Market run</div>
+          <div className="text-muted-foreground min-w-0 truncate text-xs">
+            <span className="tabular-nums">
+              {fmtDateShort(EXAMPLE_DATE)} · Checking · Groceries
+            </span>
+          </div>
           <div className="text-destructive text-sm tabular-nums">
             {fmtAmount(-42.18)}
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <MetaChip
-            icon={WalletIcon}
-            label="Checking"
-            tone="border-border text-muted-foreground"
-          />
-          <MetaChip
-            icon={TagIcon}
-            label="Groceries"
-            tone="border-primary/40 text-primary"
-          />
+        <div className="mt-0.5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <TagIcon
+              aria-hidden
+              className="text-muted-foreground mt-[2px] size-3.5 shrink-0 opacity-65"
+            />
+            <div className="min-w-0 truncate text-sm font-medium">
+              Market run
+            </div>
+          </div>
         </div>
       </div>
     </Card>
+  );
+}
+
+// The three icons a transaction card can carry, with what each one means.
+function CardIconLegend() {
+  const rows: Array<{ icon: LucideIcon; label: string; meaning: string }> = [
+    {
+      icon: TagIcon,
+      label: "Single line",
+      meaning: "one wallet, one fund, one amount",
+    },
+    {
+      icon: TagsIcon,
+      label: "Several lines",
+      meaning: "split across more than one line",
+    },
+    {
+      icon: CoinsIcon,
+      label: "Income",
+      meaning: "money in, divided by your income shares",
+    },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-baseline gap-2 text-xs">
+          <row.icon
+            aria-hidden
+            className="text-muted-foreground size-3.5 shrink-0 translate-y-0.5"
+          />
+          <span className="text-foreground w-28 shrink-0 font-semibold">
+            {row.label}
+          </span>
+          <span className="min-w-0">{row.meaning}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -250,7 +287,7 @@ function OverspentFigure() {
 export function HowToUseGuide() {
   return (
     <div className="flex flex-col gap-8">
-      <Section icon={ArrowLeftRightIcon} title="Wallets and funds">
+      <Section icon={ScaleIcon} title="Wallets and funds">
         <p>
           Every transaction line picks a{" "}
           <span className="text-foreground font-medium">wallet</span> — where
@@ -295,7 +332,7 @@ export function HowToUseGuide() {
         </p>
       </Section>
 
-      <Section icon={WalletIcon} title="Setting up">
+      <Section icon={SettingsIcon} title="Setting up">
         <p>
           Add every account your money actually sits in as a wallet, and add a
           fund for each thing you set money aside for. You start with a Bank
@@ -305,6 +342,17 @@ export function HowToUseGuide() {
         <p>
           Nothing you choose here is permanent. Wallets and funds can be
           renamed, added, or removed later from the Wallets and Funds pages.
+        </p>
+        <p>
+          A new ledger starts at $0.00, so if you already have money in these
+          accounts, record it once as your first transaction — one line per
+          wallet, direction{" "}
+          <span className="text-foreground font-medium">In</span>, for the
+          amount sitting there. Put it against{" "}
+          <span className="text-foreground font-medium">Savings</span> unless it
+          is already earmarked for something. Money entered as a transaction
+          isn&apos;t split by your income shares, so it lands exactly where you
+          put it.
         </p>
       </Section>
 
@@ -335,7 +383,8 @@ export function HowToUseGuide() {
       <Section icon={KeyboardIcon} title="Entering amounts">
         <p>
           Amount fields fill in cents-first, so there is no decimal point to
-          type.
+          type. This is true of every amount field in the app, including the
+          Minimum and Maximum filters on the Transactions page.
         </p>
 
         <Figure>
@@ -359,24 +408,75 @@ export function HowToUseGuide() {
         </Figure>
 
         <p>
-          To settle everything at once, filter the Transactions page to Status
-          &ldquo;Pending&rdquo; and use Clear pending. It folds every pending
-          transaction into your real balance right away.
+          To settle several at once, filter the Transactions page to Status
+          &ldquo;Pending&rdquo; and use Clear pending. It settles exactly the
+          transactions matching your filters — the button says how many — and
+          leaves everything outside them pending. To settle the whole ledger in
+          one go, use Clear all pending on the Overview instead.
         </p>
       </Section>
 
-      <Section icon={TagIcon} title="Transactions with several lines">
+      <Section icon={TagsIcon} title="Transactions with several lines">
         <p>
           A single transaction can split across several wallets and funds. Use
           Add line in the transaction modal — each line carries its own wallet,
           fund, description, direction (in or out), amount, and pending flag.
+          The editor shows a running net total as you go, so you can check what
+          the whole entry comes to.
         </p>
         <p>
           The transaction counts as pending if any one of its lines is pending.
         </p>
       </Section>
 
-      <Section icon={AlertTriangleIcon} title="Overspending">
+      <Section icon={ListIcon} title="Reading a transaction card">
+        <p>
+          Every entry in a list carries a small icon on the left saying what
+          kind of entry it is.
+        </p>
+
+        <Figure caption="The icon is the quickest way to tell an income entry from an ordinary one.">
+          <CardIconLegend />
+        </Figure>
+
+        <p>
+          The grey line above the description is the entry&apos;s meta line. It
+          names the date, wallet and fund — and reads{" "}
+          <span className="text-foreground font-medium">Multiple</span> in place
+          of a name when the entry&apos;s lines span more than one wallet, or
+          more than one fund. Open the entry to see which.
+        </p>
+        <p>
+          A description in{" "}
+          <span className="text-foreground font-medium italic">italics</span>{" "}
+          means the transaction is still pending; the meta line spells that out
+          too.
+        </p>
+      </Section>
+
+      <Section icon={ArrowLeftRightIcon} title="Moving money between wallets">
+        <p>
+          There is no separate transfer screen. A transfer is one transaction
+          with two lines that use the{" "}
+          <span className="text-foreground font-medium">same fund</span> and
+          opposite directions: an{" "}
+          <span className="text-foreground font-medium">Out</span> line on the
+          wallet the money leaves, and an{" "}
+          <span className="text-foreground font-medium">In</span> line of the
+          same amount on the wallet it arrives in.
+        </p>
+        <p>
+          Keeping both lines on the same fund is what makes it a transfer rather
+          than a spend: your wallet balances change, your fund balances
+          don&apos;t, and the net total of the transaction comes to $0.00.
+        </p>
+        <p>
+          This is also how you empty a wallet you want to delete — a wallet
+          holding money can&apos;t be deleted.
+        </p>
+      </Section>
+
+      <Section icon={TriangleAlertIcon} title="Overspending">
         <p>
           Funds don&apos;t go below $0. When one would, it floors at zero, shows
           an Overspent badge, and Savings covers the difference.
@@ -389,6 +489,27 @@ export function HowToUseGuide() {
         <p>
           A badge marked &ldquo;pending&rdquo; means the fund is fine today, but
           goes past zero once its pending transactions clear.
+        </p>
+      </Section>
+
+      <Section icon={PiggyBankIcon} title="Why Savings can go negative">
+        <p>
+          Savings is the buffer of last resort. Every other fund stops at $0.00
+          and shows an Overspent badge, and the shortfall does not vanish — it
+          is taken off Savings. Several overspent funds all come off the same
+          place, so the figure on Savings is your own savings minus everything
+          the other funds went over by.
+        </p>
+        <p>
+          That is why Savings has no Overspent badge of its own, and why it is
+          the one fund that can show a negative balance. A deeply negative
+          Savings means the ledger as a whole has paid out more than it has
+          taken in, not that one particular fund misbehaved.
+        </p>
+        <p>
+          To bring it back: record the income you have not entered yet, or lower
+          the other funds&apos; income shares so less is routed away from
+          Savings in the first place.
         </p>
       </Section>
 

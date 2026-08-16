@@ -76,6 +76,22 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
     onChangeRef.current = onChange;
   });
 
+  // Segment labels are decided in pixels, not percent: 8% of a phone-width
+  // track is 27px and fits nothing, while 8% of a desktop track fits a name.
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useEffect(() => {
+    const element = trackRef.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[0]?.contentRect.width;
+      if (next) setTrackWidth(next);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const [dragging, setDragging] = useState<number | null>(null);
   // Pointer-to-boundary distance captured at grab time. Handles are 20px wide
   // (and visually offset when stacked), so tracking the raw pointer would snap
@@ -179,9 +195,16 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
           const isFirst = i === 0;
           const isLast = i === funds.length - 1;
 
+          // The percentage is the number worth keeping, so it is the last
+          // thing dropped; the legend below names every fund either way.
+          const segmentPx = (width / 100) * trackWidth;
+          const showPercentage = segmentPx >= 44;
+          const showName = segmentPx >= 96;
+
           return (
             <div
               key={fund.id}
+              title={`${fund.name} ${fmtPct(fund.percentage)}`}
               className={cn(
                 "absolute top-0 flex h-full items-center justify-center overflow-hidden",
                 isFirst && "rounded-l-lg",
@@ -199,12 +222,15 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
                   : {}),
               }}
             >
-              {width > 8 && (
+              {showPercentage && (
                 <span
-                  className="truncate px-1 text-xs font-semibold drop-shadow-sm"
+                  className="flex min-w-0 items-baseline gap-1 px-1 text-xs font-semibold drop-shadow-sm"
                   style={{ color: colors[i].fg }}
                 >
-                  {fund.name} {fmtPct(fund.percentage)}
+                  {showName && <span className="truncate">{fund.name}</span>}
+                  <span className="shrink-0 tabular-nums">
+                    {fmtPct(fund.percentage)}
+                  </span>
                 </span>
               )}
             </div>

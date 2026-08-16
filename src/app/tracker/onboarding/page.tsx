@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,7 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { HowToUseGuide } from "@/app/how-to-use/guide";
-import { apiJson } from "@/app/tracker/lib/api";
+import { apiJson, ApiRequestError } from "@/app/tracker/lib/api";
 import {
   WalletModal,
   type WalletFormState,
@@ -28,19 +34,38 @@ import { ResponsiveModal } from "@/app/tracker/components/responsive-modal";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { OnboardingSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { FieldError } from "@/app/tracker/components/field-error";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
+import {
+  MultiFundSlider,
+  type SliderFund,
+} from "@/components/ui/multi-fund-slider";
+import {
+  FUND_SHARE_FIELD,
+  FUND_SHARE_RANGE_ERROR,
+  isValidFundShare,
+} from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import type { Fund, Wallet } from "@/app/tracker/types";
 import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
-import { ArrowLeftIcon, ArrowRightIcon, Pencil, Trash2 } from "lucide-react";
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 type FundFormState = {
   name: string;
   pullPercentage: string;
 };
+
+/** Percentages here are whole or half numbers; show the .5 only when needed. */
+function fmtPercent(value: number) {
+  const rounded = Math.round(value * 2) / 2;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}%`;
+}
 
 function FundModal(args: {
   open: boolean;
@@ -48,7 +73,10 @@ function FundModal(args: {
   title: string;
   initial?: FundFormState;
   disablePullPercentage?: boolean;
+  /** Total share held by every other non-savings fund, for the remaining hint. */
+  otherFundsShare: number;
   busy: boolean;
+  /** Rejecting shows the reason inline; the caller need not toast it. */
   onSave: (data: FundFormState) => void | Promise<void>;
 }) {
   const {
@@ -57,6 +85,7 @@ function FundModal(args: {
     title,
     initial,
     disablePullPercentage,
+    otherFundsShare,
     busy,
     onSave,
   } = args;
@@ -64,14 +93,73 @@ function FundModal(args: {
   const [pullPercentage, setPullPercentage] = useState(
     initial?.pullPercentage ?? "0",
   );
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   const nameId = useId();
   const shareId = useId();
+  const nameErrorId = useId();
+  const shareErrorId = useId();
+
+  // Same reason as WalletModal: `initial` is built inline by the caller, so
+  // depending on its identity would re-run this on the re-render a failed save
+  // causes and wipe the errors before they are painted.
+  const initialName = initial?.name ?? "";
+  const initialShare = initial?.pullPercentage ?? "0";
 
   useEffect(() => {
     if (!open) return;
-    setName(initial?.name ?? "");
-    setPullPercentage(initial?.pullPercentage ?? "0");
-  }, [open, initial]);
+    setName(initialName);
+    setPullPercentage(initialShare);
+    setNameError(null);
+    setShareError(null);
+  }, [open, initialName, initialShare]);
+
+  const share = Number(pullPercentage);
+  const remaining = isValidFundShare(share)
+    ? Math.max(0, 100 - otherFundsShare - share)
+    : null;
+
+  async function save() {
+    let invalid = false;
+
+    if (!name.trim()) {
+      setNameError("Give the fund a name");
+      invalid = true;
+    } else {
+      setNameError(null);
+    }
+
+    if (!isValidFundShare(share)) {
+      setShareError(FUND_SHARE_RANGE_ERROR);
+      invalid = true;
+    } else if (!disablePullPercentage && otherFundsShare + share > 100) {
+      setShareError(
+        `Your other funds already take ${fmtPercent(otherFundsShare)}, so this one can take at most ${fmtPercent(100 - otherFundsShare)}.`,
+      );
+      invalid = true;
+    } else {
+      setShareError(null);
+    }
+
+    if (invalid) return;
+
+    try {
+      await onSave({ name, pullPercentage });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Couldn't save this fund";
+      // The server's own share complaints belong beside the share field, and
+      // it says which field it means rather than the wording deciding.
+      if (
+        error instanceof ApiRequestError &&
+        error.field === FUND_SHARE_FIELD
+      ) {
+        setShareError(message);
+      } else {
+        setNameError(message);
+      }
+    }
+  }
 
   return (
     <ResponsiveModal
@@ -86,28 +174,46 @@ function FundModal(args: {
             <Input
               id={nameId}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError(null);
+              }}
               placeholder="e.g. Groceries"
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? nameErrorId : undefined}
+              className={cn(nameError && "border-destructive")}
             />
+            <FieldError id={nameErrorId} message={nameError} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={shareId}>Income share</Label>
+            <Label htmlFor={shareId}>Income share (%)</Label>
             <Input
               id={shareId}
               inputMode="decimal"
               value={pullPercentage}
-              onChange={(e) => setPullPercentage(e.target.value)}
+              onChange={(e) => {
+                setPullPercentage(e.target.value);
+                setShareError(null);
+              }}
               disabled={Boolean(disablePullPercentage)}
+              aria-invalid={shareError ? true : undefined}
+              aria-describedby={shareError ? shareErrorId : undefined}
+              className={cn(shareError && "border-destructive")}
             />
+            <FieldError id={shareErrorId} message={shareError} />
+            {!shareError && !disablePullPercentage && (
+              <p className="text-muted-foreground text-xs">
+                Your other funds take {fmtPercent(otherFundsShare)}.
+                {remaining === null
+                  ? ""
+                  : ` Savings would keep ${fmtPercent(remaining)}.`}
+              </p>
+            )}
           </div>
         </div>
       )}
       renderFooter={() => (
-        <Button
-          type="button"
-          onClick={() => void onSave({ name, pullPercentage })}
-          disabled={busy}
-        >
+        <Button type="button" onClick={() => void save()} disabled={busy}>
           Save
         </Button>
       )}
@@ -141,6 +247,39 @@ export default function OnboardingPage() {
 
   const canFinish = wallets.length > 0 && funds.length > 0;
 
+  const nonSavingsFunds = funds.filter((f) => !f.isSavings);
+  const savingsFund = funds.find((f) => f.isSavings);
+  const allocatedShare = nonSavingsFunds.reduce(
+    (acc, fund) => acc + Number(fund.pullPercentage ?? 0),
+    0,
+  );
+  const savingsShare = Math.max(0, 100 - allocatedShare);
+
+  // Same bar as the Funds page, read-only here: shares are edited one fund at
+  // a time through the modal, and this shows where that leaves the split.
+  const sliderFunds: SliderFund[] = [
+    ...nonSavingsFunds.map((fund) => ({
+      id: String(fund.id),
+      name: fund.name,
+      percentage: Number(fund.pullPercentage ?? 0),
+    })),
+    ...(savingsFund
+      ? [
+          {
+            id: String(savingsFund.id),
+            name: savingsFund.name,
+            percentage: savingsShare,
+            isSavings: true,
+          },
+        ]
+      : []),
+  ];
+
+  const shareForOtherFunds = (excludeFundId?: number) =>
+    nonSavingsFunds
+      .filter((fund) => fund.id !== excludeFundId)
+      .reduce((acc, fund) => acc + Number(fund.pullPercentage ?? 0), 0);
+
   const refresh = useCallback(async () => {
     setLoading(true);
 
@@ -173,11 +312,11 @@ export default function OnboardingPage() {
     void refresh();
   }, [refresh]);
 
+  // These rethrow instead of toasting: the modals show the reason next to the
+  // field that caused it.
   async function createWallet(data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "POST",
         body: JSON.stringify({ name: data.name }),
@@ -185,8 +324,6 @@ export default function OnboardingPage() {
       setCreateWalletOpen(false);
       toast.success("Wallet created");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create wallet");
     } finally {
       setBusy(false);
     }
@@ -195,8 +332,6 @@ export default function OnboardingPage() {
   async function updateWallet(wallet: Wallet, data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "PATCH",
         body: JSON.stringify({ id: wallet.id, name: data.name }),
@@ -204,8 +339,6 @@ export default function OnboardingPage() {
       setEditWallet(null);
       toast.success("Wallet updated");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
     } finally {
       setBusy(false);
     }
@@ -239,28 +372,16 @@ export default function OnboardingPage() {
   async function createFund(data: FundFormState) {
     setBusy(true);
     try {
-      const pullPercentage = Number(data.pullPercentage);
-      if (!data.name.trim()) throw new Error("Name is required");
-      if (
-        Number.isNaN(pullPercentage) ||
-        pullPercentage < 0 ||
-        pullPercentage > 100
-      ) {
-        throw new Error("Invalid pull percentage");
-      }
-
       await apiJson("/api/funds", {
         method: "POST",
         body: JSON.stringify({
           name: data.name,
-          pullPercentage,
+          pullPercentage: Number(data.pullPercentage),
         }),
       });
       setCreateFundOpen(false);
       toast.success("Fund created");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create fund");
     } finally {
       setBusy(false);
     }
@@ -269,29 +390,17 @@ export default function OnboardingPage() {
   async function updateFund(fund: Fund, data: FundFormState) {
     setBusy(true);
     try {
-      const pullPercentage = Number(data.pullPercentage);
-      if (!data.name.trim()) throw new Error("Name is required");
-      if (
-        Number.isNaN(pullPercentage) ||
-        pullPercentage < 0 ||
-        pullPercentage > 100
-      ) {
-        throw new Error("Invalid pull percentage");
-      }
-
       await apiJson("/api/funds", {
         method: "PATCH",
         body: JSON.stringify({
           id: fund.id,
           name: data.name,
-          pullPercentage,
+          pullPercentage: Number(data.pullPercentage),
         }),
       });
       setEditFund(null);
       toast.success("Fund updated");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update fund");
     } finally {
       setBusy(false);
     }
@@ -412,6 +521,7 @@ export default function OnboardingPage() {
         open={createFundOpen}
         onOpenChange={setCreateFundOpen}
         title="New fund"
+        otherFundsShare={shareForOtherFunds()}
         busy={busy}
         onSave={createFund}
       />
@@ -431,6 +541,7 @@ export default function OnboardingPage() {
             : undefined
         }
         disablePullPercentage={Boolean(editFund?.isSavings)}
+        otherFundsShare={shareForOtherFunds(editFund?.id)}
         busy={busy}
         onSave={(data) => {
           if (!editFund) return;
@@ -440,12 +551,16 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <CardTitle>Wallets</CardTitle>
             <Button onClick={() => setCreateWalletOpen(true)}>
+              <PlusIcon />
               New wallet
             </Button>
           </div>
+          <CardDescription>
+            Where your money sits — one for each account, card, or cash pile.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -475,7 +590,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >
-                          <Pencil />
+                          <PencilIcon />
                         </Button>
                         <Button
                           variant="ghost"
@@ -485,7 +600,7 @@ export default function OnboardingPage() {
                           aria-label={`Delete ${w.name}`}
                           className="text-muted-foreground hover:text-destructive"
                         >
-                          <Trash2 />
+                          <Trash2Icon />
                         </Button>
                       </div>
                     </TableCell>
@@ -499,10 +614,17 @@ export default function OnboardingPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <CardTitle>Funds</CardTitle>
-            <Button onClick={() => setCreateFundOpen(true)}>New fund</Button>
+            <Button onClick={() => setCreateFundOpen(true)}>
+              <PlusIcon />
+              New fund
+            </Button>
           </div>
+          <CardDescription>
+            What your money is for. Each fund takes a share of your income;
+            Savings keeps the rest.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -527,7 +649,9 @@ export default function OnboardingPage() {
                     <TableCell className="font-medium">{f.name}</TableCell>
                     <TableCell>{f.isSavings ? "Yes" : "No"}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {f.isSavings ? "-" : `${Number(f.pullPercentage ?? 0)}%`}
+                      {f.isSavings
+                        ? fmtPercent(savingsShare)
+                        : fmtPercent(Number(f.pullPercentage ?? 0))}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2 sm:gap-1">
@@ -538,7 +662,7 @@ export default function OnboardingPage() {
                           disabled={busy}
                           aria-label={`Edit ${f.name}`}
                         >
-                          <Pencil />
+                          <PencilIcon />
                         </Button>
                         {f.isSavings
                           ? null
@@ -560,41 +684,18 @@ export default function OnboardingPage() {
                                     aria-label={`Delete ${f.name}`}
                                     className="text-muted-foreground hover:text-destructive"
                                   >
-                                    <Trash2 />
+                                    <Trash2Icon />
                                   </Button>
                                 );
                               }
 
                               return (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    {/* The span (not the inert Button) takes
-                                        focus, so it must carry the control's
-                                        semantics. */}
-                                    <span
-                                      tabIndex={0}
-                                      role="button"
-                                      aria-disabled="true"
-                                      aria-label={`Can't delete ${f.name}: still holds money`}
-                                      className="inline-flex"
-                                    >
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled
-                                        aria-hidden
-                                        className="text-muted-foreground pointer-events-none"
-                                      >
-                                        <Trash2 />
-                                      </Button>
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    This fund still holds money (including
-                                    pending). Move it out and clear pending
-                                    transactions before deleting.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <UnavailableActionButton
+                                  label={`Can't delete ${f.name}`}
+                                  reason="Still holds money (including pending). Move it out and clear pending transactions first."
+                                >
+                                  <Trash2Icon />
+                                </UnavailableActionButton>
                               );
                             })()}
                       </div>
@@ -604,6 +705,28 @@ export default function OnboardingPage() {
               )}
             </TableBody>
           </Table>
+
+          {sliderFunds.length > 1 && (
+            <div className="mt-4 border-t pt-4">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+                <span className="font-medium">Income allocation</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {fmtPercent(allocatedShare)} allocated ·{" "}
+                  {fmtPercent(savingsShare)} left for{" "}
+                  {savingsFund?.name ?? "Savings"}
+                </span>
+              </div>
+              <MultiFundSlider
+                funds={sliderFunds}
+                onChange={() => {}}
+                disabled
+              />
+              {/* The bar is read-only here, so say where the shares are set. */}
+              <p className="text-muted-foreground mt-3 text-xs">
+                Edit a fund to change its share.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

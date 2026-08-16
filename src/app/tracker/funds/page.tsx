@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  CheckIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,11 +36,7 @@ import {
 } from "@/components/ui/multi-fund-slider";
 import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
 import { Swatch } from "@/components/ui/swatch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 type DraftFund = {
@@ -172,6 +174,7 @@ export default function FundsPage() {
   const [draftFunds, setDraftFunds] = useState<DraftFund[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [rescaledFromServer, setRescaledFromServer] = useState(false);
 
   const [busy, setBusy] = useState(false);
 
@@ -228,9 +231,22 @@ export default function FundsPage() {
 
   /** Re-initialise draft from serverFunds. */
   const resetDraft = useCallback(() => {
-    setDraftFunds(normaliseDraft(serverFunds.map(fundToDraft)));
+    const fromServer = serverFunds.map(fundToDraft);
+    const normalised = normaliseDraft(fromServer);
+
+    // Scaling only happens for a saved total over 100, which blocks recording
+    // income. The scaled figures are numbers the user never typed, so leaving
+    // the form clean would show a healthy allocation that does not match the
+    // database, with Confirm disabled and no way to write the fix. Start dirty
+    // and say why instead.
+    const scaled = normalised.some(
+      (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
+    );
+
+    setDraftFunds(normalised);
     setDeletedIds([]);
-    setDirty(false);
+    setDirty(scaled);
+    setRescaledFromServer(scaled);
   }, [serverFunds]);
 
   useEffect(() => {
@@ -337,6 +353,7 @@ export default function FundsPage() {
         <div className="flex items-center gap-2">
           {dirty ? (
             <Button variant="outline" onClick={revert} disabled={busy}>
+              <RotateCcwIcon />
               Revert
             </Button>
           ) : (
@@ -345,6 +362,7 @@ export default function FundsPage() {
               onClick={() => void refresh()}
               disabled={busy}
             >
+              <RefreshCwIcon />
               Refresh
             </Button>
           )}
@@ -352,10 +370,21 @@ export default function FundsPage() {
             onClick={() => void confirmChanges()}
             disabled={busy || !dirty}
           >
+            <CheckIcon />
             Confirm
           </Button>
         </div>
       </div>
+
+      {rescaledFromServer && (
+        <div
+          role="status"
+          className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
+        >
+          Your saved income shares added up to more than 100%. They have been
+          scaled back to fit — press Confirm to save the correction.
+        </div>
+      )}
 
       {/* ── Allocation slider ───────────────────────────────────── */}
       {sliderFunds.length > 1 && (
@@ -384,7 +413,7 @@ export default function FundsPage() {
               onClick={addFund}
               disabled={busy}
             >
-              <Plus />
+              <PlusIcon />
               Add fund
             </Button>
           </div>
@@ -418,15 +447,19 @@ export default function FundsPage() {
 
                     {/* Name */}
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {/* This is the page for editing fund names, so the
+                            field takes the width the table has spare rather
+                            than truncating mid-name inside 200px. */}
                         <Input
                           value={f.name}
                           onChange={(e) =>
                             updateDraft(f.key, { name: e.target.value })
                           }
                           placeholder="Fund name"
+                          aria-label={`Name of ${f.name || "new fund"}`}
                           disabled={busy}
-                          className="max-w-[200px]"
+                          className="w-full min-w-0"
                         />
                         {!f.id && (
                           <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
@@ -460,33 +493,15 @@ export default function FundsPage() {
                             aria-label={`Delete ${f.name || "fund"}`}
                             className="text-muted-foreground hover:text-destructive"
                           >
-                            <Trash2 />
+                            <Trash2Icon />
                           </Button>
                         ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              {/* The span (not the inert Button) takes focus,
-                                  so it must carry the control's semantics. */}
-                              <span
-                                tabIndex={0}
-                                role="button"
-                                aria-disabled="true"
-                                aria-label={`Can't delete ${f.name || "fund"}: ${del.reason}`}
-                                className="inline-flex"
-                              >
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled
-                                  aria-hidden
-                                  className="text-muted-foreground pointer-events-none"
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>{del.reason}</TooltipContent>
-                          </Tooltip>
+                          <UnavailableActionButton
+                            label={`Can't delete ${f.name || "fund"}`}
+                            reason={del.reason ?? "Unavailable"}
+                          >
+                            <Trash2Icon />
+                          </UnavailableActionButton>
                         ))}
                     </TableCell>
                   </TableRow>

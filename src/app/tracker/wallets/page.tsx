@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,36 @@ import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
+import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
+import { holdsMoney } from "@/lib/money";
 import type { Wallet } from "@/app/tracker/types";
+
+// Mirrors the guard the DELETE handler enforces, so the button is never
+// offered for a deletion that is certain to fail. The last-wallet rule is a
+// client-side rule: a ledger with no wallet has nowhere to record anything.
+function canDeleteWallet(
+  wallet: Wallet,
+  walletCount: number,
+): { ok: boolean; reason?: string } {
+  if (walletCount <= 1) {
+    return { ok: false, reason: "Your last wallet can't be deleted" };
+  }
+  // Cleared and pending are weighed apart so they cannot cancel each other
+  // out. A wallet holding $500 against a pending -$500 bill nets to zero, but
+  // there is still $500 in it, and deleting it drops that from the wallet
+  // totals while the funds side keeps counting it.
+  if (
+    holdsMoney(Number(wallet.balance)) ||
+    holdsMoney(Number(wallet.balanceWithPending))
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Still holds money (including pending). Move it to another wallet first.",
+    };
+  }
+  return { ok: true };
+}
 
 export default function WalletsPage() {
   const router = useRouter();
@@ -63,11 +92,12 @@ export default function WalletsPage() {
     void refresh();
   }, [refresh]);
 
+  // These rethrow instead of toasting: WalletModal shows the reason next to
+  // the name field, the same as during onboarding. It also blocks an empty
+  // name before calling in, so there is nothing to check for here.
   async function createWallet(data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "POST",
         body: JSON.stringify({ name: data.name }),
@@ -75,8 +105,6 @@ export default function WalletsPage() {
       setCreateOpen(false);
       toast.success("Wallet created");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create wallet");
     } finally {
       setBusy(false);
     }
@@ -85,8 +113,6 @@ export default function WalletsPage() {
   async function updateWallet(wallet: Wallet, data: WalletFormState) {
     setBusy(true);
     try {
-      if (!data.name.trim()) throw new Error("Name is required");
-
       await apiJson("/api/wallets", {
         method: "PATCH",
         body: JSON.stringify({ id: wallet.id, name: data.name }),
@@ -94,8 +120,6 @@ export default function WalletsPage() {
       setEditWallet(null);
       toast.success("Wallet updated");
       await refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
     } finally {
       setBusy(false);
     }
@@ -137,9 +161,13 @@ export default function WalletsPage() {
         <h1 className="text-2xl font-semibold">Wallets</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => void refresh()}>
+            <RefreshCwIcon />
             Refresh
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>New wallet</Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <PlusIcon />
+            New wallet
+          </Button>
         </div>
       </div>
 
@@ -185,40 +213,53 @@ export default function WalletsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((w) => (
-                <TableRow key={w.id}>
-                  <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell className="text-right text-sm whitespace-normal tabular-nums">
-                    <ClearedWithPending
-                      cleared={w.balance}
-                      withPending={w.balanceWithPending}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2 sm:gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditWallet(w)}
-                        disabled={busy}
-                        aria-label={`Edit ${w.name}`}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => void deleteWallet(w)}
-                        disabled={busy || wallets.length <= 1}
-                        aria-label={`Delete ${w.name}`}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {wallets.map((w) => {
+                const del = canDeleteWallet(w, wallets.length);
+
+                return (
+                  <TableRow key={w.id}>
+                    <TableCell className="font-medium">{w.name}</TableCell>
+                    <TableCell className="text-right text-sm whitespace-normal tabular-nums">
+                      <ClearedWithPending
+                        cleared={w.balance}
+                        withPending={w.balanceWithPending}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2 sm:gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditWallet(w)}
+                          disabled={busy}
+                          aria-label={`Edit ${w.name}`}
+                        >
+                          <PencilIcon />
+                        </Button>
+                        {del.ok ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void deleteWallet(w)}
+                            disabled={busy}
+                            aria-label={`Delete ${w.name}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        ) : (
+                          <UnavailableActionButton
+                            label={`Can't delete ${w.name}`}
+                            reason={del.reason ?? "Unavailable"}
+                          >
+                            <Trash2Icon />
+                          </UnavailableActionButton>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
