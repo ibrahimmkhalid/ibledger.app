@@ -1,4 +1,12 @@
-const plainMoneyFormatter = new Intl.NumberFormat(undefined, {
+// Every formatter here names its locale rather than taking the runtime's.
+// The landing page and the how-to-use guide are server components that format
+// at render, so an implicit locale is the server's on the way out and the
+// browser's on hydration — two different strings for the same figure, which
+// React reports as a hydration mismatch. The amounts are already fixed to USD,
+// so there was never a second locale for them to follow.
+const LOCALE = "en-US";
+
+const plainMoneyFormatter = new Intl.NumberFormat(LOCALE, {
   style: "currency",
   currency: "USD",
   minimumFractionDigits: 2,
@@ -9,7 +17,7 @@ let moneyFormatter: Intl.NumberFormat;
 
 try {
   // currencySign: "accounting" renders negatives as parentheses in most runtimes.
-  moneyFormatter = new Intl.NumberFormat(undefined, {
+  moneyFormatter = new Intl.NumberFormat(LOCALE, {
     style: "currency",
     currency: "USD",
     currencySign: "accounting",
@@ -56,7 +64,7 @@ export function toDateInputValue(input: string | Date) {
 
 export function fmtDateShort(input: string | Date) {
   const d = input instanceof Date ? input : new Date(input);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(LOCALE, {
     year: "numeric",
     month: "short",
     day: "2-digit",
