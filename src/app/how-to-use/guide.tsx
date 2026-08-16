@@ -23,8 +23,12 @@ import { SAVINGS_COLOR, seriesColor } from "@/app/tracker/lib/series-colors";
 const HATCH =
   "repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.18) 3px,rgba(255,255,255,.18) 6px)";
 
-// Fixed so the example card renders the same on server and client.
-const EXAMPLE_DATE = new Date(2026, 0, 12);
+// Fixed so the example card renders the same on server and client. The guide
+// is a server component on /how-to-use and a client one inside onboarding, so
+// this module is evaluated in both runtimes; built from a local midnight it
+// would be a different instant in each, and fmtDateShort reads it as UTC, so a
+// browser far enough east of UTC showed the 11th.
+const EXAMPLE_DATE = new Date(Date.UTC(2026, 0, 12));
 
 const GROCERIES = seriesColor(2);
 const RENT = seriesColor(0);
