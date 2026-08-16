@@ -104,7 +104,11 @@ export async function checkBootstrapOrRedirect(
     // flashed back to onboarding, which reads as broken unless we say why.
     const path = typeof window === "undefined" ? "" : window.location.pathname;
     if (path !== "/" && path !== "/tracker") {
-      toast.info("Finish setting up your ledger before opening this page.");
+      // Fixed id so the notice can't stack: every gated page calls this, and
+      // Strict Mode runs their mount effects twice in development.
+      toast.info("Finish setting up your ledger before opening this page.", {
+        id: "onboarding-required-redirect",
+      });
     }
 
     router.replace(boot.onboarding.redirectTo);
