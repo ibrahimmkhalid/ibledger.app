@@ -133,6 +133,12 @@ export function SegmentedControl<T extends string>(args: {
       >
         {options.map((option) => {
           const active = option.value === value;
+          // Carrying a reason is itself a statement that the option can't be
+          // picked, and the click handler below already refuses one. Both prop
+          // and reason feed one flag so the two can't disagree: keyed on
+          // `disabled` alone, a reason-only option would look and announce like
+          // an ordinary segment while silently refusing every click.
+          const unavailable = Boolean(option.disabled || option.reason);
           const button = (
             <button
               key={option.value}
@@ -141,8 +147,8 @@ export function SegmentedControl<T extends string>(args: {
               // An option with a reason stays focusable and clickable so the
               // explanation is reachable: tooltips never open on touch, and a
               // truly disabled segment would just sit there greyed out.
-              disabled={option.disabled && !option.reason}
-              aria-disabled={option.disabled || undefined}
+              disabled={unavailable && !option.reason}
+              aria-disabled={unavailable || undefined}
               aria-label={
                 option.reason ? `${option.label}: ${option.reason}` : undefined
               }
@@ -151,12 +157,12 @@ export function SegmentedControl<T extends string>(args: {
                   toast.info(option.reason);
                   return;
                 }
-                if (option.disabled) return;
+                if (unavailable) return;
                 onChange(option.value);
               }}
               className={cn(
                 "flex h-full min-w-0 flex-1 items-center justify-center rounded-sm px-1 text-sm font-medium transition-colors sm:text-xs",
-                option.disabled
+                unavailable
                   ? "text-muted-foreground/40 cursor-help"
                   : active
                     ? "bg-background text-foreground shadow-sm"
