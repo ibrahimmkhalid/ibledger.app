@@ -10,6 +10,7 @@ import { applySavingsDeficitClamp } from "@/lib/fund-balances";
 import { FUND_DISPLAY_ORDER } from "@/lib/fund-order";
 import {
   FUND_LOCK_NAMESPACE,
+  FUND_SHARE_FIELD,
   FUND_SHARE_RANGE_ERROR,
   FUND_SHARE_SUM_ERROR,
   fundSharesExceedHundred,
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     if (!isValidFundShare(pullPercentage)) {
       return NextResponse.json(
-        { error: FUND_SHARE_RANGE_ERROR },
+        { error: FUND_SHARE_RANGE_ERROR, field: FUND_SHARE_FIELD },
         { status: 400 },
       );
     }
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       );
 
       if (fundSharesExceedHundred(currentSum + pullPercentage)) {
-        throw new BadRequestError(FUND_SHARE_SUM_ERROR);
+        throw new BadRequestError(FUND_SHARE_SUM_ERROR, FUND_SHARE_FIELD);
       }
 
       return tx
@@ -148,7 +149,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ fund: newFund });
   } catch (error) {
     if (error instanceof BadRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: error.message, field: error.field },
+        { status: 400 },
+      );
     }
 
     console.error("API: Error creating fund", error);
@@ -176,7 +180,7 @@ export async function PATCH(request: NextRequest) {
 
     if (nextPullPercentage !== null && !isValidFundShare(nextPullPercentage)) {
       return NextResponse.json(
-        { error: FUND_SHARE_RANGE_ERROR },
+        { error: FUND_SHARE_RANGE_ERROR, field: FUND_SHARE_FIELD },
         { status: 400 },
       );
     }
@@ -210,7 +214,7 @@ export async function PATCH(request: NextRequest) {
           }, 0);
 
           if (fundSharesExceedHundred(resultingSum)) {
-            throw new BadRequestError(FUND_SHARE_SUM_ERROR);
+            throw new BadRequestError(FUND_SHARE_SUM_ERROR, FUND_SHARE_FIELD);
           }
         }
       }
@@ -247,7 +251,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ fund: updatedFund });
   } catch (error) {
     if (error instanceof BadRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: error.message, field: error.field },
+        { status: 400 },
+      );
     }
 
     console.error("API: Error updating fund", error);

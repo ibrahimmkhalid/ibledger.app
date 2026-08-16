@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { HowToUseGuide } from "@/app/how-to-use/guide";
-import { apiJson } from "@/app/tracker/lib/api";
+import { apiJson, ApiRequestError } from "@/app/tracker/lib/api";
 import {
   WalletModal,
   type WalletFormState,
@@ -40,7 +40,11 @@ import {
   MultiFundSlider,
   type SliderFund,
 } from "@/components/ui/multi-fund-slider";
-import { FUND_SHARE_RANGE_ERROR, isValidFundShare } from "@/lib/fund-shares";
+import {
+  FUND_SHARE_FIELD,
+  FUND_SHARE_RANGE_ERROR,
+  isValidFundShare,
+} from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { Fund, Wallet } from "@/app/tracker/types";
@@ -144,8 +148,12 @@ function FundModal(args: {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Couldn't save this fund";
-      // The server's own share complaints belong beside the share field.
-      if (message.toLowerCase().includes("income share")) {
+      // The server's own share complaints belong beside the share field, and
+      // it says which field it means rather than the wording deciding.
+      if (
+        error instanceof ApiRequestError &&
+        error.field === FUND_SHARE_FIELD
+      ) {
         setShareError(message);
       } else {
         setNameError(message);

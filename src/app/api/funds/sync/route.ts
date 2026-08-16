@@ -8,6 +8,7 @@ import { pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
 import {
   FUND_LOCK_NAMESPACE,
+  FUND_SHARE_FIELD,
   FUND_SHARE_SUM_ERROR,
   fundShareRangeError,
   fundSharesExceedHundred,
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest) {
       const pp = Number(f.pullPercentage);
       if (!isValidFundShare(pp)) {
         return NextResponse.json(
-          { error: fundShareRangeError(f.name) },
+          { error: fundShareRangeError(f.name), field: FUND_SHARE_FIELD },
           { status: 400 },
         );
       }
@@ -153,7 +154,7 @@ export async function PUT(request: NextRequest) {
       }
 
       if (fundSharesExceedHundred(resultingPullSum)) {
-        throw new BadRequestError(FUND_SHARE_SUM_ERROR);
+        throw new BadRequestError(FUND_SHARE_SUM_ERROR, FUND_SHARE_FIELD);
       }
 
       // Verify zero balance for all deletions in one grouped read.
@@ -242,7 +243,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof BadRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: error.message, field: error.field },
+        { status: 400 },
+      );
     }
 
     // The remaining domain errors thrown inside the transaction ("Fund N not

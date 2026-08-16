@@ -1,6 +1,12 @@
 // funds.pullPercentage is called "Income share" everywhere in the UI, so the
 // error text these produce must never leak the column name back to the user.
 
+// Names the field a share complaint belongs under, sent alongside the message
+// so the fund modals can file it beside the share input without matching on the
+// text above — which they did, and which quietly re-routes every server
+// rejection to the name field the moment one of these is reworded.
+export const FUND_SHARE_FIELD = "share";
+
 export const FUND_SHARE_RANGE_ERROR = "Income share must be between 0 and 100";
 
 export function fundShareRangeError(name: string) {

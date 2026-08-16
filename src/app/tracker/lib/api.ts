@@ -1,4 +1,20 @@
-export type ApiError = { error: string };
+export type ApiError = { error: string; field?: string };
+
+/**
+ * Carries the server's optional `field` alongside the message, so a caller can
+ * file the complaint under the input that caused it rather than deciding from
+ * the wording. Thrown for every failed response; callers that only want the
+ * message can go on treating it as an Error.
+ */
+export class ApiRequestError extends Error {
+  readonly field?: string;
+
+  constructor(message: string, field?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.field = field;
+  }
+}
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -15,11 +31,14 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     // Only surface the server's message when it is an actual non-empty string;
     // error bodies from proxies can carry "" or non-string shapes here.
-    const message = (data as ApiError | null)?.error;
-    throw new Error(
+    const body = data as ApiError | null;
+    const message = body?.error;
+    const field = typeof body?.field === "string" ? body.field : undefined;
+    throw new ApiRequestError(
       typeof message === "string" && message !== ""
         ? message
         : "Something went wrong. Please try again.",
+      field,
     );
   }
 
