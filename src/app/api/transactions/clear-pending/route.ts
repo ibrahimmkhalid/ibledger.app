@@ -29,20 +29,20 @@ export async function POST(request: NextRequest) {
     // Whatever the caller filtered on, only pending rows are candidates.
     conditions.push(eq(transactions.isPending, true));
 
-    const matchingEvents = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(and(...conditions));
-
-    const eventIds = matchingEvents.map((row) => row.id);
-
-    if (eventIds.length === 0) {
-      return NextResponse.json({ cleared: 0 });
-    }
+    // Left as a subquery rather than a list of ids read back into the route.
+    // "Clear all pending" sends no filters, so the id list is the whole pending
+    // backlog, and it gets bound twice — two parameters per event against
+    // PostgreSQL's cap of 65,535, which a big enough backlog would exceed and
+    // fail on. Built fresh per use so the two calls can't share a builder.
+    const matchingEvents = () =>
+      db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(and(...conditions));
 
     // An event's postings carry their own pending flag, so settling the event
     // has to settle its children too or the balances never move.
-    await db
+    const settled = await db
       .update(transactions)
       .set({ isPending: false, updatedAt: new Date() })
       .where(
@@ -51,13 +51,19 @@ export async function POST(request: NextRequest) {
           eq(transactions.isPending, true),
           isNull(transactions.deletedAt),
           or(
-            inArray(transactions.id, eventIds),
-            inArray(transactions.parentId, eventIds),
+            inArray(transactions.id, matchingEvents()),
+            inArray(transactions.parentId, matchingEvents()),
           ),
         ),
-      );
+      )
+      .returning({ parentId: transactions.parentId });
 
-    return NextResponse.json({ cleared: eventIds.length });
+    // Children come back too; the caller asked how many events moved. Counting
+    // what the update actually touched also drops the old assumption that every
+    // row the select matched was still there to be written.
+    const cleared = settled.filter((row) => row.parentId === null).length;
+
+    return NextResponse.json({ cleared });
   } catch (error) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
