@@ -15,18 +15,9 @@ type InputProps = Omit<
 >;
 
 /**
- * The cents-first money field used by every amount input in the app.
- *
- * Entry is append-only: the user types digits and they fill in from the right,
- * so `value` is a plain cents string ("4200") and the field displays the
- * formatted amount ("$42.00").
- *
- * The caret needs pinning because the mask rewrites the whole string on every
- * keystroke and thousands grouping makes its length jump — "$999.99" becomes
- * "$9,999.99", two characters longer. React restores the caret by index after a
- * controlled update, so it would land two characters short of the end and the
- * next digit would be inserted before the last two. Since entry always appends,
- * the caret belongs at the end after any change the mask made.
+ * The cents-first money field. `value` is a plain cents string ("4200") shown
+ * as a formatted amount ("$42.00"). Entry appends, so the caret is pinned to
+ * the end; see "Amount input masking" in docs/CONTEXT.md.
  */
 export function AmountInput({
   value,

@@ -28,10 +28,8 @@ function fmtPct(n: number): string {
 }
 
 /**
- * Move boundary `boundaryIndex` (between fund i and fund i+1) to `valuePct`,
- * clamped so it can meet — but not cross — its neighbours. Meeting a neighbour
- * collapses a segment to 0%, i.e. "route no income to this fund". Shared by
- * both pointer drag and keyboard so the two paths stay in lockstep.
+ * Moves boundary `boundaryIndex` to `valuePct`, clamped so it can meet but not
+ * cross its neighbours. Shared by pointer drag and keyboard.
  */
 function applyBoundary(
   funds: SliderFund[],
@@ -93,9 +91,8 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
   }, []);
 
   const [dragging, setDragging] = useState<number | null>(null);
-  // Pointer-to-boundary distance captured at grab time. Handles are 20px wide
-  // (and visually offset when stacked), so tracking the raw pointer would snap
-  // the boundary to wherever inside the handle the user happened to press.
+  // Pointer-to-boundary distance at grab time; handles are 20px wide, so the
+  // raw pointer would snap the boundary to wherever inside one it was pressed.
   const dragOffsetRef = useRef(0);
 
   // Cumulative boundary positions: for N funds we have N-1 draggable handles.
@@ -106,10 +103,8 @@ export function MultiFundSlider({ funds, onChange, disabled }: Props) {
     cumValues.push(cumSum);
   }
 
-  // A 0%-wide fund puts two handles at the same boundary; stacked, only the
-  // top one catches the pointer, so its neighbour becomes hard to grab. Spread
-  // handles that share a position a few px apart (purely visual -- the boundary
-  // value is unchanged) so each stays reachable.
+  // A 0%-wide fund stacks two handles, and only the top one catches the
+  // pointer. Spread them a few px apart; the boundary values are unchanged.
   const handleOffsets = cumValues.map(() => 0);
   for (let i = 0; i < cumValues.length; ) {
     let j = i;

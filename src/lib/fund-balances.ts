@@ -4,16 +4,10 @@ type FundBalance = {
   balanceWithPending: number;
 };
 
-// Display rule:
-// - Non-savings funds are visually clamped at 0
-// - Savings absorbs all deficits from clamped funds (and may go negative)
-//
-// Total-preserving: sum(clamped) === sum(raw). Callers get rawBalance and
-// rawBalanceWithPending alongside, since the unclamped figures are what the
-// delete guard and the overspent badges read.
+// Clamps non-savings funds at 0 and moves the deficit onto savings, returning
+// the raw figures alongside. See "The savings fund" in docs/CONTEXT.md.
 export function applySavingsDeficitClamp<T extends FundBalance>(funds: T[]) {
-  // The clamp moves every deficit onto "the" savings fund; with zero or several
-  // of them the totals silently lie, so surface the corrupt ledger as a 500.
+  // Without exactly one savings fund the totals would silently lie.
   const savingsCount = funds.filter((f) => f.isSavings).length;
   if (savingsCount !== 1) {
     throw new Error(

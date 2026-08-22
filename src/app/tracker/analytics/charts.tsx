@@ -148,9 +148,8 @@ function EmptyChart() {
   );
 }
 
-// Splits a period key into its year and a compact, always-shown primary label
-// (e.g. "Feb" for months, "Feb 3" for days/weeks). The year is appended
-// separately only when it changes across the displayed ticks.
+// Splits a period key into its year and a compact label ("Feb", "Feb 3"). The
+// year is appended only when it changes across the displayed ticks.
 function periodAxisParts(period: string, groupBy: GroupBy) {
   const [year, month, day] = period.split("-").map((part) => Number(part));
   if (groupBy === "month") {
@@ -178,10 +177,8 @@ const TICK_PX_PER_LABEL = 64;
 // Approximate horizontal space consumed by the y-axis + right margin.
 const TICK_AXIS_GUTTER = 92;
 
-// Picks a subset of ticks so ~one label renders per TICK_PX_PER_LABEL of width
-// (every entry when there are few, every Nth when there are many), and labels
-// each shown tick — appending the year only when it differs from the previous
-// shown tick.
+// Picks every Nth tick so about one label renders per TICK_PX_PER_LABEL of
+// width, appending the year only when it differs from the previous label.
 function buildAxisTicks(points: AxisPoint[], groupBy: GroupBy, width: number) {
   const count = points.length;
   if (count === 0) return null;
@@ -240,9 +237,8 @@ export function usePlotTheme() {
   const [theme, setTheme] = useState(DEFAULT_PLOT_THEME);
 
   useEffect(() => {
-    // Theme tokens are authored as oklch(), which Plotly's color parser cannot
-    // read. Bounce each value through a probe element so the browser resolves
-    // it to a concrete rgb()/rgba() string that Plotly understands.
+    // Plotly cannot parse oklch(), so bounce each token through a probe element
+    // to get a concrete rgb() string.
     const probe = document.createElement("span");
     probe.style.position = "absolute";
     probe.style.opacity = "0";
@@ -482,10 +478,8 @@ function compactAxisAmount(value: number) {
   return value < 0 ? `(${formatted})` : formatted;
 }
 
-// Ticks sit on a symlog scale, so the small candidates bunch up around the
-// origin: once the largest net passes roughly $250, ($10), $0 and $10 land
-// within a couple of pixels of each other and render as an illegible smear.
-// Labels are 11px, so keep a label's height plus a little air between them.
+// On the symlog scale, small ticks bunch up around the origin and smear
+// together. Labels are 11px, so keep that much air between them.
 const MIN_TICK_GAP_PX = 14;
 const CASHFLOW_AXIS_PADDING = 1.08;
 const CASHFLOW_MARGIN = { t: 10, r: 20, b: 52, l: 74 };
@@ -512,9 +506,8 @@ function cashflowAxisTicks(maxAmount: number, plotHeightPx: number) {
       ? Number.POSITIVE_INFINITY
       : Math.abs(symlogAmount(a) - symlogAmount(b)) * pxPerUnit;
 
-  // Resolve collisions in favour of the larger magnitude, taking each ± pair as
-  // a unit so the axis stays symmetric. $0 goes last and so is dropped first —
-  // the zero line already marks the centre.
+  // Collisions resolve to the larger magnitude, each ± pair kept as a unit so
+  // the axis stays symmetric. $0 is dropped first; the zero line marks it.
   const kept: number[] = [];
   for (const magnitude of [...unique].sort((a, b) => b - a)) {
     const clears = (amount: number) =>
@@ -541,9 +534,8 @@ function cashflowAxisTicks(maxAmount: number, plotHeightPx: number) {
   };
 }
 
-// The period (x value) is supplied automatically as the unified hover header,
-// so the body starts with the colored net accent to match the trend tooltip's
-// colored series accents.
+// The period comes free as the unified hover header, so the body opens with
+// the net accent instead.
 function cashflowNetHoverText(
   point: AnalyticsResponse["timeSeries"][number],
   theme: ReturnType<typeof usePlotTheme>,
@@ -559,11 +551,9 @@ function cashflowNetHoverText(
   ].join("<br>");
 }
 
-// Cashflow chart: one diverging bar per period showing the *net* movement.
-// Because it plots net, equal-and-opposite flows within a period (e.g. a
-// transfer that lands and leaves the same wallet) cancel out and no longer
-// each claim their own slab of vertical space. Bar heights use a signed
-// symlog transform so a $50 day and a $5k day are both legible.
+// One diverging bar per period showing net movement, so equal-and-opposite
+// flows cancel out. Heights use a signed symlog transform so a $50 day and a
+// $5k day are both legible.
 export function cashflowNetPlot(
   data: AnalyticsResponse["timeSeries"],
   theme: ReturnType<typeof usePlotTheme>,

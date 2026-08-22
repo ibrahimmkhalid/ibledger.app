@@ -28,8 +28,7 @@ export type MultiSelectOption = {
   name: string;
 };
 
-// The draft holds the same cents string the modal amount fields use, so typing
-// 1000 means $10.00 here exactly as it does in a transaction. The API filters
+// The draft holds a cents string like the modal amount fields; the API filters
 // on dollars, so convert on the way out.
 export function parseFilterAmount(value: string, label: string) {
   const trimmed = value.trim();
@@ -133,20 +132,16 @@ export function SegmentedControl<T extends string>(args: {
       >
         {options.map((option) => {
           const active = option.value === value;
-          // Carrying a reason is itself a statement that the option can't be
-          // picked, and the click handler below already refuses one. Both prop
-          // and reason feed one flag so the two can't disagree: keyed on
-          // `disabled` alone, a reason-only option would look and announce like
-          // an ordinary segment while silently refusing every click.
+          // Prop and reason feed one flag so they cannot disagree: a
+          // reason-only option would otherwise look pickable and refuse clicks.
           const unavailable = Boolean(option.disabled || option.reason);
           const button = (
             <button
               key={option.value}
               type="button"
               aria-pressed={active}
-              // An option with a reason stays focusable and clickable so the
-              // explanation is reachable: tooltips never open on touch, and a
-              // truly disabled segment would just sit there greyed out.
+              // Stays focusable and clickable so touch users can reach the
+              // reason; tooltips never open on touch.
               disabled={unavailable && !option.reason}
               aria-disabled={unavailable || undefined}
               aria-label={
@@ -318,11 +313,9 @@ export function MultiSelectDropdown(args: {
   );
 }
 
-// The transactions and analytics pages render the same filter fields inside
-// different chrome (a Card vs a bordered div), so the fields are shared and the
-// wrapper is not. Analytics uses only the search field and the two account
-// dropdowns; the status/type/direction group and the amount range below are
-// transactions-only. See @/app/tracker/lib/analytics-page-query for why.
+// Shared fields, separate wrappers: the two pages use different chrome.
+// Analytics takes only search and the account dropdowns. See
+// @/app/tracker/lib/analytics-page-query for why.
 
 type SharedFilterDraft = {
   pendingStatus: TransactionPendingFilter;
@@ -336,9 +329,7 @@ type SharedFilterDraft = {
   endDate: string;
 };
 
-// Transactions-only. Analytics has relative presets ("Last 6 months"), which
-// suit a trend chart; picking out "what did I spend in March" wants explicit
-// bounds instead.
+// Transactions-only. Analytics uses relative presets instead.
 export function DateRangeFilters(args: {
   draft: Pick<SharedFilterDraft, "startDate" | "endDate">;
   onPatch: (patch: Partial<SharedFilterDraft>) => void;

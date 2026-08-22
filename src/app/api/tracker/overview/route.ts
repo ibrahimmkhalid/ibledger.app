@@ -85,9 +85,8 @@ export async function GET() {
           )
           .orderBy(desc(transactions.occurredAt), desc(transactions.id))
           .limit(pageSize),
-        // Whole-ledger pending count, so the Overview's "Clear all pending" can
-        // say how many events it would settle and hide itself when there are
-        // none. Deliberately not limited to the page above.
+        // Whole-ledger count, not the page above: "Clear all pending" needs to
+        // say how many events it would settle.
         db
           .select({ value: count() })
           .from(transactions)

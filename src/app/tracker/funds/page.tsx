@@ -79,14 +79,7 @@ function fundToDraft(f: Fund): DraftFund {
   };
 }
 
-/**
- * Non-savings pulls have to leave savings a non-negative share, so they can
- * total at most 100. Any fund may sit at 0, meaning no income is routed to it,
- * and savings may sit at 0 when the others claim everything between them.
- *
- * Only ever scales down, and only for totals over 100 -- which the server now
- * rejects, so they can only come from rows written before it did.
- */
+/** Scales non-savings shares down to a total of 100. Never scales up. */
 function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const out = drafts.map((d) => ({ ...d }));
   const nonSavings = out.filter((f) => !f.isSavings);
@@ -99,10 +92,8 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
     f.pullPercentage = roundHalf(f.pullPercentage * scale);
   }
 
-  // roundHalf can nudge the total a little either side of 100. Positive drift
-  // settles on the largest fund, which is big enough to absorb it. Negative
-  // drift may exceed what any single fund holds, so walk the funds largest
-  // first, trimming each (clamped at zero) until it is fully consumed.
+  // roundHalf drifts either side of 100. Positive drift goes on the largest
+  // fund; negative drift is trimmed off the funds largest first.
   const drift = 100 - nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
   if (drift > 0) {
     const largest = nonSavings.reduce((a, b) =>
@@ -125,10 +116,7 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   return out;
 }
 
-/**
- * Build the ordered array the slider component needs.
- * Non-savings funds first (preserving order), savings last.
- */
+/** The slider's array: non-savings funds in order, savings last. */
 function buildSliderFunds(drafts: DraftFund[]): SliderFund[] {
   const nonSavings = drafts.filter((f) => !f.isSavings);
   const savings = drafts.find((f) => f.isSavings);
@@ -210,11 +198,8 @@ export default function FundsPage() {
     const fromServer = funds.map(fundToDraft);
     const normalised = normaliseDraft(fromServer);
 
-    // Scaling only happens for a saved total over 100, which blocks recording
-    // income. The scaled figures are numbers the user never typed, so leaving
-    // the form clean would show a healthy allocation that does not match the
-    // database, with Confirm disabled and no way to write the fix. Start dirty
-    // and say why instead.
+    // The scaled figures are numbers the user never typed, so start the form
+    // dirty and say why rather than showing a total that is not in the database.
     const scaled = normalised.some(
       (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
     );

@@ -20,9 +20,8 @@ const IncomeModal = dynamic(
   { ssr: false },
 );
 
-// The create pair plus the details pair, as rendered by both the overview and
-// the transactions page. Which details modal opens is decided by isIncomeLike,
-// since income events and expense events are edited through different forms.
+// The create pair plus the details pair, shared by the overview and the
+// transactions page. isIncomeLike decides which details modal opens.
 export function EventModals(args: {
   wallets: Wallet[];
   funds: Fund[];

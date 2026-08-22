@@ -9,9 +9,8 @@ import { Button } from "@/components/ui/button";
 import { fmtAmount, fmtDateShort } from "@/app/tracker/lib/format";
 import { isDevTestingEnabled } from "@/lib/dev-testing";
 
-// The hero CTA reuses the app Button but overrides the toolbar-dense `lg`
-// sizing (which shrinks to h-8/text-xs at sm:) so the page's single primary
-// action reads at full presence on desktop too.
+// Overrides the toolbar-dense `lg` sizing so the hero CTA stays full size on
+// desktop.
 const heroCtaClass =
   "h-12 rounded-lg px-6 text-base font-semibold sm:h-12 sm:px-6 sm:text-base";
 

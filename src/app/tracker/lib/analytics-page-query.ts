@@ -1,10 +1,6 @@
-// Analytics exposes far fewer filters than the transactions page. Pending
-// status, income, and direction each split an axis the summary cards and charts
-// already break out, so filtering on them empties half the page instead of
-// narrowing it. The amount range is dropped for a different reason: totals like
-// Net and Spending stop meaning what their labels say once an amount cut-off
-// silently excludes transactions. What is left picks *which* transactions the
-// breakdown covers, by description or by account.
+// Analytics exposes fewer filters than the transactions page. Status, income,
+// and direction split axes the charts already break out, and an amount cut-off
+// would make totals like Net and Spending stop meaning what they say.
 export type AnalyticsPageFilters = {
   search: string;
   fundIds: number[];
@@ -38,11 +34,9 @@ export function analyticsFiltersCacheKey(
   return JSON.stringify(normalizeAnalyticsFilters(filters));
 }
 
-// Serializes the three transaction-level filters the analytics endpoint
-// accepts, matching what @/app/api/query-params reads back. The caller adds the
-// date-range and grouping params separately. Normalizes first so a request
-// always matches the analyticsFiltersCacheKey it is cached under, whatever the
-// caller passes in.
+// Serializes the three filters the analytics endpoint accepts, normalized
+// first so a request matches the analyticsFiltersCacheKey it is cached under.
+// The caller adds the date-range and grouping params separately.
 export function appendAnalyticsFilterParams(
   params: URLSearchParams,
   filters: AnalyticsPageFilters,

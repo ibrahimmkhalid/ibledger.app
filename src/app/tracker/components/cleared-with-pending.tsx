@@ -13,10 +13,8 @@ export function ClearedWithPending(args: {
   // so a sub-cent delta doesn't render as "[-$0.00]".
   const deltaCents = Math.round((withPending - cleared) * 100);
   const clearedCents = Math.round(cleared * 100);
-  // Displayed from the rounded value, not the raw one. A balance of -0.001 is
-  // dust, but Math.round leaves it at -0 and the accounting formatter renders
-  // that as "($0.00)" — parentheses claiming a negative that the tint below
-  // won't back up, since -0 < 0 is false. The zero case picks a positive zero.
+  // Rounded, and zero forced positive: -0 formats as "($0.00)" while the tint
+  // below reads it as non-negative.
   const displayedCleared = clearedCents === 0 ? 0 : clearedCents / 100;
 
   const sign = deltaCents > 0 ? "+" : "-";

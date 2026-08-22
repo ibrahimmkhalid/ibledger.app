@@ -199,10 +199,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
-    // Both figures are checked, not just the pending-inclusive one: they can
-    // cancel out. A wallet holding $500 against a pending -$500 bill nets to
-    // zero while still holding $500, and deleting it drops that money from
-    // every wallet aggregate while the funds side goes on counting it.
+    // Both figures, because they can cancel out: $500 against a pending -$500
+    // bill nets to zero while the wallet still holds $500.
     const cleared = Number(walletBalanceRow?.balance ?? 0);
     const bal = Number(walletBalanceRow?.balanceWithPending ?? 0);
     if (holdsMoney(cleared) || holdsMoney(bal)) {

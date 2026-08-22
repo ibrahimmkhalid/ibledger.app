@@ -30,11 +30,9 @@ type Identity =
   | { kind: "email_taken" };
 
 // Resolves the Clerk caller to their row, adopting an unclaimed row that matches
-// on email. Writes on that adoption path, despite the name-shape.
-//
-// "email_taken" is distinct from "missing" on purpose: an email-matched row bound
-// to someone else's Clerk ID must never resolve, and telling that caller to
-// bootstrap would send them to an endpoint that rejects them for the same reason.
+// on email. Writes on that adoption path, despite the name-shape. "email_taken"
+// is separate from "missing" so the caller is not sent to bootstrap, which would
+// reject them for the same reason.
 async function resolveIdentity(
   user: AuthUser | null | undefined,
 ): Promise<Identity> {
@@ -72,9 +70,8 @@ async function resolveIdentity(
     return { kind: "missing" };
   }
 
-  // A soft-deleted account still owns its unique email but must be neither
-  // authorized nor adopted. Blocked rather than "missing": sending this caller
-  // to bootstrap would just collide with the same row.
+  // A soft-deleted account still owns its unique email, so it is blocked rather
+  // than missing; bootstrap would collide with the same row.
   if (byEmail.deletedAt) {
     return { kind: "email_taken" };
   }
@@ -106,9 +103,8 @@ async function resolveIdentity(
     return { kind: "found", user: adopted };
   }
 
-  // The conditional update matched nothing, so someone claimed the row between
-  // the read and the write. That someone may be this same caller in a parallel
-  // request, so re-read rather than assuming a conflict.
+  // Someone claimed the row between the read and the write, possibly this same
+  // caller in a parallel request, so re-read rather than assume a conflict.
   const claimed = await db
     .select()
     .from(users)

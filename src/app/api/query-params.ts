@@ -1,9 +1,5 @@
 export class BadRequestError extends Error {
-  /**
-   * Which form field the complaint belongs under, when the route knows. Lets a
-   * client file the message beside the input that caused it without reading the
-   * prose, so the copy can be reworded without breaking the routing.
-   */
+  /** Which form field the complaint belongs under, when the route knows. */
   readonly field?: string;
 
   constructor(message: string, field?: string) {
@@ -107,8 +103,7 @@ function escapeLike(input: string) {
 }
 
 // Each term becomes a LIKE pattern with wildcards between every character, so
-// "amzn" matches "Amazon". Capped at 8 terms: each one costs a correlated
-// subquery per row.
+// "amzn" matches "Amazon". Capped at 8: each term costs a subquery per row.
 export function fuzzyLikePatterns(search: string) {
   return search
     .trim()

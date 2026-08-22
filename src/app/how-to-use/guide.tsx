@@ -23,11 +23,8 @@ import { SAVINGS_COLOR, seriesColor } from "@/app/tracker/lib/series-colors";
 const HATCH =
   "repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.18) 3px,rgba(255,255,255,.18) 6px)";
 
-// Fixed so the example card renders the same on server and client. The guide
-// is a server component on /how-to-use and a client one inside onboarding, so
-// this module is evaluated in both runtimes; built from a local midnight it
-// would be a different instant in each, and fmtDateShort reads it as UTC, so a
-// browser far enough east of UTC showed the 11th.
+// Fixed, because the guide renders as both a server and a client component and
+// a local midnight would be a different instant in each.
 const EXAMPLE_DATE = new Date(Date.UTC(2026, 0, 12));
 
 const GROCERIES = seriesColor(2);
@@ -40,9 +37,8 @@ function Section(args: {
 }) {
   const { icon: Icon, title, children } = args;
   return (
-    // The guide sits in the app's full-width container, but prose at that
-    // measure is unreadable. From lg up the heading moves into its own narrow
-    // column, so the wide frame is used while the text stays capped.
+    // From lg up the heading takes its own column so the prose stays capped
+    // inside the app's full-width container.
     <section className="border-border grid gap-x-8 gap-y-3 border-t pt-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
       <div className="flex items-start gap-2">
         <Icon aria-hidden className="text-primary mt-0.5 size-4 shrink-0" />
@@ -279,11 +275,7 @@ function OverspentFigure() {
   );
 }
 
-/**
- * The guide itself, with no page chrome. Rendered standalone at /how-to-use
- * and as the first step of onboarding, so a new user meets it once before
- * setting anything up and can always come back to the same text.
- */
+/** The guide with no page chrome, rendered at /how-to-use and in onboarding. */
 export function HowToUseGuide() {
   return (
     <div className="flex flex-col gap-8">

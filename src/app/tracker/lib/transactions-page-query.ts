@@ -74,9 +74,8 @@ export function transactionsPageCacheKey(query: TransactionsPageQuery): string {
   )}`;
 }
 
-// Serializes the eight transaction-level filters that the transactions and
-// analytics endpoints share, matching what @/app/api/query-params reads back.
-// Each caller adds its own page/date-specific params separately.
+// Serializes the eight filters the transactions and analytics endpoints share.
+// Each caller adds its own page and date params separately.
 export function appendTransactionFilterParams(
   params: URLSearchParams,
   filters: TransactionsPageFilters,

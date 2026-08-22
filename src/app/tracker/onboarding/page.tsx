@@ -208,11 +208,9 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // A first run opens on the guide; a revisit (to tweak wallets and funds
-  // later) goes straight to setup. Decided once, on the first bootstrap —
-  // refresh() runs again after every create/delete, and onboarding stays
-  // "required" until Finish setup, so re-deciding would bounce the user back
-  // to the guide mid-setup.
+  // A first run opens on the guide, a revisit on setup. Decided once: refresh()
+  // runs after every create and delete, so re-deciding would bounce the user
+  // back to the guide mid-setup.
   const [step, setStep] = useState<"guide" | "setup">("setup");
   const stepDecided = useRef(false);
 

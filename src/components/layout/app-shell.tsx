@@ -32,9 +32,8 @@ import {
   syncBootstrapIdentity,
 } from "@/app/tracker/lib/bootstrap";
 
-// Reports the Clerk user id to the bootstrap cache so a session switch that
-// happens without a full page load drops the previous user's cached result.
-// Split out (and only mounted when Clerk is) because useAuth needs a provider.
+// Reports the Clerk user id to the bootstrap cache. Split out because useAuth
+// needs a provider.
 function BootstrapIdentitySync() {
   const { isLoaded, userId } = useAuth();
   useEffect(() => {
@@ -89,9 +88,8 @@ export function AppShell(args: {
   const pathname = usePathname();
   const inTracker = pathname.startsWith("/tracker");
 
-  // Every nav link bounces straight back to onboarding until setup is done, so
-  // showing them just invites a page flash that reads as broken. The server is
-  // the authority; false until bootstrap answers.
+  // Nav links bounce back to onboarding until setup is done, so hide them.
+  // False until bootstrap answers.
   const onboardingRequired = useSyncExternalStore(
     subscribeOnboardingRequired,
     getOnboardingRequired,

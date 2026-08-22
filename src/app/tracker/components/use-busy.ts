@@ -1,8 +1,7 @@
 import { useState } from "react";
 
-// The busy/error state both event modals share, plus the wrapper that runs an
-// async action with them: clear the error, flip busy on, and on failure surface
-// the message (falling back to `fallback`) rather than throwing.
+// The busy/error state both event modals share, plus a wrapper that runs an
+// async action with them and surfaces a failure instead of throwing.
 export function useBusy() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -130,14 +130,9 @@ function textSearchSql(userId: number, pattern: string) {
 }
 
 /**
- * Builds the event-level WHERE conditions for the eight transaction filters the
- * transactions list understands.
- *
- * Shared with POST /api/transactions/clear-pending so "Clear pending" settles
- * exactly the rows the user is looking at — it used to take no parameters and
- * silently clear the whole ledger while sitting beside a filtered count.
- *
- * Throws BadRequestError for a min/max range that can never match.
+ * Builds the event-level WHERE conditions for the eight transaction filters,
+ * shared with POST /api/transactions/clear-pending so "Clear pending" settles
+ * exactly the rows on screen. Throws BadRequestError for an impossible range.
  */
 export function buildEventFilterConditions(
   searchParams: URLSearchParams,

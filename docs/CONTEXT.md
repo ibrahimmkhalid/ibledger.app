@@ -114,6 +114,30 @@ creeps back the first time someone calls `Number()`.)
 **Trigger: the first time a user reports a balance wrong by a cent.** Until
 then the tolerance guard holds and the migration isn't worth the churn.
 
+### Amount input masking
+
+Amount fields are cents-first: the user types digits, they fill in from the
+right, and `value` is a plain cents string ("4200") shown as "$42.00". What
+follows is what `src/app/tracker/lib/cents.ts` and `components/amount-input.tsx`
+do not say on their face.
+
+An empty amount has to render as an empty string rather than "$0.00". Content
+in the field hides the placeholder, and because the text is right-aligned, a
+caret clicked into the empty left margin prepends: typing 4200 at index 0 of
+"$0.00" gives $42,000.00. For the same reason all-zero digits count as empty,
+so the last backspace clears the field instead of bottoming out at "$0.00".
+
+`MAX_CENTS_DIGITS` is 15 because that is the most digits of cents a double
+holds exactly. At 16, `9999999999999999` comes back as `10000000000000000` and
+the field shows a figure nobody typed; past 21, `String()` switches to
+exponential and puts "1e+21" in a value meant to be digits. The ceiling is
+$9,999,999,999,999.99.
+
+`AmountInput` pins the caret to the end after every masked change. The mask
+rewrites the whole string on each keystroke and thousands grouping changes its
+length ("$999.99" becomes "$9,999.99"), so React's restore-by-index would land
+two characters short and insert the next digit before the last two.
+
 ## How it runs
 
 ### Deploy

@@ -30,23 +30,7 @@ type FundSyncInput = {
 
 type FundUpdateInput = FundSyncInput & { id: number };
 
-/**
- * PUT /api/funds/sync
- *
- * Atomic bulk-sync of funds: create, update, and soft-delete in one call.
- *
- * Body:
- * ```
- * {
- *   funds: Array<{
- *     id?: number;           // omit for new funds
- *     name: string;
- *     pullPercentage: number;
- *   }>;
- *   deletedIds: number[];    // fund IDs to soft-delete
- * }
- * ```
- */
+/** Creates, updates, and soft-deletes funds in one transaction. */
 export async function PUT(request: NextRequest) {
   try {
     const { user, response } = await requireUser();
@@ -130,10 +114,7 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Income allocation reads these percentages back and rejects a sum over
-      // 100, so a sync that pushes them past it would lock the user out of
-      // recording income with no way to see why. Check the state this sync
-      // would leave behind, not just the funds it names.
+      // Check the total this sync would leave behind, not just the funds it names.
       const updateById = new Map(updateInputs.map((fund) => [fund.id, fund]));
 
       let resultingPullSum = 0;
@@ -243,9 +224,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // The remaining domain errors thrown inside the transaction ("Fund N not
-    // found", "Cannot delete savings fund", non-zero balance) still surface as
-    // 500s with their raw message. Pre-existing, and left alone deliberately.
+    // Domain errors thrown inside the transaction still surface as 500s with
+    // their raw message.
     const message =
       error instanceof Error ? error.message : "Internal server error";
     console.error("API: Error syncing funds", error);

@@ -32,10 +32,8 @@ let inFlight: Promise<BootstrapResponse> | null = null;
 let identity: string | null | undefined;
 let generation = 0;
 
-// The cache below assumes one signed-in user per JS context, but Clerk can
-// swap sessions without a full page load (sign-out via client navigation,
-// multi-session account switching). AppShell reports the Clerk user id here;
-// when it changes, the previous user's cached bootstrap must not be replayed.
+// Clerk can swap sessions without a full page load, so AppShell reports the
+// user id here and a change invalidates the cache below.
 export function syncBootstrapIdentity(userId: string | null) {
   if (identity === userId) return;
   const isFirstReport = identity === undefined;
@@ -49,10 +47,8 @@ export function syncBootstrapIdentity(userId: string | null) {
   setOnboardingRequired(false);
 }
 
-// POSTs /api/bootstrap once per app load and replays the result for later
-// page mounts, removing a serial round trip from every tracker navigation.
-// Responses that demand a redirect (onboarding required) are not cached, so
-// that flow keeps re-checking until it completes.
+// POSTs /api/bootstrap once per app load and replays the result for later page
+// mounts. Responses that demand a redirect are not cached.
 function checkBootstrap(): Promise<BootstrapResponse> {
   if (settled) return Promise.resolve(settled);
 
@@ -76,10 +72,8 @@ function checkBootstrap(): Promise<BootstrapResponse> {
       });
   }
 
-  // A session swap while the request is in flight bumps the generation; the
-  // resolved payload then belongs to the previous user and must not drive
-  // caching or onboarding redirects, so re-enter to fetch for the current
-  // identity instead of handing the stale response to the caller.
+  // The generation moved, so this payload belongs to the previous user.
+  // Re-enter and fetch for the current one.
   const joinedGeneration = generation;
   return inFlight.then((boot) =>
     joinedGeneration === generation ? boot : checkBootstrap(),
@@ -87,21 +81,17 @@ function checkBootstrap(): Promise<BootstrapResponse> {
 }
 
 // Returns null when a redirect was issued and the caller should stop loading,
-// otherwise the bootstrap payload. Every tracker page opens with this; most
-// only need the null check, but onboarding reads onboarding.required off the
-// payload to tell a first run from a revisit.
+// otherwise the bootstrap payload.
 export async function checkBootstrapOrRedirect(
   router: { replace: (href: string) => void },
   opts?: { skipOnboarding?: boolean },
 ): Promise<BootstrapResponse | null> {
   const boot = await checkBootstrap();
 
-  // The onboarding page passes skipOnboarding so users can revisit it to tweak
-  // their initial setup after it is no longer required.
+  // skipOnboarding lets the onboarding page be revisited once setup is done.
   if (!opts?.skipOnboarding && boot.onboarding?.required) {
-    // The overview is where a new user lands, so bouncing from there is simply
-    // the start of setup. Anywhere else they clicked a link and the page
-    // flashed back to onboarding, which reads as broken unless we say why.
+    // Bouncing off the overview is just the start of setup; anywhere else the
+    // user clicked a link, so say why.
     const path = typeof window === "undefined" ? "" : window.location.pathname;
     if (path !== "/" && path !== "/tracker") {
       // Fixed id so the notice can't stack: every gated page calls this, and

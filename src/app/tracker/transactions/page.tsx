@@ -446,9 +446,8 @@ export default function TransactionsPage() {
     await refresh({ page, pageSize, filters }, { fullScreen: false });
   }, [clearPageCache, filters, page, pageSize, refresh]);
 
-  // Scoped to the filters currently applied, because the button sits right
-  // beside the filtered count and reads as if it were. The whole-ledger version
-  // lives on the Overview, where a ledger-wide action belongs.
+  // Scoped to the applied filters: the button sits beside the filtered count.
+  // The whole-ledger version lives on the Overview.
   const clearFilteredPending = useCallback(async () => {
     const noun = totalCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({

@@ -30,9 +30,8 @@ import { UnavailableActionButton } from "@/app/tracker/components/unavailable-ac
 import { holdsMoney } from "@/lib/money";
 import type { Wallet } from "@/app/tracker/types";
 
-// Mirrors the guard the DELETE handler enforces, so the button is never
-// offered for a deletion that is certain to fail. The last-wallet rule is a
-// client-side rule: a ledger with no wallet has nowhere to record anything.
+// Mirrors the DELETE handler's guard so the button is never offered for a
+// deletion that must fail.
 function canDeleteWallet(
   wallet: Wallet,
   walletCount: number,
@@ -40,10 +39,8 @@ function canDeleteWallet(
   if (walletCount <= 1) {
     return { ok: false, reason: "Your last wallet can't be deleted" };
   }
-  // Cleared and pending are weighed apart so they cannot cancel each other
-  // out. A wallet holding $500 against a pending -$500 bill nets to zero, but
-  // there is still $500 in it, and deleting it drops that from the wallet
-  // totals while the funds side keeps counting it.
+  // Weighed apart so they cannot cancel out: $500 against a pending -$500 bill
+  // nets to zero while the wallet still holds $500.
   if (
     holdsMoney(Number(wallet.balance)) ||
     holdsMoney(Number(wallet.balanceWithPending))
@@ -103,9 +100,7 @@ export default function WalletsPage() {
     void refresh();
   }, [refresh]);
 
-  // These rethrow instead of toasting: WalletModal shows the reason next to
-  // the name field, the same as during onboarding. It also blocks an empty
-  // name before calling in, so there is nothing to check for here.
+  // Rethrows instead of toasting; WalletModal shows the reason by the field.
   async function createWallet(data: WalletFormState) {
     setBusy(true);
     try {

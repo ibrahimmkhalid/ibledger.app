@@ -110,9 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Income allocation rejects a total over 100 when the user later records
-    // income, so a fund created past the cap locks them out of the feature with
-    // nothing on screen explaining why. Reject it at the point of creation.
+    // Reject an over-100% total here, not later when income is recorded.
     const newFund = await db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(${FUND_LOCK_NAMESPACE}, ${user.id})`,
