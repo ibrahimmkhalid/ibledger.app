@@ -26,6 +26,8 @@ const IncomeModal = dynamic(
 export function EventModals(args: {
   wallets: Wallet[];
   funds: Fund[];
+  /** Changes on every opening; remounts the modals so their forms start fresh. */
+  modalKey: number;
   createTransactionOpen: boolean;
   onCreateTransactionOpenChange: (open: boolean) => void;
   createIncomeOpen: boolean;
@@ -37,6 +39,7 @@ export function EventModals(args: {
   const {
     wallets,
     funds,
+    modalKey,
     createTransactionOpen,
     onCreateTransactionOpenChange,
     createIncomeOpen,
@@ -61,6 +64,7 @@ export function EventModals(args: {
   return (
     <>
       <TransactionModal
+        key={`create-transaction-${modalKey}`}
         open={createTransactionOpen}
         onOpenChange={onCreateTransactionOpenChange}
         wallets={wallets}
@@ -72,6 +76,7 @@ export function EventModals(args: {
       />
 
       <IncomeModal
+        key={`create-income-${modalKey}`}
         open={createIncomeOpen}
         onOpenChange={onCreateIncomeOpenChange}
         wallets={wallets}
@@ -82,6 +87,7 @@ export function EventModals(args: {
       />
 
       <TransactionModal
+        key={`details-transaction-${modalKey}`}
         open={Boolean(detailsEvent) && !detailsIsIncome}
         onOpenChange={closeDetails}
         wallets={wallets}
@@ -92,6 +98,7 @@ export function EventModals(args: {
       />
 
       <IncomeModal
+        key={`details-income-${modalKey}`}
         open={Boolean(detailsEvent) && detailsIsIncome}
         onOpenChange={closeDetails}
         wallets={wallets}

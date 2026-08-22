@@ -19,5 +19,5 @@ export function useBusy() {
     }
   }
 
-  return { busy, error, setBusy, setError, runWithBusy };
+  return { busy, error, runWithBusy };
 }

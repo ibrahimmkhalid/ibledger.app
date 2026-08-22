@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/app/tracker/components/field-error";
@@ -27,18 +27,6 @@ export function WalletModal(args: {
   const [nameError, setNameError] = useState<string | null>(null);
   const nameId = useId();
   const nameErrorId = useId();
-
-  // Callers build `initial` inline, so it is a new object on every one of their
-  // renders. Depending on its identity would re-run this on the very re-render
-  // a failed save causes, wiping the error before it is ever painted. Key off
-  // the value instead.
-  const initialName = initial?.name ?? "";
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initialName);
-    setNameError(null);
-  }, [open, initialName]);
 
   async function save() {
     if (!name.trim()) {

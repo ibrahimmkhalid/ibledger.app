@@ -91,6 +91,22 @@ export default function TrackerPage() {
   const [detailsEvent, setDetailsEvent] = useState<TransactionEvent | null>(
     null,
   );
+  const [modalKey, setModalKey] = useState(0);
+
+  function openCreateTransaction() {
+    setModalKey((n) => n + 1);
+    setCreateTransactionOpen(true);
+  }
+
+  function openCreateIncome() {
+    setModalKey((n) => n + 1);
+    setCreateIncomeOpen(true);
+  }
+
+  function openDetails(event: TransactionEvent) {
+    setModalKey((n) => n + 1);
+    setDetailsEvent(event);
+  }
 
   const refresh = useCallback(
     async (opts?: { initial?: boolean }) => {
@@ -177,20 +193,21 @@ export default function TrackerPage() {
   return (
     <div className="flex flex-col gap-6">
       {confirmDialog}
-      <AddTransactionFab onClick={() => setCreateTransactionOpen(true)} />
+      <AddTransactionFab onClick={openCreateTransaction} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Overview</h1>
         <TrackerActions
           onRefresh={() => void refresh()}
           refreshing={refreshing}
-          onAddTransaction={() => setCreateTransactionOpen(true)}
-          onAddIncome={() => setCreateIncomeOpen(true)}
+          onAddTransaction={openCreateTransaction}
+          onAddIncome={openCreateIncome}
         />
       </div>
 
       <EventModals
         wallets={wallets}
         funds={funds}
+        modalKey={modalKey}
         createTransactionOpen={createTransactionOpen}
         onCreateTransactionOpenChange={setCreateTransactionOpen}
         createIncomeOpen={createIncomeOpen}
@@ -329,9 +346,7 @@ export default function TrackerPage() {
               <p className="text-sm">
                 No transactions yet. Add your first one to get started.
               </p>
-              <Button onClick={() => setCreateTransactionOpen(true)}>
-                Add transaction
-              </Button>
+              <Button onClick={openCreateTransaction}>Add transaction</Button>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -339,7 +354,7 @@ export default function TrackerPage() {
                 <TransactionEventCard
                   key={ev.id}
                   event={ev}
-                  onClick={() => setDetailsEvent(ev)}
+                  onClick={() => openDetails(ev)}
                 />
               ))}
             </div>

@@ -67,6 +67,17 @@ export default function WalletsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editWallet, setEditWallet] = useState<Wallet | null>(null);
+  const [modalKey, setModalKey] = useState(0);
+
+  function openCreate() {
+    setModalKey((n) => n + 1);
+    setCreateOpen(true);
+  }
+
+  function openEdit(wallet: Wallet) {
+    setModalKey((n) => n + 1);
+    setEditWallet(wallet);
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -164,7 +175,7 @@ export default function WalletsPage() {
             <RefreshCwIcon />
             Refresh
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={openCreate}>
             <PlusIcon />
             New wallet
           </Button>
@@ -172,6 +183,7 @@ export default function WalletsPage() {
       </div>
 
       <WalletModal
+        key={`create-wallet-${modalKey}`}
         open={createOpen}
         onOpenChange={setCreateOpen}
         title="New wallet"
@@ -180,6 +192,7 @@ export default function WalletsPage() {
       />
 
       <WalletModal
+        key={`edit-wallet-${modalKey}`}
         open={Boolean(editWallet)}
         onOpenChange={(open: boolean) => {
           if (!open) setEditWallet(null);
@@ -230,7 +243,7 @@ export default function WalletsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditWallet(w)}
+                          onClick={() => openEdit(w)}
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >

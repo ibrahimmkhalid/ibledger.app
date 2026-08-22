@@ -100,20 +100,6 @@ function FundModal(args: {
   const nameErrorId = useId();
   const shareErrorId = useId();
 
-  // Same reason as WalletModal: `initial` is built inline by the caller, so
-  // depending on its identity would re-run this on the re-render a failed save
-  // causes and wipe the errors before they are painted.
-  const initialName = initial?.name ?? "";
-  const initialShare = initial?.pullPercentage ?? "0";
-
-  useEffect(() => {
-    if (!open) return;
-    setName(initialName);
-    setPullPercentage(initialShare);
-    setNameError(null);
-    setShareError(null);
-  }, [open, initialName, initialShare]);
-
   const share = Number(pullPercentage);
   const remaining = isValidFundShare(share)
     ? Math.max(0, 100 - otherFundsShare - share)
@@ -244,6 +230,27 @@ export default function OnboardingPage() {
 
   const [createFundOpen, setCreateFundOpen] = useState(false);
   const [editFund, setEditFund] = useState<Fund | null>(null);
+  const [modalKey, setModalKey] = useState(0);
+
+  function openCreateWallet() {
+    setModalKey((n) => n + 1);
+    setCreateWalletOpen(true);
+  }
+
+  function openEditWallet(wallet: Wallet) {
+    setModalKey((n) => n + 1);
+    setEditWallet(wallet);
+  }
+
+  function openCreateFund() {
+    setModalKey((n) => n + 1);
+    setCreateFundOpen(true);
+  }
+
+  function openEditFund(fund: Fund) {
+    setModalKey((n) => n + 1);
+    setEditFund(fund);
+  }
 
   const canFinish = wallets.length > 0 && funds.length > 0;
 
@@ -490,6 +497,7 @@ export default function OnboardingPage() {
       </div>
 
       <WalletModal
+        key={`create-wallet-${modalKey}`}
         open={createWalletOpen}
         onOpenChange={setCreateWalletOpen}
         title="New wallet"
@@ -498,6 +506,7 @@ export default function OnboardingPage() {
       />
 
       <WalletModal
+        key={`edit-wallet-${modalKey}`}
         open={Boolean(editWallet)}
         onOpenChange={(open: boolean) => {
           if (!open) setEditWallet(null);
@@ -518,6 +527,7 @@ export default function OnboardingPage() {
       />
 
       <FundModal
+        key={`create-fund-${modalKey}`}
         open={createFundOpen}
         onOpenChange={setCreateFundOpen}
         title="New fund"
@@ -527,6 +537,7 @@ export default function OnboardingPage() {
       />
 
       <FundModal
+        key={`edit-fund-${modalKey}`}
         open={Boolean(editFund)}
         onOpenChange={(open: boolean) => {
           if (!open) setEditFund(null);
@@ -553,7 +564,7 @@ export default function OnboardingPage() {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Wallets</CardTitle>
-            <Button onClick={() => setCreateWalletOpen(true)}>
+            <Button onClick={openCreateWallet}>
               <PlusIcon />
               New wallet
             </Button>
@@ -586,7 +597,7 @@ export default function OnboardingPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditWallet(w)}
+                          onClick={() => openEditWallet(w)}
                           disabled={busy}
                           aria-label={`Edit ${w.name}`}
                         >
@@ -616,7 +627,7 @@ export default function OnboardingPage() {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Funds</CardTitle>
-            <Button onClick={() => setCreateFundOpen(true)}>
+            <Button onClick={openCreateFund}>
               <PlusIcon />
               New fund
             </Button>
@@ -658,7 +669,7 @@ export default function OnboardingPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setEditFund(f)}
+                          onClick={() => openEditFund(f)}
                           disabled={busy}
                           aria-label={`Edit ${f.name}`}
                         >
