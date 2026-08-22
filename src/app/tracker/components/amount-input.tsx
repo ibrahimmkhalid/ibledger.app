@@ -34,8 +34,8 @@ export function AmountInput({
 
   useLayoutEffect(() => {
     const element = ref.current;
-    // Only while the user is actually typing in this field — moving the caret
-    // of an unfocused input would steal focus in some browsers.
+    // Only while the user is typing in this field. Moving the caret of an
+    // unfocused input would steal focus in some browsers.
     if (!element || document.activeElement !== element) return;
 
     const end = element.value.length;

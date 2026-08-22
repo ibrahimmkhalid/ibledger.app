@@ -21,7 +21,7 @@ export function ClearedWithPending(args: {
   return (
     <>
       {/* Accounting parentheses are the only other cue that a balance is
-          negative, and plenty of people don't read them as one — "you owe
+          negative, and plenty of people don't read them as one. "You owe
           $718.50" should not look like "you have $718.50". */}
       <span
         className={cn("font-semibold", clearedCents < 0 && "text-destructive")}

@@ -56,7 +56,7 @@ function roundHalf(n: number): number {
   return Math.round(n * 2) / 2;
 }
 
-/** Format a percentage for display — showing .0 or .5 only when needed. */
+/** Format a percentage, showing .0 or .5 only when needed. */
 function fmtPct(n: number): string {
   const rounded = roundHalf(n);
   if (Number.isInteger(rounded)) {
@@ -364,7 +364,7 @@ export default function FundsPage() {
           className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
         >
           Your saved income shares added up to more than 100%. They have been
-          scaled back to fit — press Confirm to save the correction.
+          scaled back to fit. Press Confirm to save the correction.
         </div>
       )}
 

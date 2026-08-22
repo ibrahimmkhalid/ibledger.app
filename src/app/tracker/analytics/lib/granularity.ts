@@ -23,7 +23,7 @@ export const GROUP_BY_LABELS: Record<GroupBy, string> = {
 };
 
 // Shown on a slot with no bucket to offer.
-export const GRANULARITY_EMPTY_LABEL = "—";
+export const GRANULARITY_EMPTY_LABEL = "N/A";
 
 // Base (range, zoom) → bucket size before data-span capping.
 export const GRANULARITY_SLOT_MAP: Record<

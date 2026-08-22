@@ -240,11 +240,11 @@ function ClearedPendingFigure() {
           <span className="text-foreground w-24 shrink-0 font-semibold tabular-nums">
             {fmtAmount(590)}
           </span>
-          <span>cleared — money that has actually settled</span>
+          <span>cleared, money that has actually settled</span>
         </div>
         <div className="flex items-baseline gap-2">
           <span className="w-24 shrink-0 tabular-nums">[+$190.00]</span>
-          <span>pending — on its way in, not counted yet</span>
+          <span>pending, on its way in and not counted yet</span>
         </div>
       </div>
     </div>
@@ -282,9 +282,9 @@ export function HowToUseGuide() {
       <Section icon={ScaleIcon} title="Wallets and funds">
         <p>
           Every transaction line picks a{" "}
-          <span className="text-foreground font-medium">wallet</span> — where
-          the money sits — and a{" "}
-          <span className="text-foreground font-medium">fund</span> — what the
+          <span className="text-foreground font-medium">wallet</span>, where the
+          money sits, and a{" "}
+          <span className="text-foreground font-medium">fund</span>, what the
           money is for.
         </p>
 
@@ -328,8 +328,8 @@ export function HowToUseGuide() {
         <p>
           Add every account your money actually sits in as a wallet, and add a
           fund for each thing you set money aside for. You start with a Bank
-          wallet and a Savings fund — rename them, add your own, or head
-          straight to the tracker.
+          wallet and a Savings fund. Rename them, add your own, or head straight
+          to the tracker.
         </p>
         <p>
           Nothing you choose here is permanent. Wallets and funds can be
@@ -337,7 +337,7 @@ export function HowToUseGuide() {
         </p>
         <p>
           A new ledger starts at $0.00, so if you already have money in these
-          accounts, record it once as your first transaction — one line per
+          accounts, record it once as your first transaction, one line per
           wallet, direction{" "}
           <span className="text-foreground font-medium">In</span>, for the
           amount sitting there. Put it against{" "}
@@ -362,9 +362,9 @@ export function HowToUseGuide() {
 
         <p>
           Set the shares on the Funds page. Drag a divider on the allocation
-          bar, or focus a divider and use the arrow keys — hold Shift for bigger
-          steps. Nothing is saved until you press Confirm, and Revert undoes
-          every change.
+          bar, or focus a divider and use the arrow keys, holding Shift for
+          bigger steps. Nothing is saved until you press Confirm, and Revert
+          undoes every change.
         </p>
         <p>
           When you record income it splits itself by those shares. Open an
@@ -395,15 +395,15 @@ export function HowToUseGuide() {
           your cleared balance until you clear them.
         </p>
 
-        <Figure caption="Every balance in the app reads this way — the settled figure first, the pending change in brackets.">
+        <Figure caption="Every balance in the app reads this way: the settled figure first, the pending change in brackets.">
           <ClearedPendingFigure />
         </Figure>
 
         <p>
           To settle several at once, filter the Transactions page to Status
           &ldquo;Pending&rdquo; and use Clear pending. It settles exactly the
-          transactions matching your filters — the button says how many — and
-          leaves everything outside them pending. To settle the whole ledger in
+          transactions matching your filters, and the button says how many.
+          Everything outside them stays pending. To settle the whole ledger in
           one go, use Clear all pending on the Overview instead.
         </p>
       </Section>
@@ -411,7 +411,7 @@ export function HowToUseGuide() {
       <Section icon={TagsIcon} title="Transactions with several lines">
         <p>
           A single transaction can split across several wallets and funds. Use
-          Add line in the transaction modal — each line carries its own wallet,
+          Add line in the transaction modal. Each line carries its own wallet,
           fund, description, direction (in or out), amount, and pending flag.
           The editor shows a running net total as you go, so you can check what
           the whole entry comes to.
@@ -433,7 +433,7 @@ export function HowToUseGuide() {
 
         <p>
           The grey line above the description is the entry&apos;s meta line. It
-          names the date, wallet and fund — and reads{" "}
+          names the date, wallet and fund, and reads{" "}
           <span className="text-foreground font-medium">Multiple</span> in place
           of a name when the entry&apos;s lines span more than one wallet, or
           more than one fund. Open the entry to see which.
@@ -463,7 +463,7 @@ export function HowToUseGuide() {
           don&apos;t, and the net total of the transaction comes to $0.00.
         </p>
         <p>
-          This is also how you empty a wallet you want to delete — a wallet
+          This is also how you empty a wallet you want to delete, since a wallet
           holding money can&apos;t be deleted.
         </p>
       </Section>
@@ -487,8 +487,8 @@ export function HowToUseGuide() {
       <Section icon={PiggyBankIcon} title="Why Savings can go negative">
         <p>
           Savings is the buffer of last resort. Every other fund stops at $0.00
-          and shows an Overspent badge, and the shortfall does not vanish — it
-          is taken off Savings. Several overspent funds all come off the same
+          and shows an Overspent badge, and the shortfall does not vanish. It is
+          taken off Savings. Several overspent funds all come off the same
           place, so the figure on Savings is your own savings minus everything
           the other funds went over by.
         </p>
@@ -507,7 +507,7 @@ export function HowToUseGuide() {
 
       <Section icon={Trash2Icon} title="Deleting wallets and funds">
         <p>
-          A wallet or fund that still holds money — including pending money —
+          A wallet or fund that still holds money, including pending money,
           can&apos;t be deleted. Move the money elsewhere and clear any pending
           transactions first.
         </p>

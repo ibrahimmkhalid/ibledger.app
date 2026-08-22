@@ -97,7 +97,7 @@ export function AppShell(args: {
   );
 
   // The guide is one of the nav destinations, so the nav has to survive
-  // landing on it — otherwise following the link strands the user there.
+  // landing on it. Otherwise following the link strands the user there.
   const showSectionNav =
     (inTracker || pathname === "/how-to-use") && !onboardingRequired;
   const year = new Date().getFullYear();
@@ -186,7 +186,7 @@ export function AppShell(args: {
       <footer className="border-t">
         {/* The mobile FAB is fixed to the bottom-right of the viewport, which
             is exactly where these links land once the page is scrolled to the
-            end — enough padding to clear it keeps them tappable. */}
+            end. Enough padding to clear it keeps them tappable. */}
         <div className="text-muted-foreground mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 pt-6 pb-24 text-xs sm:pb-6">
           <div>{year}</div>
           <div className="flex items-center gap-4">

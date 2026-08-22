@@ -18,7 +18,7 @@ function roundHalf(n: number): number {
   return Math.round(n * 2) / 2;
 }
 
-/** Format a percentage for display — showing .0 or .5 only when needed. */
+/** Format a percentage, showing .0 or .5 only when needed. */
 function fmtPct(n: number): string {
   const rounded = roundHalf(n);
   if (Number.isInteger(rounded)) {

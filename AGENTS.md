@@ -18,7 +18,7 @@ model, the invariants, and the known debt.
   `next build` and nothing else. Schema first, push second.
 - **Explanation goes on the How to use page**, never as prose in the app UI.
   If a control needs explaining, it goes in
-  `src/app/how-to-use/guide.tsx` — not as helper text, card descriptions, or
+  `src/app/how-to-use/guide.tsx`, not as helper text, card descriptions, or
   intro paragraphs. Terse validation errors and disabled-control reasons are
   fine.
 
@@ -28,11 +28,11 @@ model, the invariants, and the known debt.
 bun run typecheck && bun run lint && bun run test
 ```
 
-Check exit codes directly — piping `tsc` through `tail` reports the pipe's
+Check exit codes directly. Piping `tsc` through `tail` reports the pipe's
 status, not tsc's. Don't run a build while a dev server is up; both write
 `.next/` and the dev server then 500s on every route.
 
 To test real user flows, a dedicated dev account exists. Run the
 `dev-real-user` config in `.claude/launch.json` (gitignored) and sign in with
 it; the credentials are local, so ask the owner if you don't have them. That
-account is yours to write through — via the UI or the API, never direct SQL.
+account is yours to write through, via the UI or the API, never direct SQL.

@@ -200,8 +200,8 @@ export async function PATCH(request: NextRequest) {
 
         const target = activeFunds.find((fund) => fund.id === fundId);
 
-        // Savings has no share of its own — it takes whatever is left over —
-        // so an edit to it can't move the total.
+        // Savings has no share of its own, it takes whatever is left over, so
+        // an edit to it can't move the total.
         if (target && !target.isSavings) {
           const resultingSum = activeFunds.reduce((acc, fund) => {
             if (fund.isSavings) return acc;

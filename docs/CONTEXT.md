@@ -1,8 +1,8 @@
-# ibLedger — context
+# ibLedger context
 
 What the system is, what must stay true about it, and what is known to be
-wrong with it. Written for someone changing the code. For the product story —
-what a fund is, how a transfer works — read `src/app/how-to-use/guide.tsx`,
+wrong with it. Written for someone changing the code. For the product story,
+what a fund is and how a transfer works, read `src/app/how-to-use/guide.tsx`,
 which is the same explanation the app gives its users.
 
 ## What this is
@@ -12,9 +12,9 @@ the owner first; a handful of family and friends have accounts and real
 financial records in it.
 
 That framing decides most of the tradeoffs below. There is no on-call, no
-error tracking, no rate limiting, and no support channel — but the data is
-real to the people who entered it, so losing or corrupting it is the failure
-that matters.
+error tracking, no rate limiting, and no support channel. The data is real to
+the people who entered it, so losing or corrupting it is the failure that
+matters.
 
 Next.js 15 (App Router) · Drizzle ORM · Neon Postgres · Clerk auth ·
 Tailwind 4 · Netlify · Bun.
@@ -23,8 +23,8 @@ Tailwind 4 · Netlify · Bun.
 
 Money is tracked along two axes at once, over the same dollars:
 
-- A **wallet** is where money physically sits — Checking, Cash, a card.
-- A **fund** is what it is earmarked for — Rent, Groceries, Savings.
+- A **wallet** is where money physically sits: Checking, Cash, a card.
+- A **fund** is what it is earmarked for: Rent, Groceries, Savings.
 
 Every dollar is in exactly one wallet and assigned to exactly one fund, so
 wallet balances and fund balances are two views of one pot.
@@ -33,9 +33,9 @@ wallet balances and fund balances are two views of one pot.
 
 `transactions` holds both, discriminated by `isPosting`:
 
-- `isPosting = true` — a **posting**. Carries money. Either a standalone
+- `isPosting = true` is a **posting**. Carries money. Either a standalone
   single-line event, or a child line belonging to a parent.
-- `isPosting = false` — a **parent event**. Holds no money itself (`amount` is
+- `isPosting = false` is a **parent event**. Holds no money itself (`amount` is
   0); its children do. Identified by `parentId IS NULL` with children pointing
   back at it.
 
@@ -47,7 +47,7 @@ Some shapes worth recognising:
 - A **transfer** is one event with two lines on the _same fund_, opposite
   signs, different wallets. Wallet balances move, fund balances don't, the
   event nets to zero.
-- **Income** is one event whose children each carry a non-null `incomePull` —
+- **Income** is one event whose children each carry a non-null `incomePull`,
   the fund's share percentage at the moment it was recorded. All children are
   positive and land in a single wallet. `isIncomeLike()` in
   `src/app/tracker/lib/events.ts` is the canonical test.
@@ -56,8 +56,8 @@ Some shapes worth recognising:
 
 ### Income shares
 
-`funds.pullPercentage` — called "Income share" everywhere in the UI, never by
-its column name — decides how an income event splits across funds. Shares are
+`funds.pullPercentage`, called "Income share" everywhere in the UI and never
+by its column name, decides how an income event splits across funds. Shares are
 capped at 100% in total. The cap is enforced under a per-user Postgres
 advisory lock (`FUND_LOCK_NAMESPACE`), because two concurrent writes would
 otherwise each validate against the same pre-update state and together commit
@@ -68,7 +68,7 @@ an over-100% total.
 Exactly one fund per user carries `isSavings`. It is the leftover bucket, and
 it absorbs overspending: for display, non-savings funds clamp at zero and
 every deficit is subtracted from savings, which may go negative.
-`applySavingsDeficitClamp()` does this and is total-preserving —
+`applySavingsDeficitClamp()` does this and is total-preserving:
 `sum(clamped) === sum(raw)`. It also returns the unclamped figures, because
 the delete guards and overspent badges need the real numbers.
 
@@ -79,7 +79,7 @@ spread it into a query rather than writing an `orderBy` by hand.
 
 Break one of these and the ledger is lying:
 
-1. **`sum(wallet balances) === sum(fund balances)`.** True by construction —
+1. **`sum(wallet balances) === sum(fund balances)`.** True by construction:
    every posting writes one amount against one wallet and one fund. Any change
    to the write path has to preserve it.
 2. **Exactly one savings fund per user.** `applySavingsDeficitClamp` throws
@@ -87,14 +87,14 @@ Break one of these and the ledger is lying:
 3. **Every query filters on `userId`.** There is no row-level security. A
    missing filter is one user reading another's ledger.
 4. **`requireUser()` is the only auth door.** Nine of ten API routes use it.
-   `/api/bootstrap` is the deliberate exception — it is what creates the user
-   row.
+   `/api/bootstrap` is the deliberate exception, since it is what creates the
+   user row.
 5. **Fund shares total at most 100%,** validated under the advisory lock.
 
 ## Money is a float
 
 Every amount column is `double precision`, holding **dollars, not cents**.
-`src/app/tracker/lib/cents.ts` is modal input masking only — nothing is stored
+`src/app/tracker/lib/cents.ts` is modal input masking only. Nothing is stored
 in cents.
 
 This leaks. `0.1 + 0.2 - 0.3` lands on `5.55e-17` rather than zero, so
@@ -102,11 +102,11 @@ This leaks. `0.1 + 0.2 - 0.3` lands on `5.55e-17` rather than zero, so
 `holdsMoney()` in `src/lib/money.ts` are the guard: anything smaller is dust,
 not money. `holdsMoney` fails closed on NaN and Infinity, so a broken balance
 computation blocks a destructive action rather than reading as "holds
-nothing". Float dust is load-bearing in a few other places too —
+nothing". Float dust is load-bearing in a few other places too:
 `nullif(sum, 0)`, `walletDelta !== 0`.
 
 This is an accepted tradeoff, not an oversight. **The migration target is
-integer cents** — stored as an integer, converted at the API boundary, so the
+integer cents**, stored as an integer and converted at the API boundary, so the
 value in a JS variable is always exact. (`numeric` is rejected: Drizzle
 returns it as a string, so every arithmetic site changes anyway and float math
 creeps back the first time someone calls `Number()`.)
@@ -144,7 +144,7 @@ two characters short and insert the next digit before the last two.
 
 Netlify builds on push to `main`. `netlify.toml` pins the build command so the
 deploy doesn't depend on Netlify auto-detecting the package manager. There is
-no staging environment — `main` is production.
+no staging environment. `main` is production.
 
 ### Database
 
@@ -160,7 +160,7 @@ Backup and recovery is Neon's own branch history. There is no separate export.
 
 ### Migrations are applied by hand
 
-The Netlify build runs `next build` and nothing else — it does **not** apply
+The Netlify build runs `next build` and nothing else. It does **not** apply
 Drizzle migrations. The order matters:
 
 1. Generate the migration and check it in.
@@ -186,7 +186,7 @@ There is no test database and no end-to-end suite. The gate is
 `bun run typecheck && bun run lint && bun run test`, run in CI on every pull
 request to `main`.
 
-`bun run test` is Vitest over the pure arithmetic — the balance clamp, the
+`bun run test` is Vitest over the pure arithmetic: the balance clamp, the
 dust tolerance, the share validators, the event display math, the currency
 formatters, the amount input masking. That is the code with no type-level
 protection and the most room for a float bug.
@@ -201,7 +201,7 @@ Two traps worth knowing:
 - **A stale `.next/` fails typecheck.** `tsconfig.json` includes
   `.next/types/**/*.ts`, so generated types for a route that no longer exists
   report as `TS2307` in a clean tree. Delete `.next/` and rebuild. CI never
-  hits this — it checks out fresh.
+  hits this, since it checks out fresh.
 
 ## Known debt
 
@@ -214,7 +214,7 @@ wrong-cent report.
 **Deep pagination.** `/api/transactions` uses `OFFSET page * pageSize` plus an
 exact `count(*)`. Fine for early pages; deep pages get progressively more
 expensive because Postgres still walks the skipped rows, and exact counts add
-latency on broad filters. The fix is keyset pagination — the existing
+latency on broad filters. The fix is keyset pagination. The existing
 `transactions_events_page_idx` on `(user_id, occurred_at desc, id desc)`
 already matches the required ordering, so the query is a `WHERE (occurred_at,
 id) < (cursor)` away. The cost is UI: cursors give next/previous, not numbered
@@ -224,11 +224,11 @@ pages.
 posting for the selected filters and builds summaries, period totals, wallet
 and fund series, and top expenses in application code. Work grows linearly
 with matching rows. The fix is `GROUP BY` with `date_trunc()` in Postgres and
-a small result set back — no schema change, the endpoint contract stays.
+a small result set back. No schema change, and the endpoint contract stays.
 
 **Unindexed fuzzy search.** Search builds patterns like `%c%o%f%f%e%e%` and
 LIKEs them against descriptions, which no B-tree index can serve. The
-direction is `pg_trgm` with a GIN index — it suits merchant-name and
+direction is `pg_trgm` with a GIN index, which suits merchant-name and
 misspelling search better than full-text, which is built for word tokens and
 ranking. Needs an extension and a migration; confirm the extension is
 available on Neon before writing one.
@@ -236,12 +236,12 @@ available on Neon before writing one.
 **Balances recomputed on every read.** Every dashboard, fund page, wallet page
 and overview request re-scans postings to aggregate the same balances. If this
 becomes a problem, the first step is a materialized view for wallet and fund
-balances — it sits outside the write path entirely, so create/edit/delete
+balances. It sits outside the write path entirely, so create/edit/delete
 semantics don't change, at the cost of staleness between refreshes. A rollup
 table updated transactionally is the better long-term ledger design and the
 much larger change.
 
-**`textSearchSql` is defined twice** — `src/app/api/analytics/route.ts` and
+**`textSearchSql` is defined twice**, in `src/app/api/analytics/route.ts` and
 `src/app/api/transactions/event-filters.ts`. Same knowledge in two places, so
 the two search behaviours can drift apart.
 
