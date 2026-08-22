@@ -3,11 +3,11 @@ import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { parseRequestJsonObject } from "@/app/api/json-body";
 import { BadRequestError, parseIntegerParam } from "@/app/api/query-params";
 import {
   parseCreateTransactionLines,
   parseOccurredAt,
-  parseRequestJsonObject,
 } from "@/app/api/transactions/validation";
 import { buildEventFilters } from "@/app/api/transactions/event-filters";
 import { requireUser } from "@/lib/auth";
