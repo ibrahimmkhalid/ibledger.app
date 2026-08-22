@@ -6,13 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -569,9 +563,6 @@ export default function OnboardingPage() {
               New wallet
             </Button>
           </div>
-          <CardDescription>
-            Where your money sits — one for each account, card, or cash pile.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -632,10 +623,6 @@ export default function OnboardingPage() {
               New fund
             </Button>
           </div>
-          <CardDescription>
-            What your money is for. Each fund takes a share of your income;
-            Savings keeps the rest.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
