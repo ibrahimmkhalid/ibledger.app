@@ -14,6 +14,8 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Mount gate: next-themes only resolves the theme on the client.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   const current = ORDER.find((choice) => choice === theme) ?? "system";

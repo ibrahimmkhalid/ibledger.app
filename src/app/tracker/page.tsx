@@ -183,6 +183,8 @@ export default function TrackerPage() {
   }, [router]);
 
   useEffect(() => {
+    // The page fetches itself on the client, so the load flag is set here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh({ initial: true });
   }, [refresh]);
 
