@@ -205,33 +205,9 @@ export default function FundsPage() {
     [serverFunds],
   );
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    // When bootstrap redirects, keep the skeleton up until navigation lands;
-    // clearing it would flash an empty funds page mid-redirect.
-    let redirected = false;
-    try {
-      const ready = await checkBootstrapOrRedirect(router);
-      if (!ready) {
-        redirected = true;
-        return;
-      }
-      const res = await apiJson<{ funds: Fund[] }>("/api/funds");
-      setServerFunds(res.funds);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load funds");
-    } finally {
-      if (!redirected) setLoading(false);
-    }
-  }, [router]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  /** Re-initialise draft from serverFunds. */
-  const resetDraft = useCallback(() => {
-    const fromServer = serverFunds.map(fundToDraft);
+  /** Re-initialise draft from the given server funds. */
+  const resetDraft = useCallback((funds: Fund[]) => {
+    const fromServer = funds.map(fundToDraft);
     const normalised = normaliseDraft(fromServer);
 
     // Scaling only happens for a saved total over 100, which blocks recording
@@ -247,11 +223,32 @@ export default function FundsPage() {
     setDeletedIds([]);
     setDirty(scaled);
     setRescaledFromServer(scaled);
-  }, [serverFunds]);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    // When bootstrap redirects, keep the skeleton up until navigation lands;
+    // clearing it would flash an empty funds page mid-redirect.
+    let redirected = false;
+    try {
+      const ready = await checkBootstrapOrRedirect(router);
+      if (!ready) {
+        redirected = true;
+        return;
+      }
+      const res = await apiJson<{ funds: Fund[] }>("/api/funds");
+      setServerFunds(res.funds);
+      resetDraft(res.funds);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load funds");
+    } finally {
+      if (!redirected) setLoading(false);
+    }
+  }, [router, resetDraft]);
 
   useEffect(() => {
-    resetDraft();
-  }, [resetDraft]);
+    void refresh();
+  }, [refresh]);
 
   function updateDraft(key: string, updates: Partial<DraftFund>) {
     setDraftFunds((prev) =>
@@ -301,7 +298,7 @@ export default function FundsPage() {
   }
 
   function revert() {
-    resetDraft();
+    resetDraft(serverFunds);
   }
 
   async function confirmChanges() {
