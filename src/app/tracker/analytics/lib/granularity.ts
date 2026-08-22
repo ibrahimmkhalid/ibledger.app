@@ -105,6 +105,10 @@ export function dateRangeForPreset(preset: DateRangePreset): {
     case "ytd":
       start.setMonth(0, 1);
       break;
+    default: {
+      const unhandled: never = preset;
+      throw new Error(`Unhandled date preset: ${String(unhandled)}`);
+    }
   }
 
   return { startDate: toISODate(start), endDate: toISODate(today) };
