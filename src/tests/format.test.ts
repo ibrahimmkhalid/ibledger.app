@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   fmtAmount,
@@ -23,12 +23,20 @@ describe("fmtAmount", () => {
 });
 
 describe("date formatters", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("reads a timestamp as UTC rather than the viewer's day", () => {
     expect(fmtDateShort("2026-01-12T00:00:00.000Z")).toBe("Jan 12, 2026");
     expect(toDateInputValue("2026-01-12T00:00:00.000Z")).toBe("2026-01-12");
   });
 
   it("falls back to today on an unparseable date", () => {
-    expect(toDateInputValue("not a date")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-12T12:00:00.000Z"));
+    expect(toDateInputValue("not a date")).toBe(
+      new Date().toLocaleDateString("en-CA"),
+    );
   });
 });
