@@ -223,7 +223,7 @@ export default function Home() {
               </h3>
               <p className="text-muted-foreground mt-1 text-sm">
                 Funds floor at $0 and show an overspent badge, with Savings
-                covering the gap. No category quietly goes negative.
+                covering the gap.
               </p>
             </div>
           </div>
