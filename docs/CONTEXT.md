@@ -247,3 +247,21 @@ the two search behaviours can drift apart.
 
 **No test database.** Route handlers, the SQL in `src/db/balances.ts`, and
 every ownership check are covered by nothing but typecheck and manual use.
+
+**Tracker pages fetch themselves on mount.** All six are `"use client"` and
+call `apiJson` from an effect, which costs a round trip per navigation and a
+loading state per page. The App Router answer is to fetch in a server
+component. That is also what the six
+`eslint-disable-next-line react-hooks/set-state-in-effect` comments are
+waiting on: `eslint.config.mjs` has the rule on, and every disable except the
+theme-toggle mount gate sits on one of these fetches. Deleting them is the
+signal the migration is done. The cost is that it rewrites six pages, so it is
+a direction rather than a task.
+
+**Client responses are cast, not parsed.** `apiJson<T>` in
+`src/app/tracker/lib/api.ts` ends in `return data as T`, so all 14 call sites
+trust the server's shape and find out otherwise by reading a field that isn't
+there. Real boundary parsing means a validator dependency and a schema per
+response type. Weighed and left alone: client and server live in one repo and
+deploy together, so a shape mismatch between them is close to unreachable.
+Revisit if an endpoint ever gains a consumer that does not ship with it.
