@@ -13,17 +13,15 @@ export function ClearedWithPending(args: {
   // so a sub-cent delta doesn't render as "[-$0.00]".
   const deltaCents = Math.round((withPending - cleared) * 100);
   const clearedCents = Math.round(cleared * 100);
-  // Displayed from the rounded value, not the raw one. A balance of -0.001 is
-  // dust, but Math.round leaves it at -0 and the accounting formatter renders
-  // that as "($0.00)" — parentheses claiming a negative that the tint below
-  // won't back up, since -0 < 0 is false. The zero case picks a positive zero.
+  // Rounded, and zero forced positive: -0 formats as "($0.00)" while the tint
+  // below reads it as non-negative.
   const displayedCleared = clearedCents === 0 ? 0 : clearedCents / 100;
 
   const sign = deltaCents > 0 ? "+" : "-";
   return (
     <>
       {/* Accounting parentheses are the only other cue that a balance is
-          negative, and plenty of people don't read them as one — "you owe
+          negative, and plenty of people don't read them as one. "You owe
           $718.50" should not look like "you have $718.50". */}
       <span
         className={cn("font-semibold", clearedCents < 0 && "text-destructive")}

@@ -81,11 +81,8 @@ export const transactions = pgTable(
     occurredAt: timestamp().defaultNow().notNull(),
     description: text(),
 
-    // Discriminates the two event shapes rather than describing the row:
-    //   true  -> a posting. Either a standalone single-line event, or a child
-    //            carrying the money for a parent.
-    //   false -> a parent event. Holds no money itself (amount is 0); its
-    //            children do.
+    // true is a posting (carries money), false a parent event (amount is 0).
+    // See "Events and postings" in docs/CONTEXT.md.
     isPosting: boolean().default(true).notNull(),
     isPending: boolean().default(true).notNull(),
     incomePull: doublePrecision(),

@@ -3,11 +3,7 @@ import { cn } from "@/lib/utils";
 const HATCH =
   "repeating-linear-gradient(-45deg,transparent,transparent 2px,rgba(255,255,255,.3) 2px,rgba(255,255,255,.3) 4px)";
 
-/**
- * The single fund/wallet colour chip. One size, one radius everywhere it
- * appears — slider legend, funds table, transaction rows — so the swatch
- * always reads as the same element.
- */
+/** The one fund and wallet colour chip: same size and radius everywhere. */
 export function Swatch({
   color,
   hatched,

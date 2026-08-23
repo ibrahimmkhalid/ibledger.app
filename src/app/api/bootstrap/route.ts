@@ -43,11 +43,8 @@ export async function POST() {
     );
     const existingByEmail = existingRows.find((row) => row.email === email);
 
-    // An email-matched row that is already bound to a different Clerk ID belongs
-    // to someone else. Claiming it here would rebind their account to this
-    // caller and lock them out. Likewise, when the caller's own row and the
-    // email-matched row are different rows, updating the caller's row to this
-    // email would collide with the other account's unique email.
+    // An email-matched row bound to another Clerk ID belongs to someone else, so
+    // claiming it would lock them out and rebinding would collide on email.
     if (
       (!existingByClerkId && existingByEmail?.clerkId) ||
       (existingByClerkId &&

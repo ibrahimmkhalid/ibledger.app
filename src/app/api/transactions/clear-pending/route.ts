@@ -8,15 +8,9 @@ import { buildEventFilterConditions } from "@/app/api/transactions/event-filters
 import { requireUser } from "@/lib/auth";
 
 /**
- * POST /api/transactions/clear-pending
- *
- * Settles pending transactions. Takes the same filter query params as
- * GET /api/transactions, so the Transactions page can clear exactly the rows
- * it is showing; with no params it clears the whole ledger, which is what the
- * Overview's "Clear all pending" does.
- *
- * Responds with `{ cleared }` — the number of events settled — so the caller
- * can report what it did.
+ * Settles pending transactions, filtered by the same query params as
+ * GET /api/transactions. No params clears the whole ledger. Responds with
+ * `{ cleared }`, the number of events settled.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,11 +23,9 @@ export async function POST(request: NextRequest) {
     // Whatever the caller filtered on, only pending rows are candidates.
     conditions.push(eq(transactions.isPending, true));
 
-    // Left as a subquery rather than a list of ids read back into the route.
-    // "Clear all pending" sends no filters, so the id list is the whole pending
-    // backlog, and it gets bound twice — two parameters per event against
-    // PostgreSQL's cap of 65,535, which a big enough backlog would exceed and
-    // fail on. Built fresh per use so the two calls can't share a builder.
+    // A subquery rather than a bound id list: an unfiltered clear would bind
+    // two parameters per event against PostgreSQL's cap of 65,535. Built fresh
+    // per use so the two calls cannot share a builder.
     const matchingEvents = () =>
       db
         .select({ id: transactions.id })
@@ -58,9 +50,8 @@ export async function POST(request: NextRequest) {
       )
       .returning({ parentId: transactions.parentId });
 
-    // Children come back too; the caller asked how many events moved. Counting
-    // what the update actually touched also drops the old assumption that every
-    // row the select matched was still there to be written.
+    // Children come back too, and the caller asked how many events moved, so
+    // count what the update actually touched.
     const cleared = settled.filter((row) => row.parentId === null).length;
 
     return NextResponse.json({ cleared });

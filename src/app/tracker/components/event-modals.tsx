@@ -20,12 +20,13 @@ const IncomeModal = dynamic(
   { ssr: false },
 );
 
-// The create pair plus the details pair, as rendered by both the overview and
-// the transactions page. Which details modal opens is decided by isIncomeLike,
-// since income events and expense events are edited through different forms.
+// The create pair plus the details pair, shared by the overview and the
+// transactions page. isIncomeLike decides which details modal opens.
 export function EventModals(args: {
   wallets: Wallet[];
   funds: Fund[];
+  /** Changes on every opening; remounts the modals so their forms start fresh. */
+  modalKey: number;
   createTransactionOpen: boolean;
   onCreateTransactionOpenChange: (open: boolean) => void;
   createIncomeOpen: boolean;
@@ -37,6 +38,7 @@ export function EventModals(args: {
   const {
     wallets,
     funds,
+    modalKey,
     createTransactionOpen,
     onCreateTransactionOpenChange,
     createIncomeOpen,
@@ -61,6 +63,7 @@ export function EventModals(args: {
   return (
     <>
       <TransactionModal
+        key={`create-transaction-${modalKey}`}
         open={createTransactionOpen}
         onOpenChange={onCreateTransactionOpenChange}
         wallets={wallets}
@@ -72,6 +75,7 @@ export function EventModals(args: {
       />
 
       <IncomeModal
+        key={`create-income-${modalKey}`}
         open={createIncomeOpen}
         onOpenChange={onCreateIncomeOpenChange}
         wallets={wallets}
@@ -82,6 +86,7 @@ export function EventModals(args: {
       />
 
       <TransactionModal
+        key={`details-transaction-${modalKey}`}
         open={Boolean(detailsEvent) && !detailsIsIncome}
         onOpenChange={closeDetails}
         wallets={wallets}
@@ -92,6 +97,7 @@ export function EventModals(args: {
       />
 
       <IncomeModal
+        key={`details-income-${modalKey}`}
         open={Boolean(detailsEvent) && detailsIsIncome}
         onOpenChange={closeDetails}
         wallets={wallets}

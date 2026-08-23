@@ -5,11 +5,7 @@ import { CoinsIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/**
- * The Refresh / Add transaction / Add income trio shared by the Overview and
- * Transactions headers, so the icons, order, and refresh spinner stay
- * identical on both screens.
- */
+/** The Refresh / Add transaction / Add income trio in both page headers. */
 export function TrackerActions(props: {
   onRefresh: () => void;
   refreshing?: boolean;
@@ -45,11 +41,7 @@ export function TrackerActions(props: {
   );
 }
 
-/**
- * Thumb-reachable floating "Add transaction" button, mobile only. The header
- * actions sit at the top of a tall, scrolled page; this keeps the most common
- * create action within reach one-handed.
- */
+/** Floating "Add transaction" button, mobile only, within one-handed reach. */
 export function AddTransactionFab(props: { onClick: () => void }) {
   return (
     <button

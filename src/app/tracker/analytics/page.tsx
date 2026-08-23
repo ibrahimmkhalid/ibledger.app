@@ -52,7 +52,6 @@ import {
   GROUP_BY_LABELS,
   dateRangeForPreset,
   groupByForGranularity,
-  syncGranularityDraft,
 } from "@/app/tracker/analytics/lib/granularity";
 import {
   analyticsFiltersKey,
@@ -131,6 +130,16 @@ export default function AnalyticsPage() {
     ],
   );
 
+  /** The draft with granularity resolved against the range the data covers. */
+  const resolvedDraft = useMemo(
+    () => ({
+      ...filterDraft,
+      granularityLevel: granularityState.granularityLevel,
+      groupBy: granularityState.groupBy,
+    }),
+    [filterDraft, granularityState],
+  );
+
   const activeFilterCount = useMemo(
     () => countActiveFilters(filters),
     [filters],
@@ -138,13 +147,13 @@ export default function AnalyticsPage() {
   const filtersDirty = useMemo(() => {
     try {
       return (
-        analyticsFiltersKey(draftToFilters(filterDraft)) !==
+        analyticsFiltersKey(draftToFilters(resolvedDraft)) !==
         analyticsFiltersKey(filters)
       );
     } catch {
       return true;
     }
-  }, [filterDraft, filters]);
+  }, [resolvedDraft, filters]);
 
   const loadAnalytics = useCallback(
     async (
@@ -193,19 +202,13 @@ export default function AnalyticsPage() {
 
   const applyFilters = useCallback(async () => {
     try {
-      const syncedDraft = syncGranularityDraft(
-        filterDraft,
-        dataBounds.first,
-        dataBounds.last,
-      );
-      setFilterDraft(syncedDraft);
-      const nextFilters = draftToFilters(syncedDraft);
+      const nextFilters = draftToFilters(resolvedDraft);
       setFilters(nextFilters);
       await loadAnalytics(nextFilters);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Invalid filters");
     }
-  }, [dataBounds.first, dataBounds.last, filterDraft, loadAnalytics]);
+  }, [resolvedDraft, loadAnalytics]);
 
   const resetFilters = useCallback(async () => {
     const defaults = createDefaultAnalyticsFilters();
@@ -217,45 +220,10 @@ export default function AnalyticsPage() {
 
   const patchFilterDraft = useCallback(
     (patch: Partial<AnalyticsFilterDraft>) => {
-      setFilterDraft((prev) => {
-        const next = { ...prev, ...patch };
-        if (
-          "datePreset" in patch ||
-          "startDate" in patch ||
-          "endDate" in patch ||
-          "granularityLevel" in patch
-        ) {
-          return syncGranularityDraft(next, dataBounds.first, dataBounds.last, {
-            preferLevel:
-              "granularityLevel" in patch
-                ? (patch.granularityLevel ?? next.granularityLevel)
-                : next.granularityLevel,
-          });
-        }
-        return next;
-      });
+      setFilterDraft((prev) => ({ ...prev, ...patch }));
     },
-    [dataBounds.first, dataBounds.last],
+    [],
   );
-
-  useEffect(() => {
-    if (!dataBounds.first && !dataBounds.last) return;
-
-    setFilterDraft((prev) => {
-      const synced = syncGranularityDraft(
-        prev,
-        dataBounds.first,
-        dataBounds.last,
-      );
-      if (
-        synced.granularityLevel === prev.granularityLevel &&
-        synced.groupBy === prev.groupBy
-      ) {
-        return prev;
-      }
-      return synced;
-    });
-  }, [dataBounds.first, dataBounds.last]);
 
   useEffect(() => {
     router.prefetch("/tracker");
@@ -265,6 +233,8 @@ export default function AnalyticsPage() {
   }, [router]);
 
   useEffect(() => {
+    // The page fetches itself on the client, so the load flag is set here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAnalytics(createDefaultAnalyticsFilters(), { fullScreen: true });
     // Mount-only initial load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -404,7 +374,7 @@ export default function AnalyticsPage() {
 
                   <SegmentedControl<GranularityLevel>
                     label="Detail"
-                    value={filterDraft.granularityLevel}
+                    value={resolvedDraft.granularityLevel}
                     onChange={(granularityLevel) =>
                       patchFilterDraft({ granularityLevel })
                     }

@@ -3,11 +3,11 @@ import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { parseRequestJsonObject } from "@/app/api/json-body";
 import { BadRequestError, parseIntegerParam } from "@/app/api/query-params";
 import {
   parseCreateTransactionLines,
   parseOccurredAt,
-  parseRequestJsonObject,
 } from "@/app/api/transactions/validation";
 import { buildEventFilters } from "@/app/api/transactions/event-filters";
 import { requireUser } from "@/lib/auth";
@@ -278,10 +278,8 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // A full 100% split leaves nothing for savings. A zero-amount child
-        // there fails isIncomeLike(), so the UI would open the expense modal
-        // for an income event and the PATCH would 400 -- making the event
-        // permanently uneditable. Omit the child instead.
+        // A full 100% split leaves savings nothing. A zero-amount child fails
+        // isIncomeLike() and makes the event uneditable, so omit it.
         if (pullSum < 100) {
           postingRows.push({
             userId: user.id,

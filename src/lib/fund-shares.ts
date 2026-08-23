@@ -1,10 +1,8 @@
 // funds.pullPercentage is called "Income share" everywhere in the UI, so the
 // error text these produce must never leak the column name back to the user.
 
-// Names the field a share complaint belongs under, sent alongside the message
-// so the fund modals can file it beside the share input without matching on the
-// text above — which they did, and which quietly re-routes every server
-// rejection to the name field the moment one of these is reworded.
+// Names the field a share complaint belongs under, so the modals can place it
+// without matching on the message text.
 export const FUND_SHARE_FIELD = "share";
 
 export const FUND_SHARE_RANGE_ERROR = "Income share must be between 0 and 100";
@@ -25,6 +23,5 @@ export function fundSharesExceedHundred(sum: number) {
 }
 
 // Namespaces the per-user advisory lock that serialises fund writes ("fund" in
-// ASCII). Two concurrent writes could otherwise each validate the 100% cap
-// against the same pre-update state and together commit an over-100% total.
+// ASCII). See "Income shares" in docs/CONTEXT.md.
 export const FUND_LOCK_NAMESPACE = 0x66756e64;

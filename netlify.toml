@@ -1,0 +1,8 @@
+# Pins the build so the deploy does not depend on Netlify guessing the package
+# manager. Bun is the project's package manager; bun.lock is the lockfile.
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,18 @@ function sumIncomeAmount(ev: TransactionEvent) {
   return Number(ev.amount);
 }
 
+function initialWalletId(
+  initialEvent: TransactionEvent | null | undefined,
+  wallets: Wallet[],
+) {
+  if (!initialEvent) return wallets[0]?.id;
+
+  return (
+    initialEvent.children.find((c) => c.walletId)?.walletId ??
+    initialEvent.walletId
+  );
+}
+
 export function IncomeModal(args: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,49 +69,29 @@ export function IncomeModal(args: {
     [wallets],
   );
 
-  const { busy, error, setBusy, setError, runWithBusy } = useBusy();
+  const { busy, error, runWithBusy } = useBusy();
   const { confirm, confirmDialog } = useConfirm();
   const [editing, setEditing] = useState(false);
 
-  const [occurredAt, setOccurredAt] = useState(isoToday());
-  const [description, setDescription] = useState("");
-  const [walletId, setWalletId] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
-  const [isPending, setIsPending] = useState(true);
+  const [occurredAt, setOccurredAt] = useState(() =>
+    initialEvent ? toDateInputValue(initialEvent.occurredAt) : isoToday(),
+  );
+  const [description, setDescription] = useState(
+    initialEvent?.description ?? "",
+  );
+  const [walletId, setWalletId] = useState<string>(() =>
+    String(initialWalletId(initialEvent, wallets) ?? ""),
+  );
+  const [amount, setAmount] = useState<string>(() =>
+    initialEvent ? String(Math.round(sumIncomeAmount(initialEvent) * 100)) : "",
+  );
+  const [isPending, setIsPending] = useState(
+    initialEvent ? Boolean(initialEvent.isPending) : true,
+  );
   const dateId = useId();
   const descriptionId = useId();
   const walletFieldId = useId();
   const amountId = useId();
-
-  useEffect(() => {
-    if (!open) {
-      setError(null);
-      setBusy(false);
-      setEditing(false);
-      setDescription("");
-      return;
-    }
-
-    if (initialEvent) {
-      setOccurredAt(toDateInputValue(initialEvent.occurredAt));
-      setDescription(initialEvent.description ?? "");
-      setIsPending(Boolean(initialEvent.isPending));
-
-      const inferredWalletId =
-        initialEvent.children.find((c) => c.walletId)?.walletId ??
-        initialEvent.walletId;
-
-      setWalletId(inferredWalletId ? String(inferredWalletId) : "");
-      setAmount(String(Math.round(sumIncomeAmount(initialEvent) * 100)));
-      return;
-    }
-
-    const defaultWalletId = wallets[0]?.id;
-    setOccurredAt(isoToday());
-    setWalletId(defaultWalletId ? String(defaultWalletId) : "");
-    setAmount("");
-    setIsPending(true);
-  }, [open, initialEvent, wallets, setBusy, setError]);
 
   const readOnly = Boolean(initialEvent) && !editing;
 

@@ -3,6 +3,12 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
+import {
+  parseOptionalName,
+  parseRequiredId,
+  parseRequiredName,
+  parseRequestJsonObject,
+} from "@/app/api/json-body";
 import { BadRequestError } from "@/app/api/query-params";
 import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
@@ -92,12 +98,8 @@ export async function POST(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    if (!data?.name) {
-      return NextResponse.json({ error: "Missing name" }, { status: 400 });
-    }
-
+    const data = await parseRequestJsonObject(request);
+    const name = parseRequiredName(data.name, "name");
     const pullPercentage =
       data.pullPercentage === undefined ? 0 : Number(data.pullPercentage);
 
@@ -108,9 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Income allocation rejects a total over 100 when the user later records
-    // income, so a fund created past the cap locks them out of the feature with
-    // nothing on screen explaining why. Reject it at the point of creation.
+    // Reject an over-100% total here, not later when income is recorded.
     const newFund = await db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(${FUND_LOCK_NAMESPACE}, ${user.id})`,
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         .insert(funds)
         .values({
           userId: user.id,
-          name: String(data.name),
+          name,
           isSavings: false,
           pullPercentage,
         })
@@ -168,15 +168,11 @@ export async function PATCH(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    const fundId = Number(data?.id);
-    if (!fundId) {
-      return NextResponse.json({ error: "Missing fund id" }, { status: 400 });
-    }
-
+    const data = await parseRequestJsonObject(request);
+    const fundId = parseRequiredId(data.id, "fund id");
+    const name = parseOptionalName(data.name, "name");
     const nextPullPercentage =
-      data?.pullPercentage !== undefined ? Number(data.pullPercentage) : null;
+      data.pullPercentage === undefined ? null : Number(data.pullPercentage);
 
     if (nextPullPercentage !== null && !isValidFundShare(nextPullPercentage)) {
       return NextResponse.json(
@@ -204,8 +200,8 @@ export async function PATCH(request: NextRequest) {
 
         const target = activeFunds.find((fund) => fund.id === fundId);
 
-        // Savings has no share of its own — it takes whatever is left over —
-        // so an edit to it can't move the total.
+        // Savings has no share of its own, it takes whatever is left over, so
+        // an edit to it can't move the total.
         if (target && !target.isSavings) {
           const resultingSum = activeFunds.reduce((acc, fund) => {
             if (fund.isSavings) return acc;
@@ -222,7 +218,7 @@ export async function PATCH(request: NextRequest) {
       return tx
         .update(funds)
         .set({
-          ...(data?.name ? { name: String(data.name) } : {}),
+          ...(name ? { name } : {}),
           pullPercentage:
             nextPullPercentage === null
               ? sql<number>`
@@ -270,12 +266,8 @@ export async function DELETE(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    const fundId = Number(data?.id);
-    if (!fundId) {
-      return NextResponse.json({ error: "Missing fund id" }, { status: 400 });
-    }
+    const data = await parseRequestJsonObject(request);
+    const fundId = parseRequiredId(data.id, "fund id");
 
     const [selectedFund, fundBalanceRow] = await Promise.all([
       db
@@ -347,6 +339,13 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ fund: deletedFund });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json(
+        { error: error.message, field: error.field },
+        { status: 400 },
+      );
+    }
+
     console.error("API: Error deleting fund", error);
     return NextResponse.json(
       { error: "Internal server error" },

@@ -24,9 +24,8 @@ const buttonVariants = cva(
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 focus-visible:border-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
       },
-      // Touch-sized at the base breakpoint (>=44px); compact from sm: up only
-      // for fine pointers, so touch tablets keep thumb-friendly targets while
-      // mouse-driven desktop keeps the dense ledger layout.
+      // Touch-sized (>=44px) at the base breakpoint, compact from sm: up for
+      // fine pointers only.
       size: {
         default:
           "h-11 gap-1.5 px-3 text-sm has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 sm:pointer-fine:h-7 sm:pointer-fine:gap-1 sm:pointer-fine:px-2 sm:pointer-fine:text-xs/relaxed sm:pointer-fine:has-data-[icon=inline-end]:pr-1.5 sm:pointer-fine:has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-4 sm:pointer-fine:[&_svg:not([class*='size-'])]:size-3.5",

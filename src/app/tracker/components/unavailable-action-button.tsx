@@ -12,14 +12,9 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * An icon button whose action is currently unavailable, with the reason
- * attached.
- *
- * It reads as disabled and never runs the action, but stays focusable and
- * clickable on purpose: tooltips only open on hover and focus, so a truly
- * `disabled` control leaves a touch user with a greyed-out icon and no way at
- * all to find out why. Pointer users get the tooltip, touch users get the same
- * sentence as a toast.
+ * An icon button whose action is unavailable, with the reason attached. It
+ * reads as disabled and never runs the action, but stays focusable and
+ * clickable so touch users can reach the reason as a toast.
  */
 export function UnavailableActionButton(args: {
   /** Why the action can't be taken. Shown verbatim in the tooltip and toast. */

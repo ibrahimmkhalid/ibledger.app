@@ -3,6 +3,12 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions } from "@/db/schema";
+import {
+  parseIdArray,
+  parseNullableId,
+  parseObjectArray,
+  parseRequestJsonObject,
+} from "@/app/api/json-body";
 import { BadRequestError } from "@/app/api/query-params";
 import { pendingBalanceSql } from "@/db/balances";
 import { requireUser } from "@/lib/auth";
@@ -16,47 +22,41 @@ import {
 } from "@/lib/fund-shares";
 import { holdsMoney } from "@/lib/money";
 
-/**
- * PUT /api/funds/sync
- *
- * Atomic bulk-sync of funds: create, update, and soft-delete in one call.
- *
- * Body:
- * ```
- * {
- *   funds: Array<{
- *     id?: number;           // omit for new funds
- *     name: string;
- *     pullPercentage: number;
- *   }>;
- *   deletedIds: number[];    // fund IDs to soft-delete
- * }
- * ```
- */
+type FundSyncInput = {
+  id: number | null;
+  name: string;
+  pullPercentage: number;
+};
+
+type FundUpdateInput = FundSyncInput & { id: number };
+
+/** Creates, updates, and soft-deletes funds in one transaction. */
 export async function PUT(request: NextRequest) {
   try {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
+    const data = await parseRequestJsonObject(request);
 
-    const fundInputs: {
-      id?: number;
-      name: string;
-      pullPercentage: number;
-    }[] = data?.funds ?? [];
+    const fundInputs: FundSyncInput[] = parseObjectArray(
+      data.funds,
+      "funds",
+    ).map((entry) => ({
+      id: parseNullableId(entry.id, "fund id in funds"),
+      name: typeof entry.name === "string" ? entry.name : "",
+      pullPercentage: Number(entry.pullPercentage),
+    }));
 
-    const deletedIds: number[] = data?.deletedIds ?? [];
+    const deletedIds = parseIdArray(data.deletedIds, "fund id in deletedIds");
 
     for (const f of fundInputs) {
-      if (!f.name?.trim()) {
+      if (!f.name.trim()) {
         return NextResponse.json(
           { error: "All funds must have a name" },
           { status: 400 },
         );
       }
-      const pp = Number(f.pullPercentage);
-      if (!isValidFundShare(pp)) {
+      if (!isValidFundShare(f.pullPercentage)) {
         return NextResponse.json(
           { error: fundShareRangeError(f.name), field: FUND_SHARE_FIELD },
           { status: 400 },
@@ -64,34 +64,14 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    for (const id of deletedIds) {
-      if (!id || !Number.isFinite(id)) {
-        return NextResponse.json(
-          { error: "Invalid fund id in deletedIds" },
-          { status: 400 },
-        );
-      }
-    }
-
-    for (const f of fundInputs) {
-      if (
-        f.id !== undefined &&
-        f.id !== null &&
-        (!Number.isFinite(Number(f.id)) || Number(f.id) <= 0)
-      ) {
-        return NextResponse.json(
-          { error: "Invalid fund id in funds" },
-          { status: 400 },
-        );
-      }
-    }
-
-    const updateInputs = fundInputs.filter((fund) => Boolean(fund.id));
-    const createInputs = fundInputs.filter((fund) => !fund.id);
+    const updateInputs = fundInputs.filter(
+      (fund): fund is FundUpdateInput => fund.id !== null,
+    );
+    const createInputs = fundInputs.filter((fund) => fund.id === null);
     const deletedFundIds = Array.from(new Set(deletedIds));
     const deletedFundIdSet = new Set(deletedFundIds);
     const overlappingFundId = updateInputs
-      .map((fund) => Number(fund.id))
+      .map((fund) => fund.id)
       .find((id) => deletedFundIdSet.has(id));
 
     if (overlappingFundId !== undefined) {
@@ -129,17 +109,13 @@ export async function PUT(request: NextRequest) {
       }
 
       for (const fund of updateInputs) {
-        const id = Number(fund.id);
-        if (!existingById.has(id)) throw new Error(`Fund ${id} not found`);
+        if (!existingById.has(fund.id)) {
+          throw new Error(`Fund ${fund.id} not found`);
+        }
       }
 
-      // Income allocation reads these percentages back and rejects a sum over
-      // 100, so a sync that pushes them past it would lock the user out of
-      // recording income with no way to see why. Check the state this sync
-      // would leave behind, not just the funds it names.
-      const updateById = new Map(
-        updateInputs.map((fund) => [Number(fund.id), fund]),
-      );
+      // Check the total this sync would leave behind, not just the funds it names.
+      const updateById = new Map(updateInputs.map((fund) => [fund.id, fund]));
 
       let resultingPullSum = 0;
       for (const fund of activeFunds) {
@@ -150,7 +126,7 @@ export async function PUT(request: NextRequest) {
         );
       }
       for (const fund of createInputs) {
-        resultingPullSum += Number(fund.pullPercentage);
+        resultingPullSum += fund.pullPercentage;
       }
 
       if (fundSharesExceedHundred(resultingPullSum)) {
@@ -208,20 +184,19 @@ export async function PUT(request: NextRequest) {
       }
 
       for (const f of updateInputs) {
-        const id = Number(f.id);
-        const target = existingById.get(id);
-        if (!target) throw new Error(`Fund ${id} not found`);
+        const target = existingById.get(f.id);
+        if (!target) throw new Error(`Fund ${f.id} not found`);
 
         await tx
           .update(funds)
           .set({
             name: f.name.trim(),
-            pullPercentage: target.isSavings ? 0 : Number(f.pullPercentage),
+            pullPercentage: target.isSavings ? 0 : f.pullPercentage,
             updatedAt: now,
           })
           .where(
             and(
-              eq(funds.id, id),
+              eq(funds.id, f.id),
               eq(funds.userId, user.id),
               isNull(funds.deletedAt),
             ),
@@ -234,7 +209,7 @@ export async function PUT(request: NextRequest) {
             userId: user.id,
             name: fund.name.trim(),
             isSavings: false,
-            pullPercentage: Number(fund.pullPercentage),
+            pullPercentage: fund.pullPercentage,
           })),
         );
       }
@@ -249,9 +224,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // The remaining domain errors thrown inside the transaction ("Fund N not
-    // found", "Cannot delete savings fund", non-zero balance) still surface as
-    // 500s with their raw message. Pre-existing, and left alone deliberately.
+    // Domain errors thrown inside the transaction still surface as 500s with
+    // their raw message.
     const message =
       error instanceof Error ? error.message : "Internal server error";
     console.error("API: Error syncing funds", error);

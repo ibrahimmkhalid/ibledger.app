@@ -1,12 +1,7 @@
 /**
- * One categorical colour ramp for everything that colour-codes a wallet or
- * fund — the allocation slider, the legend swatches, and the analytics trend
- * charts. Keying every consumer off the same `keyToColorIndex(id)` keeps a
- * given fund the SAME colour on the Funds page and in its chart.
- *
- * Each entry pairs a fill (`bg`) with the text colour that reads on it (`fg`),
- * so labels drawn on a segment stay legible even on the light hues (amber,
- * lime, yellow) where white text would fail contrast.
+ * One categorical colour ramp for every wallet and fund, keyed off
+ * `keyToColorIndex(id)` so a fund keeps its colour across pages. Each entry
+ * pairs a fill with the text colour that reads on it.
  */
 export type SeriesColor = { bg: string; fg: string };
 

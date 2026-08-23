@@ -182,6 +182,22 @@ export default function TransactionsPage() {
   const [detailsEvent, setDetailsEvent] = useState<TransactionEvent | null>(
     null,
   );
+  const [modalKey, setModalKey] = useState(0);
+
+  function openCreateTransaction() {
+    setModalKey((n) => n + 1);
+    setCreateTransactionOpen(true);
+  }
+
+  function openCreateIncome() {
+    setModalKey((n) => n + 1);
+    setCreateIncomeOpen(true);
+  }
+
+  function openDetails(event: TransactionEvent) {
+    setModalKey((n) => n + 1);
+    setDetailsEvent(event);
+  }
 
   const pageCacheRef = useRef(new Map<string, EventsResponse>());
   const preloadInFlightRef = useRef(new Set<string>());
@@ -430,9 +446,8 @@ export default function TransactionsPage() {
     await refresh({ page, pageSize, filters }, { fullScreen: false });
   }, [clearPageCache, filters, page, pageSize, refresh]);
 
-  // Scoped to the filters currently applied, because the button sits right
-  // beside the filtered count and reads as if it were. The whole-ledger version
-  // lives on the Overview, where a ledger-wide action belongs.
+  // Scoped to the applied filters: the button sits beside the filtered count.
+  // The whole-ledger version lives on the Overview.
   const clearFilteredPending = useCallback(async () => {
     const noun = totalCount === 1 ? "transaction" : "transactions";
     const ok = await confirm({
@@ -481,6 +496,8 @@ export default function TransactionsPage() {
   }, [router]);
 
   useEffect(() => {
+    // The page fetches itself on the client, so the load flag is set here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh(
       {
         page: 0,
@@ -519,14 +536,14 @@ export default function TransactionsPage() {
   return (
     <div className="flex flex-col gap-6">
       {confirmDialog}
-      <AddTransactionFab onClick={() => setCreateTransactionOpen(true)} />
+      <AddTransactionFab onClick={openCreateTransaction} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold">Transactions</h1>
         <TrackerActions
           onRefresh={() => void handleRefresh()}
           refreshing={pageLoading}
-          onAddTransaction={() => setCreateTransactionOpen(true)}
-          onAddIncome={() => setCreateIncomeOpen(true)}
+          onAddTransaction={openCreateTransaction}
+          onAddIncome={openCreateIncome}
           disabled={pageLoading}
         />
       </div>
@@ -534,6 +551,7 @@ export default function TransactionsPage() {
       <EventModals
         wallets={wallets}
         funds={funds}
+        modalKey={modalKey}
         createTransactionOpen={createTransactionOpen}
         onCreateTransactionOpenChange={setCreateTransactionOpen}
         createIncomeOpen={createIncomeOpen}
@@ -732,7 +750,7 @@ export default function TransactionsPage() {
                 <TransactionEventCard
                   key={ev.id}
                   event={ev}
-                  onClick={() => setDetailsEvent(ev)}
+                  onClick={() => openDetails(ev)}
                 />
               ))
             )}

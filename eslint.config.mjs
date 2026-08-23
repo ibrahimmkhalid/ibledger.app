@@ -16,7 +16,6 @@ const eslintConfig = [
   {
     rules: {
       // New in eslint-plugin-react-hooks v7; existing patterns predate this rule.
-      "react-hooks/set-state-in-effect": "off",
       "react-hooks/refs": "off",
     },
   },

@@ -1,11 +1,6 @@
 export type ApiError = { error: string; field?: string };
 
-/**
- * Carries the server's optional `field` alongside the message, so a caller can
- * file the complaint under the input that caused it rather than deciding from
- * the wording. Thrown for every failed response; callers that only want the
- * message can go on treating it as an Error.
- */
+/** Carries the server's optional `field` alongside the message. */
 export class ApiRequestError extends Error {
   readonly field?: string;
 

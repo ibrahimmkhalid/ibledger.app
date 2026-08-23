@@ -3,10 +3,10 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/db";
 import { funds, transactions, wallets } from "@/db/schema";
+import { parseRequestJsonObject } from "@/app/api/json-body";
 import { BadRequestError } from "@/app/api/query-params";
 import {
   parseOccurredAt,
-  parseRequestJsonObject,
   parseUpdateTransactionLines,
   type UpdateTransactionLineInput,
 } from "@/app/api/transactions/validation";
@@ -208,21 +208,15 @@ export async function PATCH(
           (p) => p.id !== savingsPosting?.id,
         );
 
-        // Income split fully across non-savings funds carries no savings
-        // posting (see the create path). Anything short of a full split must
-        // have one, and its absence means the event is corrupt.
-        //
-        // Not a BadRequestError: nothing the caller sent caused this, so it has
-        // to reach the catch as a 500 and get logged. It used to be caught by a
-        // message.includes("Missing") test and handed back as a 400, which
-        // blamed the user for a broken ledger.
+        // A full 100% split carries no savings posting; short of that, a
+        // missing one means the event is corrupt. Not a BadRequestError:
+        // nothing the caller sent caused it, so let it log as a 500.
         const nonSavingsPct = nonSavingsPostings.reduce(
           (acc, p) => acc + Number(p.incomePull ?? 0),
           0,
         );
-        // Same corruption family: a NaN or out-of-range total would silently
-        // rewrite the postings to nonsense (negative savings, sum ≠ total).
-        // The small tolerance keeps float dust in a legit 100% split legal.
+        // A NaN or out-of-range total would rewrite the postings to nonsense.
+        // The tolerance keeps float dust in a legitimate 100% split legal.
         if (
           !Number.isFinite(nonSavingsPct) ||
           nonSavingsPct < 0 ||

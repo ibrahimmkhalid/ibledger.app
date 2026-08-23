@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,58 @@ function defaultLineDraft(args?: Partial<Omit<LineDraft, "key">>): LineDraft {
   };
 }
 
+function initialLineDrafts(
+  initialEvent: TransactionEvent | null | undefined,
+  wallets: Wallet[],
+  funds: Fund[],
+): LineDraft[] {
+  if (initialEvent) {
+    const eventLines =
+      initialEvent.children.length > 0
+        ? initialEvent.children
+        : [
+            {
+              id: initialEvent.id,
+              walletId: initialEvent.walletId,
+              fundId: initialEvent.fundId,
+              description: initialEvent.description,
+              amount: initialEvent.amount,
+              isPending: initialEvent.isPending,
+              incomePull: initialEvent.incomePull,
+            },
+          ];
+
+    return eventLines.map((l) => {
+      const n = Number(l.amount);
+      const direction: Direction = n < 0 ? "out" : "in";
+      const abs = Math.abs(n);
+      return defaultLineDraft({
+        transactionId: l.id,
+        walletId: l.walletId ? String(l.walletId) : "",
+        fundId: l.fundId ? String(l.fundId) : "",
+        description: l.description ?? "",
+        direction,
+        amount: abs ? String(Math.round(abs * 100)) : "",
+        isPending: Boolean(l.isPending),
+      });
+    });
+  }
+
+  const defaultWalletId = wallets[0]?.id;
+  const preferredFundId =
+    funds.find((f) => !f.isSavings)?.id ?? funds.find((f) => f.isSavings)?.id;
+
+  return [
+    defaultLineDraft({
+      walletId: defaultWalletId ? String(defaultWalletId) : "",
+      fundId: preferredFundId ? String(preferredFundId) : "",
+      direction: "out",
+      amount: "",
+      isPending: true,
+    }),
+  ];
+}
+
 export function TransactionModal(args: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -88,79 +140,21 @@ export function TransactionModal(args: {
     onDeleted,
   } = args;
 
-  const { busy, error, setBusy, setError, runWithBusy } = useBusy();
+  const { busy, error, runWithBusy } = useBusy();
   const { confirm, confirmDialog } = useConfirm();
   const [editing, setEditing] = useState(false);
 
-  const [occurredAt, setOccurredAt] = useState(isoToday());
-  const [description, setDescription] = useState("");
+  const [occurredAt, setOccurredAt] = useState(() =>
+    initialEvent ? toDateInputValue(initialEvent.occurredAt) : isoToday(),
+  );
+  const [description, setDescription] = useState(
+    initialEvent?.description ?? "",
+  );
   const dateId = useId();
   const descriptionId = useId();
-  const [lines, setLines] = useState<LineDraft[]>([]);
-
-  useEffect(() => {
-    if (!open) {
-      setError(null);
-      setDescription("");
-      setBusy(false);
-      setEditing(false);
-      return;
-    }
-
-    if (initialEvent) {
-      setOccurredAt(toDateInputValue(initialEvent.occurredAt));
-      setDescription(initialEvent.description ?? "");
-
-      const eventLines =
-        initialEvent.children.length > 0
-          ? initialEvent.children
-          : [
-              {
-                id: initialEvent.id,
-                walletId: initialEvent.walletId,
-                fundId: initialEvent.fundId,
-                description: initialEvent.description,
-                amount: initialEvent.amount,
-                isPending: initialEvent.isPending,
-                incomePull: initialEvent.incomePull,
-              },
-            ];
-
-      setLines(
-        eventLines.map((l) => {
-          const n = Number(l.amount);
-          const direction: Direction = n < 0 ? "out" : "in";
-          const abs = Math.abs(n);
-          return defaultLineDraft({
-            transactionId: l.id,
-            walletId: l.walletId ? String(l.walletId) : "",
-            fundId: l.fundId ? String(l.fundId) : "",
-            description: l.description ?? "",
-            direction,
-            amount: abs ? String(Math.round(abs * 100)) : "",
-            isPending: Boolean(l.isPending),
-          });
-        }),
-      );
-
-      return;
-    }
-
-    const defaultWalletId = wallets[0]?.id;
-    const preferredFundId =
-      funds.find((f) => !f.isSavings)?.id ?? funds.find((f) => f.isSavings)?.id;
-
-    setOccurredAt(isoToday());
-    setLines([
-      defaultLineDraft({
-        walletId: defaultWalletId ? String(defaultWalletId) : "",
-        fundId: preferredFundId ? String(preferredFundId) : "",
-        direction: "out",
-        amount: "",
-        isPending: true,
-      }),
-    ]);
-  }, [open, initialEvent, wallets, funds, setBusy, setError]);
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    initialLineDrafts(initialEvent, wallets, funds),
+  );
 
   function patchLine(key: string, patch: Partial<LineDraft>) {
     setLines((prev) =>

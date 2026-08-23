@@ -4,6 +4,13 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { transactions, wallets } from "@/db/schema";
 import { clearedBalanceSql, pendingBalanceSql } from "@/db/balances";
+import {
+  parseOptionalName,
+  parseRequiredId,
+  parseRequiredName,
+  parseRequestJsonObject,
+} from "@/app/api/json-body";
+import { BadRequestError } from "@/app/api/query-params";
 import { requireUser } from "@/lib/auth";
 import { holdsMoney } from "@/lib/money";
 
@@ -66,22 +73,23 @@ export async function POST(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    if (!data?.name) {
-      return NextResponse.json({ error: "Missing name" }, { status: 400 });
-    }
+    const data = await parseRequestJsonObject(request);
+    const name = parseRequiredName(data.name, "name");
 
     const newWallet = await db
       .insert(wallets)
       .values({
         userId: user.id,
-        name: String(data.name),
+        name,
       })
       .returning();
 
     return NextResponse.json({ wallet: newWallet[0] });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error("API: Error creating wallet", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -95,17 +103,14 @@ export async function PATCH(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    const walletId = Number(data?.id);
-    if (!walletId) {
-      return NextResponse.json({ error: "Missing wallet id" }, { status: 400 });
-    }
+    const data = await parseRequestJsonObject(request);
+    const walletId = parseRequiredId(data.id, "wallet id");
+    const name = parseOptionalName(data.name, "name");
 
     const updatedWallet = await db
       .update(wallets)
       .set({
-        ...(data?.name ? { name: String(data.name) } : {}),
+        ...(name ? { name } : {}),
         updatedAt: new Date(),
       })
       .where(
@@ -124,6 +129,10 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ wallet: updatedWallet });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error("API: Error updating wallet", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -137,12 +146,8 @@ export async function DELETE(request: NextRequest) {
     const { user, response } = await requireUser();
     if (!user) return response;
 
-    const data = await request.json();
-
-    const walletId = Number(data?.id);
-    if (!walletId) {
-      return NextResponse.json({ error: "Missing wallet id" }, { status: 400 });
-    }
+    const data = await parseRequestJsonObject(request);
+    const walletId = parseRequiredId(data.id, "wallet id");
 
     const [walletCountRow, selectedWallet, walletBalanceRow] =
       await Promise.all([
@@ -194,10 +199,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
 
-    // Both figures are checked, not just the pending-inclusive one: they can
-    // cancel out. A wallet holding $500 against a pending -$500 bill nets to
-    // zero while still holding $500, and deleting it drops that money from
-    // every wallet aggregate while the funds side goes on counting it.
+    // Both figures, because they can cancel out: $500 against a pending -$500
+    // bill nets to zero while the wallet still holds $500.
     const cleared = Number(walletBalanceRow?.balance ?? 0);
     const bal = Number(walletBalanceRow?.balanceWithPending ?? 0);
     if (holdsMoney(cleared) || holdsMoney(bal)) {
@@ -229,6 +232,10 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ wallet: deletedWallet });
   } catch (error) {
+    if (error instanceof BadRequestError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.error("API: Error deleting wallet", error);
     return NextResponse.json(
       { error: "Internal server error" },

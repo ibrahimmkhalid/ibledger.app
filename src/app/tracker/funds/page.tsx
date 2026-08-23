@@ -56,7 +56,7 @@ function roundHalf(n: number): number {
   return Math.round(n * 2) / 2;
 }
 
-/** Format a percentage for display — showing .0 or .5 only when needed. */
+/** Format a percentage, showing .0 or .5 only when needed. */
 function fmtPct(n: number): string {
   const rounded = roundHalf(n);
   if (Number.isInteger(rounded)) {
@@ -79,14 +79,7 @@ function fundToDraft(f: Fund): DraftFund {
   };
 }
 
-/**
- * Non-savings pulls have to leave savings a non-negative share, so they can
- * total at most 100. Any fund may sit at 0, meaning no income is routed to it,
- * and savings may sit at 0 when the others claim everything between them.
- *
- * Only ever scales down, and only for totals over 100 -- which the server now
- * rejects, so they can only come from rows written before it did.
- */
+/** Scales non-savings shares down to a total of 100. Never scales up. */
 function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   const out = drafts.map((d) => ({ ...d }));
   const nonSavings = out.filter((f) => !f.isSavings);
@@ -99,10 +92,8 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
     f.pullPercentage = roundHalf(f.pullPercentage * scale);
   }
 
-  // roundHalf can nudge the total a little either side of 100. Positive drift
-  // settles on the largest fund, which is big enough to absorb it. Negative
-  // drift may exceed what any single fund holds, so walk the funds largest
-  // first, trimming each (clamped at zero) until it is fully consumed.
+  // roundHalf drifts either side of 100. Positive drift goes on the largest
+  // fund; negative drift is trimmed off the funds largest first.
   const drift = 100 - nonSavings.reduce((s, f) => s + f.pullPercentage, 0);
   if (drift > 0) {
     const largest = nonSavings.reduce((a, b) =>
@@ -125,10 +116,7 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   return out;
 }
 
-/**
- * Build the ordered array the slider component needs.
- * Non-savings funds first (preserving order), savings last.
- */
+/** The slider's array: non-savings funds in order, savings last. */
 function buildSliderFunds(drafts: DraftFund[]): SliderFund[] {
   const nonSavings = drafts.filter((f) => !f.isSavings);
   const savings = drafts.find((f) => f.isSavings);
@@ -205,6 +193,23 @@ export default function FundsPage() {
     [serverFunds],
   );
 
+  /** Re-initialise draft from the given server funds. */
+  const resetDraft = useCallback((funds: Fund[]) => {
+    const fromServer = funds.map(fundToDraft);
+    const normalised = normaliseDraft(fromServer);
+
+    // The scaled figures are numbers the user never typed, so start the form
+    // dirty and say why rather than showing a total that is not in the database.
+    const scaled = normalised.some(
+      (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
+    );
+
+    setDraftFunds(normalised);
+    setDeletedIds([]);
+    setDirty(scaled);
+    setRescaledFromServer(scaled);
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     // When bootstrap redirects, keep the skeleton up until navigation lands;
@@ -218,40 +223,19 @@ export default function FundsPage() {
       }
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setServerFunds(res.funds);
+      resetDraft(res.funds);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load funds");
     } finally {
       if (!redirected) setLoading(false);
     }
-  }, [router]);
+  }, [router, resetDraft]);
 
   useEffect(() => {
+    // The page fetches itself on the client, so the load flag is set here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
-
-  /** Re-initialise draft from serverFunds. */
-  const resetDraft = useCallback(() => {
-    const fromServer = serverFunds.map(fundToDraft);
-    const normalised = normaliseDraft(fromServer);
-
-    // Scaling only happens for a saved total over 100, which blocks recording
-    // income. The scaled figures are numbers the user never typed, so leaving
-    // the form clean would show a healthy allocation that does not match the
-    // database, with Confirm disabled and no way to write the fix. Start dirty
-    // and say why instead.
-    const scaled = normalised.some(
-      (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
-    );
-
-    setDraftFunds(normalised);
-    setDeletedIds([]);
-    setDirty(scaled);
-    setRescaledFromServer(scaled);
-  }, [serverFunds]);
-
-  useEffect(() => {
-    resetDraft();
-  }, [resetDraft]);
 
   function updateDraft(key: string, updates: Partial<DraftFund>) {
     setDraftFunds((prev) =>
@@ -301,7 +285,7 @@ export default function FundsPage() {
   }
 
   function revert() {
-    resetDraft();
+    resetDraft(serverFunds);
   }
 
   async function confirmChanges() {
@@ -382,7 +366,7 @@ export default function FundsPage() {
           className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
         >
           Your saved income shares added up to more than 100%. They have been
-          scaled back to fit — press Confirm to save the correction.
+          scaled back to fit. Press Confirm to save the correction.
         </div>
       )}
 

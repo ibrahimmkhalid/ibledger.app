@@ -47,8 +47,5 @@ next-env.d.ts
 .nvim.lua
 .todo
 
-# ai stuff
-agent_docs/
-
 # local dev tooling
 .claude/

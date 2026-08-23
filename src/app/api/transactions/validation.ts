@@ -1,3 +1,9 @@
+import {
+  JsonObject,
+  parseJsonObject,
+  parseNullableId,
+  parseNullableNumber,
+} from "@/app/api/json-body";
 import { BadRequestError } from "@/app/api/query-params";
 
 export type CreateTransactionLineInput = {
@@ -12,32 +18,6 @@ export type UpdateTransactionLineInput = CreateTransactionLineInput & {
   transactionId: number | null;
 };
 
-type JsonObject = Record<string, unknown>;
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function parseJsonObject(value: unknown): JsonObject {
-  if (!isJsonObject(value)) {
-    throw new BadRequestError("Invalid JSON body");
-  }
-
-  return value;
-}
-
-export async function parseRequestJsonObject(request: Request) {
-  try {
-    return parseJsonObject(await request.json());
-  } catch (error) {
-    if (error instanceof BadRequestError) {
-      throw error;
-    }
-
-    throw new BadRequestError("Invalid JSON body");
-  }
-}
-
 export function parseOccurredAt(input: unknown): Date {
   if (input instanceof Date) {
     return input;
@@ -51,32 +31,6 @@ export function parseOccurredAt(input: unknown): Date {
   }
 
   throw new BadRequestError("Invalid occurredAt");
-}
-
-function parseNullableNumber(input: unknown, name: string): number | null {
-  if (input === null || input === undefined) {
-    return null;
-  }
-
-  const value = Number(input);
-  if (!Number.isFinite(value)) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
-}
-
-function parseNullableId(input: unknown, name: string): number | null {
-  const value = parseNullableNumber(input, name);
-  if (value === null) {
-    return null;
-  }
-
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new BadRequestError(`Invalid ${name}`);
-  }
-
-  return value;
 }
 
 function parseLineDescription(input: unknown): string | null {

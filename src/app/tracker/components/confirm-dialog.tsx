@@ -15,9 +15,8 @@ type ConfirmOptions = {
 };
 
 /**
- * A styled, theme-aware, touch-sized replacement for `window.confirm`. Returns
- * a `confirm(opts) => Promise<boolean>` and the element to render. On mobile it
- * becomes a bottom drawer (via ResponsiveModal); on desktop a centered dialog.
+ * A replacement for `window.confirm`. Returns a `confirm(opts) =>
+ * Promise<boolean>` and the element to render.
  */
 export function useConfirm() {
   const [state, setState] = useState<

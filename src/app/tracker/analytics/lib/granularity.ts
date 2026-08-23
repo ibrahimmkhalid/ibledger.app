@@ -14,9 +14,8 @@ export const GRANULARITY_LEVELS: ReadonlyArray<GranularityLevel> = [
   "coarse",
 ];
 
-// The Detail control is labelled with the bucket a slot actually resolves to
-// for the current range, rather than an abstract Fine/Medium/Coarse that means
-// something different on every range.
+// The Detail control shows the bucket a slot resolves to for the current
+// range, not an abstract Fine/Medium/Coarse.
 export const GROUP_BY_LABELS: Record<GroupBy, string> = {
   day: "Daily",
   week: "Weekly",
@@ -24,7 +23,7 @@ export const GROUP_BY_LABELS: Record<GroupBy, string> = {
 };
 
 // Shown on a slot with no bucket to offer.
-export const GRANULARITY_EMPTY_LABEL = "—";
+export const GRANULARITY_EMPTY_LABEL = "N/A";
 
 // Base (range, zoom) → bucket size before data-span capping.
 export const GRANULARITY_SLOT_MAP: Record<
@@ -105,6 +104,10 @@ export function dateRangeForPreset(preset: DateRangePreset): {
     case "ytd":
       start.setMonth(0, 1);
       break;
+    default: {
+      const unhandled: never = preset;
+      throw new Error(`Unhandled date preset: ${String(unhandled)}`);
+    }
   }
 
   return { startDate: toISODate(start), endDate: toISODate(today) };
@@ -204,9 +207,8 @@ type GranularitySlotState = {
 };
 
 function slotReason(groupBy: GroupBy | null, spanDays: number): string | null {
-  // Any of the three slots can come up empty — Last week fills only fine,
-  // Last year and long spans leave coarse unfilled — so this cannot describe
-  // where the missing slot sits relative to the others.
+  // Any of the three slots can come up empty, so this cannot say where the
+  // missing one sits relative to the others.
   if (groupBy === null) {
     return "This date range has no other bucket size to offer.";
   }
