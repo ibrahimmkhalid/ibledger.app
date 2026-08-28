@@ -215,6 +215,16 @@ export function WalletsCard(args: {
   const { wallets, onReload } = args;
   const { confirm, confirmDialog } = useConfirm();
   const [busy, setBusy] = useState(false);
+  // A mutation can land while the reload that follows it fails, which leaves
+  // the list below out of date. Editing it again would act on stale rows.
+  const [stale, setStale] = useState(false);
+  const locked = busy || stale;
+
+  async function reload() {
+    const ok = await onReload();
+    setStale(!ok);
+    return ok;
+  }
 
   const [createOpen, setCreateOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
@@ -234,7 +244,7 @@ export function WalletsCard(args: {
       });
       setCreateOpen(false);
       toast.success("Wallet created");
-      await onReload();
+      await reload();
     } finally {
       setBusy(false);
     }
@@ -257,7 +267,7 @@ export function WalletsCard(args: {
         body: JSON.stringify({ id: wallet.id }),
       });
       toast.success("Wallet deleted");
-      await onReload();
+      await reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete wallet");
     } finally {
@@ -283,16 +293,21 @@ export function WalletsCard(args: {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>Wallets</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
+              {stale && (
+                <span className="text-muted-foreground text-xs">
+                  Out of date
+                </span>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void onReload()}
+                onClick={() => void reload()}
                 disabled={busy}
               >
                 <RefreshCwIcon />
                 Refresh
               </Button>
-              <Button size="sm" onClick={openCreate} disabled={busy}>
+              <Button size="sm" onClick={openCreate} disabled={locked}>
                 <PlusIcon />
                 New wallet
               </Button>
@@ -316,9 +331,9 @@ export function WalletsCard(args: {
                 <WalletRow
                   key={w.id}
                   wallet={w}
-                  busy={busy}
+                  busy={locked}
                   walletCount={wallets.length}
-                  onReload={onReload}
+                  onReload={reload}
                   onDelete={deleteWallet}
                 />
               ))}
