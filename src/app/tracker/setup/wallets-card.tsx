@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 
@@ -22,10 +21,8 @@ import {
   WalletModal,
   type WalletFormState,
 } from "@/app/tracker/components/wallet-modal";
-import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
-import { WalletsSkeleton } from "@/app/tracker/components/loading-skeletons";
 import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 import { holdsMoney } from "@/lib/money";
 import type { Wallet } from "@/app/tracker/types";
@@ -54,13 +51,14 @@ function canDeleteWallet(
   return { ok: true };
 }
 
-export default function WalletsPage() {
-  const router = useRouter();
+/** Each modal commits on its own; there is no draft to revert. */
+export function WalletsCard(args: {
+  wallets: Wallet[];
+  onReload: () => Promise<void>;
+}) {
+  const { wallets, onReload } = args;
   const { confirm, confirmDialog } = useConfirm();
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-
-  const [wallets, setWallets] = useState<Wallet[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editWallet, setEditWallet] = useState<Wallet | null>(null);
@@ -76,32 +74,6 @@ export default function WalletsPage() {
     setEditWallet(wallet);
   }
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    // When bootstrap redirects, keep the skeleton up until navigation lands;
-    // clearing it would flash an empty wallets page mid-redirect.
-    let redirected = false;
-    try {
-      const ready = await checkBootstrapOrRedirect(router);
-      if (!ready) {
-        redirected = true;
-        return;
-      }
-      const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
-      setWallets(res.wallets);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load wallets");
-    } finally {
-      if (!redirected) setLoading(false);
-    }
-  }, [router]);
-
-  useEffect(() => {
-    // The page fetches itself on the client, so the load flag is set here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh();
-  }, [refresh]);
-
   // Rethrows instead of toasting; WalletModal shows the reason by the field.
   async function createWallet(data: WalletFormState) {
     setBusy(true);
@@ -112,7 +84,7 @@ export default function WalletsPage() {
       });
       setCreateOpen(false);
       toast.success("Wallet created");
-      await refresh();
+      await onReload();
     } finally {
       setBusy(false);
     }
@@ -127,7 +99,7 @@ export default function WalletsPage() {
       });
       setEditWallet(null);
       toast.success("Wallet updated");
-      await refresh();
+      await onReload();
     } finally {
       setBusy(false);
     }
@@ -150,7 +122,7 @@ export default function WalletsPage() {
         body: JSON.stringify({ id: wallet.id }),
       });
       toast.success("Wallet deleted");
-      await refresh();
+      await onReload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete wallet");
     } finally {
@@ -158,26 +130,9 @@ export default function WalletsPage() {
     }
   }
 
-  if (loading) {
-    return <WalletsSkeleton />;
-  }
-
   return (
-    <div className="flex flex-col gap-6">
+    <>
       {confirmDialog}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Wallets</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void refresh()}>
-            <RefreshCwIcon />
-            Refresh
-          </Button>
-          <Button onClick={openCreate}>
-            <PlusIcon />
-            New wallet
-          </Button>
-        </div>
-      </div>
 
       <WalletModal
         key={`create-wallet-${modalKey}`}
@@ -211,8 +166,26 @@ export default function WalletsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All wallets</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Wallets</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void onReload()}
+                disabled={busy}
+              >
+                <RefreshCwIcon />
+                Refresh
+              </Button>
+              <Button size="sm" onClick={openCreate} disabled={busy}>
+                <PlusIcon />
+                New wallet
+              </Button>
+            </div>
+          </div>
         </CardHeader>
+
         <CardContent>
           <Table>
             <TableHeader>
@@ -274,6 +247,6 @@ export default function WalletsPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }
