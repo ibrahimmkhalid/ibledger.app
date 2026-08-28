@@ -21,16 +21,17 @@ export default function SetupPage() {
   // Bumping this remounts FundsCard, which is how its draft is reseeded.
   const [fundsVersion, setFundsVersion] = useState(0);
 
+  // Both reloads report whether they landed. Remounting on a failed reload
+  // would reseed the card from data the save already superseded.
   const loadFunds = useCallback(async () => {
     try {
       const res = await apiJson<{ funds: Fund[] }>("/api/funds");
       setFunds(res.funds);
+      setFundsVersion((n) => n + 1);
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load funds");
-    } finally {
-      // Remount even when the reload failed, so a save that succeeded still
-      // leaves the card usable.
-      setFundsVersion((n) => n + 1);
+      return false;
     }
   }, []);
 
@@ -38,8 +39,10 @@ export default function SetupPage() {
     try {
       const res = await apiJson<{ wallets: Wallet[] }>("/api/wallets");
       setWallets(res.wallets);
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load wallets");
+      return false;
     }
   }, []);
 

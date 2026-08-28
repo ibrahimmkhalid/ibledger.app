@@ -163,11 +163,11 @@ function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
 
 /**
  * Edits are drafted here and committed by Confirm. The card is remounted on
- * every reload, so the draft is seeded from props and never resynced.
+ * every landed reload, so the draft is seeded from props and never resynced.
  */
 export function FundsCard(args: {
   serverFunds: Fund[];
-  onReload: () => Promise<void>;
+  onReload: () => Promise<boolean>;
 }) {
   const { serverFunds, onReload } = args;
 
@@ -269,8 +269,9 @@ export function FundsCard(args: {
       });
 
       toast.success("Changes saved");
-      // The reload remounts this card, which is what clears busy and the draft.
-      await onReload();
+      // A landed reload remounts this card, which is what clears busy and the
+      // draft. When it fails the draft is the only copy of what was saved.
+      if (!(await onReload())) setBusy(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
       setBusy(false);

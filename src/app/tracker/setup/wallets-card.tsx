@@ -65,7 +65,7 @@ function WalletRow(props: {
   wallet: Wallet;
   busy: boolean;
   walletCount: number;
-  onReload: () => Promise<void>;
+  onReload: () => Promise<boolean>;
   onDelete: (wallet: Wallet) => Promise<void>;
 }) {
   const { wallet, busy, walletCount, onReload, onDelete } = props;
@@ -210,7 +210,7 @@ function WalletRow(props: {
 /** Wallet names commit on Enter or the check button; Escape reverts. */
 export function WalletsCard(args: {
   wallets: Wallet[];
-  onReload: () => Promise<void>;
+  onReload: () => Promise<boolean>;
 }) {
   const { wallets, onReload } = args;
   const { confirm, confirmDialog } = useConfirm();
