@@ -32,7 +32,7 @@ import {
   MultiFundSlider,
   type SliderFund,
 } from "@/components/ui/multi-fund-slider";
-import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
+import { seriesColorForKey } from "@/app/tracker/lib/series-colors";
 import { Swatch } from "@/components/ui/swatch";
 import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
 
@@ -185,15 +185,6 @@ export function FundsCard(args: {
     const sv = draftFunds.filter((f) => f.isSavings);
     return [...ns, ...sv];
   }, [draftFunds]);
-
-  /** Map each fund key → colour index (savings = -1). */
-  const colorMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const f of orderedDraft) {
-      map.set(f.key, f.isSavings ? -1 : keyToColorIndex(f.key));
-    }
-    return map;
-  }, [orderedDraft]);
 
   /** Non-savings pull-% total from the server, for the "previously saved" block. */
   const serverNsTotal = useMemo(
@@ -363,30 +354,26 @@ export function FundsCard(args: {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40px]"></TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-0"></TableHead>
+              <TableHead className="w-1/2">Name</TableHead>
               <TableHead className="text-right">Balance</TableHead>
-              <TableHead className="w-[48px]"></TableHead>
+              <TableHead className="w-0"></TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {orderedDraft.map((f) => {
-              const ci = colorMap.get(f.key) ?? -1;
               const del = canDeleteFund(f);
 
               return (
                 <TableRow key={f.key}>
-                  {/* Colour dot */}
                   <TableCell>
                     <Swatch
-                      color={seriesColor(ci, f.isSavings).bg}
+                      color={seriesColorForKey(f.key, f.isSavings).bg}
                       hatched={f.isSavings}
-                      className="mx-auto"
                     />
                   </TableCell>
 
-                  {/* Name */}
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-2">
                       {/* This is the page for editing fund names, so the
@@ -410,8 +397,7 @@ export function FundsCard(args: {
                     </div>
                   </TableCell>
 
-                  {/* Balance */}
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="text-right text-sm tabular-nums">
                     {f.id ? (
                       <ClearedWithPending
                         cleared={f.balance}
@@ -422,28 +408,29 @@ export function FundsCard(args: {
                     )}
                   </TableCell>
 
-                  {/* Delete */}
-                  <TableCell>
-                    {!f.isSavings &&
-                      (del.ok ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeFund(f.key)}
-                          disabled={busy}
-                          aria-label={`Delete ${f.name || "fund"}`}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2Icon />
-                        </Button>
-                      ) : (
-                        <UnavailableActionButton
-                          label={`Can't delete ${f.name || "fund"}`}
-                          reason={del.reason ?? "Unavailable"}
-                        >
-                          <Trash2Icon />
-                        </UnavailableActionButton>
-                      ))}
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-2 sm:gap-1">
+                      {!f.isSavings &&
+                        (del.ok ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeFund(f.key)}
+                            disabled={busy}
+                            aria-label={`Delete ${f.name || "fund"}`}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        ) : (
+                          <UnavailableActionButton
+                            label={`Can't delete ${f.name || "fund"}`}
+                            reason={del.reason ?? "Unavailable"}
+                          >
+                            <Trash2Icon />
+                          </UnavailableActionButton>
+                        ))}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
