@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { toast } from "sonner";
-import { PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -24,7 +31,10 @@ import {
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { useConfirm } from "@/app/tracker/components/confirm-dialog";
 import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
+import { seriesColorForKey } from "@/app/tracker/lib/series-colors";
+import { Swatch } from "@/components/ui/swatch";
 import { holdsMoney } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import type { Wallet } from "@/app/tracker/types";
 
 // Mirrors the DELETE handler's guard so the button is never offered for a
@@ -51,7 +61,153 @@ function canDeleteWallet(
   return { ok: true };
 }
 
-/** Each modal commits on its own; there is no draft to revert. */
+function WalletRow(props: {
+  wallet: Wallet;
+  busy: boolean;
+  walletCount: number;
+  onReload: () => Promise<void>;
+  onDelete: (wallet: Wallet) => Promise<void>;
+}) {
+  const { wallet, busy, walletCount, onReload, onDelete } = props;
+  const [prevServerName, setPrevServerName] = useState(wallet.name);
+  const [name, setName] = useState(wallet.name);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  if (prevServerName !== wallet.name) {
+    setPrevServerName(wallet.name);
+    setName(wallet.name);
+  }
+
+  const isDirty = name.trim() !== wallet.name;
+
+  async function save() {
+    const trimmed = name.trim();
+    // The check button is disabled in both cases; this covers Enter.
+    if (!trimmed) return;
+    if (trimmed === wallet.name) {
+      setName(wallet.name);
+      return;
+    }
+    if (savingRef.current) return;
+
+    savingRef.current = true;
+    setIsSaving(true);
+    try {
+      await apiJson("/api/wallets", {
+        method: "PATCH",
+        body: JSON.stringify({ id: wallet.id, name: trimmed }),
+      });
+      toast.success("Wallet updated");
+      await onReload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update wallet");
+      setName(wallet.name);
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  function revert() {
+    setName(wallet.name);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void save();
+    } else if (e.key === "Escape") {
+      revert();
+      e.currentTarget.blur();
+    }
+  }
+
+  const del = canDeleteWallet(wallet, walletCount);
+
+  return (
+    <TableRow key={wallet.id}>
+      <TableCell>
+        <Swatch color={seriesColorForKey(String(wallet.id)).bg} />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Wallet name"
+          aria-label={`Name of ${wallet.name}`}
+          disabled={busy || isSaving}
+          className="w-full min-w-0"
+        />
+      </TableCell>
+      {/* Its own column, so the name field is the width the funds one is.
+          Hidden rather than unmounted, so showing it shifts nothing. */}
+      <TableCell>
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 sm:gap-1",
+            !isDirty && "invisible",
+          )}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => void save()}
+            disabled={busy || isSaving || !name.trim()}
+            aria-label={`Save name for ${wallet.name}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <CheckIcon />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={revert}
+            disabled={busy || isSaving}
+            aria-label={`Undo name change for ${wallet.name}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <XIcon />
+          </Button>
+        </div>
+      </TableCell>
+      <TableCell className="text-right text-sm tabular-nums">
+        <ClearedWithPending
+          cleared={wallet.balance}
+          withPending={wallet.balanceWithPending}
+        />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="inline-flex items-center gap-2 sm:gap-1">
+          {del.ok ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void onDelete(wallet)}
+              disabled={busy || isSaving}
+              aria-label={`Delete ${wallet.name}`}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2Icon />
+            </Button>
+          ) : (
+            <UnavailableActionButton
+              label={`Can't delete ${wallet.name}`}
+              reason={del.reason ?? "Unavailable"}
+            >
+              <Trash2Icon />
+            </UnavailableActionButton>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** Wallet names commit on Enter or the check button; Escape reverts. */
 export function WalletsCard(args: {
   wallets: Wallet[];
   onReload: () => Promise<void>;
@@ -61,17 +217,11 @@ export function WalletsCard(args: {
   const [busy, setBusy] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editWallet, setEditWallet] = useState<Wallet | null>(null);
   const [modalKey, setModalKey] = useState(0);
 
   function openCreate() {
     setModalKey((n) => n + 1);
     setCreateOpen(true);
-  }
-
-  function openEdit(wallet: Wallet) {
-    setModalKey((n) => n + 1);
-    setEditWallet(wallet);
   }
 
   // Rethrows instead of toasting; WalletModal shows the reason by the field.
@@ -84,21 +234,6 @@ export function WalletsCard(args: {
       });
       setCreateOpen(false);
       toast.success("Wallet created");
-      await onReload();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function updateWallet(wallet: Wallet, data: WalletFormState) {
-    setBusy(true);
-    try {
-      await apiJson("/api/wallets", {
-        method: "PATCH",
-        body: JSON.stringify({ id: wallet.id, name: data.name }),
-      });
-      setEditWallet(null);
-      toast.success("Wallet updated");
       await onReload();
     } finally {
       setBusy(false);
@@ -143,27 +278,6 @@ export function WalletsCard(args: {
         onSave={createWallet}
       />
 
-      <WalletModal
-        key={`edit-wallet-${modalKey}`}
-        open={Boolean(editWallet)}
-        onOpenChange={(open: boolean) => {
-          if (!open) setEditWallet(null);
-        }}
-        title="Edit wallet"
-        initial={
-          editWallet
-            ? {
-                name: editWallet.name,
-              }
-            : undefined
-        }
-        busy={busy}
-        onSave={(data) => {
-          if (!editWallet) return;
-          return updateWallet(editWallet, data);
-        }}
-      />
-
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -190,59 +304,24 @@ export function WalletsCard(args: {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead className="w-0"></TableHead>
+                <TableHead className="w-1/2">Name</TableHead>
+                <TableHead className="w-0"></TableHead>
                 <TableHead className="text-right">Balance</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-0"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((w) => {
-                const del = canDeleteWallet(w, wallets.length);
-
-                return (
-                  <TableRow key={w.id}>
-                    <TableCell className="font-medium">{w.name}</TableCell>
-                    <TableCell className="text-right text-sm whitespace-normal tabular-nums">
-                      <ClearedWithPending
-                        cleared={w.balance}
-                        withPending={w.balanceWithPending}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="inline-flex items-center gap-2 sm:gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEdit(w)}
-                          disabled={busy}
-                          aria-label={`Edit ${w.name}`}
-                        >
-                          <PencilIcon />
-                        </Button>
-                        {del.ok ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => void deleteWallet(w)}
-                            disabled={busy}
-                            aria-label={`Delete ${w.name}`}
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2Icon />
-                          </Button>
-                        ) : (
-                          <UnavailableActionButton
-                            label={`Can't delete ${w.name}`}
-                            reason={del.reason ?? "Unavailable"}
-                          >
-                            <Trash2Icon />
-                          </UnavailableActionButton>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {wallets.map((w) => (
+                <WalletRow
+                  key={w.id}
+                  wallet={w}
+                  busy={busy}
+                  walletCount={wallets.length}
+                  onReload={onReload}
+                  onDelete={deleteWallet}
+                />
+              ))}
             </TableBody>
           </Table>
         </CardContent>
