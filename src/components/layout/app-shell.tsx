@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Inter, Merriweather } from "next/font/google";
+import { ChevronDownIcon } from "lucide-react";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -25,6 +26,12 @@ import {
 } from "@clerk/nextjs";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverSeparator,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   getOnboardingRequired,
@@ -46,38 +53,69 @@ const NAV_ITEMS = [
   { href: "/tracker", label: "Overview" },
   { href: "/tracker/transactions", label: "Transactions" },
   { href: "/tracker/analytics", label: "Analytics" },
-  { href: "/tracker/funds", label: "Funds" },
-  { href: "/tracker/wallets", label: "Wallets" },
-  { href: "/how-to-use", label: "How to use" },
+  { href: "/tracker/setup", label: "Setup" },
 ] as const;
 
-function navLinkClassName(args: { href: string; pathname: string }) {
-  const active = args.pathname === args.href;
-  return [
-    "text-sm",
-    "px-3",
-    "sm:px-2",
-    "py-2.5",
-    "sm:py-1",
-    "rounded-md",
-    "whitespace-nowrap",
-    active
-      ? "bg-muted font-semibold"
-      : "text-muted-foreground hover:text-foreground",
-  ].join(" ");
+// Help is not a section of the ledger, so it sits below a divider in the
+// mobile menu and stays out of the desktop row.
+const HELP_ITEM = { href: "/how-to-use", label: "How to use" } as const;
+
+function DesktopNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="hidden items-center gap-1 sm:flex">
+      {NAV_ITEMS.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          aria-current={pathname === item.href ? "page" : undefined}
+          className={`rounded-md px-2 py-1 text-sm whitespace-nowrap ${pathname === item.href ? "bg-muted font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
 }
 
-function NavLinks({ pathname }: { pathname: string }) {
-  return NAV_ITEMS.map((item) => (
-    <Link
-      key={item.href}
-      href={item.href}
-      aria-current={pathname === item.href ? "page" : undefined}
-      className={navLinkClassName({ href: item.href, pathname })}
-    >
-      {item.label}
-    </Link>
-  ));
+function MobileNav({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const current = [...NAV_ITEMS, HELP_ITEM].find(
+    (item) => item.href === pathname,
+  );
+
+  function menuItem(item: { href: string; label: string }) {
+    const active = pathname === item.href;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setOpen(false)}
+        aria-current={active ? "page" : undefined}
+        className={`flex items-center rounded-md px-3 py-2.5 text-sm ${active ? "bg-muted font-semibold" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="sm:hidden">
+          {current?.label ?? "Menu"}
+          <ChevronDownIcon data-icon="inline-end" />
+        </Button>
+      </PopoverTrigger>
+      {/* Matches the trigger's breakpoint; the portal is outside the header. */}
+      <PopoverContent className="w-44 sm:hidden">
+        <nav aria-label="Sections" className="flex flex-col">
+          {NAV_ITEMS.map(menuItem)}
+          <PopoverSeparator />
+          {menuItem(HELP_ITEM)}
+        </nav>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function AppShell(args: {
@@ -102,13 +140,6 @@ export function AppShell(args: {
     (inTracker || pathname === "/how-to-use") && !onboardingRequired;
   const year = new Date().getFullYear();
 
-  // Keep the active item visible in the horizontally-scrolling mobile nav.
-  const mobileNavRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const active = mobileNavRef.current?.querySelector('[aria-current="page"]');
-    active?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [pathname]);
-
   return (
     <div className="bg-background flex min-h-screen flex-col">
       {!devTesting && <BootstrapIdentitySync />}
@@ -125,9 +156,10 @@ export function AppShell(args: {
               </span>
             </Link>
             {showSectionNav && (
-              <nav className="hidden items-center gap-1 sm:flex">
-                <NavLinks pathname={pathname} />
-              </nav>
+              <>
+                <DesktopNav pathname={pathname} />
+                <MobileNav pathname={pathname} />
+              </>
             )}
           </div>
 
@@ -167,18 +199,6 @@ export function AppShell(args: {
             )}
           </div>
         </div>
-
-        {showSectionNav && (
-          <div className="border-t sm:hidden">
-            <nav
-              ref={mobileNavRef}
-              aria-label="Sections"
-              className="mx-auto flex w-full max-w-6xl items-center justify-start gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-1.5 whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <NavLinks pathname={pathname} />
-            </nav>
-          </div>
-        )}
       </header>
 
       <main className="flex-1">{children}</main>

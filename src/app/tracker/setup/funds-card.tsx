@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   CheckIcon,
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/table";
 
 import { apiJson } from "@/app/tracker/lib/api";
-import { checkBootstrapOrRedirect } from "@/app/tracker/lib/bootstrap";
 import { ClearedWithPending } from "@/app/tracker/components/cleared-with-pending";
 import { fmtAmount } from "@/app/tracker/lib/format";
 import { holdsMoney } from "@/lib/money";
@@ -34,10 +32,9 @@ import {
   MultiFundSlider,
   type SliderFund,
 } from "@/components/ui/multi-fund-slider";
-import { keyToColorIndex, seriesColor } from "@/app/tracker/lib/series-colors";
+import { seriesColorForKey } from "@/app/tracker/lib/series-colors";
 import { Swatch } from "@/components/ui/swatch";
 import { UnavailableActionButton } from "@/app/tracker/components/unavailable-action-button";
-import { FundsSkeleton } from "@/app/tracker/components/loading-skeletons";
 
 type DraftFund = {
   key: string;
@@ -116,6 +113,17 @@ function normaliseDraft(drafts: DraftFund[]): DraftFund[] {
   return out;
 }
 
+// Scaled figures are numbers the user never typed, so the form starts dirty
+// and says why rather than showing a total that is not in the database.
+function buildDraft(funds: Fund[]) {
+  const fromServer = funds.map(fundToDraft);
+  const normalised = normaliseDraft(fromServer);
+  const rescaled = normalised.some(
+    (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
+  );
+  return { drafts: normalised, rescaled };
+}
+
 /** The slider's array: non-savings funds in order, savings last. */
 function buildSliderFunds(drafts: DraftFund[]): SliderFund[] {
   const nonSavings = drafts.filter((f) => !f.isSavings);
@@ -153,17 +161,20 @@ function canDeleteFund(d: DraftFund): { ok: boolean; reason?: string } {
   return { ok: true };
 }
 
-export default function FundsPage() {
-  const router = useRouter();
+/**
+ * Edits are drafted here and committed by Confirm. The card is remounted on
+ * every landed reload, so the draft is seeded from props and never resynced.
+ */
+export function FundsCard(args: {
+  serverFunds: Fund[];
+  onReload: () => Promise<boolean>;
+}) {
+  const { serverFunds, onReload } = args;
 
-  const [serverFunds, setServerFunds] = useState<Fund[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [draftFunds, setDraftFunds] = useState<DraftFund[]>([]);
+  const [initial] = useState(() => buildDraft(serverFunds));
+  const [draftFunds, setDraftFunds] = useState<DraftFund[]>(initial.drafts);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
-  const [dirty, setDirty] = useState(false);
-  const [rescaledFromServer, setRescaledFromServer] = useState(false);
-
+  const [dirty, setDirty] = useState(initial.rescaled);
   const [busy, setBusy] = useState(false);
 
   const sliderFunds = useMemo(() => buildSliderFunds(draftFunds), [draftFunds]);
@@ -175,16 +186,7 @@ export default function FundsPage() {
     return [...ns, ...sv];
   }, [draftFunds]);
 
-  /** Map each fund key → colour index (savings = -1). */
-  const colorMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const f of orderedDraft) {
-      map.set(f.key, f.isSavings ? -1 : keyToColorIndex(f.key));
-    }
-    return map;
-  }, [orderedDraft]);
-
-  /** Non-savings pull-% total from the server (for the "previously saved" card). */
+  /** Non-savings pull-% total from the server, for the "previously saved" block. */
   const serverNsTotal = useMemo(
     () =>
       serverFunds
@@ -192,50 +194,6 @@ export default function FundsPage() {
         .reduce((s, f) => s + (f.pullPercentage ?? 0), 0),
     [serverFunds],
   );
-
-  /** Re-initialise draft from the given server funds. */
-  const resetDraft = useCallback((funds: Fund[]) => {
-    const fromServer = funds.map(fundToDraft);
-    const normalised = normaliseDraft(fromServer);
-
-    // The scaled figures are numbers the user never typed, so start the form
-    // dirty and say why rather than showing a total that is not in the database.
-    const scaled = normalised.some(
-      (fund, index) => fund.pullPercentage !== fromServer[index].pullPercentage,
-    );
-
-    setDraftFunds(normalised);
-    setDeletedIds([]);
-    setDirty(scaled);
-    setRescaledFromServer(scaled);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    // When bootstrap redirects, keep the skeleton up until navigation lands;
-    // clearing it would flash an empty funds page mid-redirect.
-    let redirected = false;
-    try {
-      const ready = await checkBootstrapOrRedirect(router);
-      if (!ready) {
-        redirected = true;
-        return;
-      }
-      const res = await apiJson<{ funds: Fund[] }>("/api/funds");
-      setServerFunds(res.funds);
-      resetDraft(res.funds);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load funds");
-    } finally {
-      if (!redirected) setLoading(false);
-    }
-  }, [router, resetDraft]);
-
-  useEffect(() => {
-    // The page fetches itself on the client, so the load flag is set here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh();
-  }, [refresh]);
 
   function updateDraft(key: string, updates: Partial<DraftFund>) {
     setDraftFunds((prev) =>
@@ -285,7 +243,9 @@ export default function FundsPage() {
   }
 
   function revert() {
-    resetDraft(serverFunds);
+    setDraftFunds(initial.drafts);
+    setDeletedIds([]);
+    setDirty(initial.rescaled);
   }
 
   async function confirmChanges() {
@@ -309,88 +269,28 @@ export default function FundsPage() {
       });
 
       toast.success("Changes saved");
-      await refresh();
+      // A landed reload remounts this card, which is what clears busy and the
+      // draft. When it fails the draft is the only copy of what was saved.
+      if (!(await onReload())) setBusy(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
-    } finally {
       setBusy(false);
     }
   }
 
-  if (loading) {
-    return <FundsSkeleton />;
-  }
-
   return (
-    <div className="flex flex-col gap-6">
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Funds</h1>
-          {dirty && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-              Unsaved changes
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {dirty ? (
-            <Button variant="outline" onClick={revert} disabled={busy}>
-              <RotateCcwIcon />
-              Revert
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={() => void refresh()}
-              disabled={busy}
-            >
-              <RefreshCwIcon />
-              Refresh
-            </Button>
-          )}
-          <Button
-            onClick={() => void confirmChanges()}
-            disabled={busy || !dirty}
-          >
-            <CheckIcon />
-            Confirm
-          </Button>
-        </div>
-      </div>
-
-      {rescaledFromServer && (
-        <div
-          role="status"
-          className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
-        >
-          Your saved income shares added up to more than 100%. They have been
-          scaled back to fit. Press Confirm to save the correction.
-        </div>
-      )}
-
-      {/* ── Allocation slider ───────────────────────────────────── */}
-      {sliderFunds.length > 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Income allocation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MultiFundSlider
-              funds={sliderFunds}
-              onChange={handleSliderChange}
-              disabled={busy}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Fund details ────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Fund details</CardTitle>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            Funds
+            {dirty && (
+              <span className="text-2xs rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                Unsaved changes
+              </span>
+            )}
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -400,73 +300,117 @@ export default function FundsPage() {
               <PlusIcon />
               Add fund
             </Button>
+            {dirty ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={revert}
+                disabled={busy}
+              >
+                <RotateCcwIcon />
+                Revert
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void onReload()}
+                disabled={busy}
+              >
+                <RefreshCwIcon />
+                Refresh
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => void confirmChanges()}
+              disabled={busy || !dirty}
+            >
+              <CheckIcon />
+              Confirm
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead className="text-right">Balance</TableHead>
-                <TableHead className="w-[48px]"></TableHead>
-              </TableRow>
-            </TableHeader>
+        </div>
+      </CardHeader>
 
-            <TableBody>
-              {orderedDraft.map((f) => {
-                const ci = colorMap.get(f.key) ?? -1;
-                const del = canDeleteFund(f);
+      <CardContent className="flex flex-col gap-4">
+        {initial.rescaled && (
+          <div
+            role="status"
+            className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
+          >
+            Your saved income shares added up to more than 100%. They have been
+            scaled back to fit. Press Confirm to save the correction.
+          </div>
+        )}
 
-                return (
-                  <TableRow key={f.key}>
-                    {/* Colour dot */}
-                    <TableCell>
-                      <Swatch
-                        color={seriesColor(ci, f.isSavings).bg}
-                        hatched={f.isSavings}
-                        className="mx-auto"
+        {sliderFunds.length > 1 && (
+          <MultiFundSlider
+            funds={sliderFunds}
+            onChange={handleSliderChange}
+            disabled={busy}
+          />
+        )}
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-0"></TableHead>
+              <TableHead className="w-1/2">Name</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
+              <TableHead className="w-0"></TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {orderedDraft.map((f) => {
+              const del = canDeleteFund(f);
+
+              return (
+                <TableRow key={f.key}>
+                  <TableCell>
+                    <Swatch
+                      color={seriesColorForKey(f.key, f.isSavings).bg}
+                      hatched={f.isSavings}
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {/* This is the page for editing fund names, so the
+                          field takes the width the table has spare rather
+                          than truncating mid-name inside 200px. */}
+                      <Input
+                        value={f.name}
+                        onChange={(e) =>
+                          updateDraft(f.key, { name: e.target.value })
+                        }
+                        placeholder="Fund name"
+                        aria-label={`Name of ${f.name || "new fund"}`}
+                        disabled={busy}
+                        className="w-full min-w-0"
                       />
-                    </TableCell>
-
-                    {/* Name */}
-                    <TableCell>
-                      <div className="flex min-w-0 items-center gap-2">
-                        {/* This is the page for editing fund names, so the
-                            field takes the width the table has spare rather
-                            than truncating mid-name inside 200px. */}
-                        <Input
-                          value={f.name}
-                          onChange={(e) =>
-                            updateDraft(f.key, { name: e.target.value })
-                          }
-                          placeholder="Fund name"
-                          aria-label={`Name of ${f.name || "new fund"}`}
-                          disabled={busy}
-                          className="w-full min-w-0"
-                        />
-                        {!f.id && (
-                          <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
-                            New
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    {/* Balance */}
-                    <TableCell className="text-right tabular-nums">
-                      {f.id ? (
-                        <ClearedWithPending
-                          cleared={f.balance}
-                          withPending={f.balanceWithPending}
-                        />
-                      ) : (
-                        "-"
+                      {!f.id && (
+                        <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold tracking-wider text-blue-800 uppercase dark:bg-blue-900/30 dark:text-blue-200">
+                          New
+                        </span>
                       )}
-                    </TableCell>
+                    </div>
+                  </TableCell>
 
-                    {/* Delete */}
-                    <TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">
+                    {f.id ? (
+                      <ClearedWithPending
+                        cleared={f.balance}
+                        withPending={f.balanceWithPending}
+                      />
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-2 sm:gap-1">
                       {!f.isSavings &&
                         (del.ok ? (
                           <Button
@@ -487,24 +431,19 @@ export default function FundsPage() {
                             <Trash2Icon />
                           </UnavailableActionButton>
                         ))}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
 
-      {/* ── Previously saved ────────────────────────────────────── */}
-      {dirty && serverFunds.length > 0 && (
-        <Card className="border-dashed opacity-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-muted-foreground text-sm font-medium">
+        {dirty && serverFunds.length > 0 && (
+          <div className="rounded-md border border-dashed px-3 py-2.5 opacity-50">
+            <div className="text-muted-foreground mb-1.5 text-sm font-medium">
               Previously saved
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </div>
             <div className="text-muted-foreground space-y-1.5 text-sm">
               {serverFunds.map((f) => {
                 const displayPct = f.isSavings
@@ -528,9 +467,9 @@ export default function FundsPage() {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

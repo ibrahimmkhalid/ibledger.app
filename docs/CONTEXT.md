@@ -248,14 +248,14 @@ the two search behaviours can drift apart.
 **No test database.** Route handlers, the SQL in `src/db/balances.ts`, and
 every ownership check are covered by nothing but typecheck and manual use.
 
-**Tracker pages fetch themselves on mount.** All six are `"use client"` and
+**Tracker pages fetch themselves on mount.** All four nav pages are `"use client"` and
 call `apiJson` from an effect, which costs a round trip per navigation and a
 loading state per page. The App Router answer is to fetch in a server
-component. That is also what the six
+component. That is also what the five
 `eslint-disable-next-line react-hooks/set-state-in-effect` comments are
 waiting on: `eslint.config.mjs` has the rule on, and every disable except the
 theme-toggle mount gate sits on one of these fetches. Deleting them is the
-signal the migration is done. The cost is that it rewrites six pages, so it is
+signal the migration is done. The cost is that it rewrites four pages, so it is
 a direction rather than a task.
 
 **Client responses are cast, not parsed.** `apiJson<T>` in

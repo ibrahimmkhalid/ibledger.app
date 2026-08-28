@@ -61,11 +61,11 @@ function PageHeaderSkeleton({
 function CardTitleSkeleton({
   titleWidth = "w-36",
   descriptionWidth,
-  actionWidth,
+  actionWidths = [],
 }: {
   titleWidth?: string;
   descriptionWidth?: string;
-  actionWidth?: string;
+  actionWidths?: string[];
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -77,10 +77,15 @@ function CardTitleSkeleton({
           />
         ) : null}
       </div>
-      {actionWidth ? (
-        <LoadingBlock
-          className={cn("h-9 shrink-0 rounded-md sm:h-7", actionWidth)}
-        />
+      {actionWidths.length > 0 ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {actionWidths.map((width, index) => (
+            <LoadingBlock
+              key={`${width}-${index}`}
+              className={cn("h-9 rounded-md sm:h-7", width)}
+            />
+          ))}
+        </div>
       ) : null}
     </div>
   );
@@ -314,7 +319,7 @@ export function TransactionsSkeleton() {
         <CardTitleSkeleton
           titleWidth="w-32"
           descriptionWidth="w-56"
-          actionWidth="w-24"
+          actionWidths={["w-24"]}
         />
 
         <div className="my-4 rounded-md border">
@@ -346,35 +351,24 @@ export function TransactionsSkeleton() {
   );
 }
 
-export function FundsSkeleton() {
+export function SetupSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-hidden>
-      <PageHeaderSkeleton titleWidth="w-24" actionWidths={["w-20", "w-24"]} />
+      <PageHeaderSkeleton titleWidth="w-20" />
 
       <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-36" />
-        <div className="mt-4">
+        <CardTitleSkeleton
+          titleWidth="w-16"
+          actionWidths={["w-24", "w-20", "w-20"]}
+        />
+        <div className="mt-4 flex flex-col gap-4">
           <AllocationSliderSkeleton />
-        </div>
-      </LoadingPanel>
-
-      <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-24" actionWidth="w-24" />
-        <div className="mt-4">
           <TableSkeleton rows={5} columns={4} includeActions />
         </div>
       </LoadingPanel>
-    </div>
-  );
-}
-
-export function WalletsSkeleton() {
-  return (
-    <div className="flex flex-col gap-6" aria-hidden>
-      <PageHeaderSkeleton titleWidth="w-24" actionWidths={["w-20", "w-28"]} />
 
       <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-24" />
+        <CardTitleSkeleton titleWidth="w-20" actionWidths={["w-20", "w-28"]} />
         <div className="mt-4">
           <TableSkeleton rows={4} columns={3} includeActions />
         </div>
@@ -389,14 +383,14 @@ export function OnboardingSkeleton() {
       <PageHeaderSkeleton titleWidth="w-28" actionWidths={["w-40"]} />
 
       <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-20" actionWidth="w-24" />
+        <CardTitleSkeleton titleWidth="w-20" actionWidths={["w-24"]} />
         <div className="mt-4">
           <TableSkeleton rows={3} columns={1} includeActions />
         </div>
       </LoadingPanel>
 
       <LoadingPanel>
-        <CardTitleSkeleton titleWidth="w-16" actionWidth="w-20" />
+        <CardTitleSkeleton titleWidth="w-16" actionWidths={["w-20"]} />
         <div className="mt-4">
           <TableSkeleton rows={4} columns={3} includeActions />
         </div>
