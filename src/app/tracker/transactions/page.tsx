@@ -491,8 +491,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     router.prefetch("/tracker");
-    router.prefetch("/tracker/funds");
-    router.prefetch("/tracker/wallets");
+    router.prefetch("/tracker/setup");
   }, [router]);
 
   useEffect(() => {

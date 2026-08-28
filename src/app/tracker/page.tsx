@@ -178,8 +178,7 @@ export default function TrackerPage() {
   // Prefetch sibling routes for instant navigation
   useEffect(() => {
     router.prefetch("/tracker/transactions");
-    router.prefetch("/tracker/funds");
-    router.prefetch("/tracker/wallets");
+    router.prefetch("/tracker/setup");
   }, [router]);
 
   useEffect(() => {

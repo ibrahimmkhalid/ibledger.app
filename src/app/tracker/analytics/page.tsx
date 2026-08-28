@@ -228,8 +228,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     router.prefetch("/tracker");
     router.prefetch("/tracker/transactions");
-    router.prefetch("/tracker/funds");
-    router.prefetch("/tracker/wallets");
+    router.prefetch("/tracker/setup");
   }, [router]);
 
   useEffect(() => {
