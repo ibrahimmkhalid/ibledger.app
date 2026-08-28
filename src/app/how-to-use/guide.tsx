@@ -165,7 +165,7 @@ function BalanceColumn(args: {
   );
 }
 
-// The allocation bar as it appears on the Funds page: one segment per fund,
+// The allocation bar as it appears on the Setup page: one segment per fund,
 // savings hatched and sized by whatever the others leave behind.
 function AllocationBar() {
   const segments = [
@@ -333,7 +333,7 @@ export function HowToUseGuide() {
         </p>
         <p>
           Nothing you choose here is permanent. Wallets and funds can be
-          renamed, added, or removed later from the Wallets and Funds pages.
+          renamed, added, or removed later on the Setup page.
         </p>
         <p>
           A new ledger starts at $0.00, so if you already have money in these
@@ -361,7 +361,7 @@ export function HowToUseGuide() {
         </Figure>
 
         <p>
-          Set the shares on the Funds page. Drag a divider on the allocation
+          Set the shares on the Setup page. Drag a divider on the allocation
           bar, or focus a divider and use the arrow keys, holding Shift for
           bigger steps. Nothing is saved until you press Confirm, and Revert
           undoes every change.
