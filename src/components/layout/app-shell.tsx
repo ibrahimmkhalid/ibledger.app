@@ -106,7 +106,8 @@ function MobileNav({ pathname }: { pathname: string }) {
           <ChevronDownIcon data-icon="inline-end" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-44">
+      {/* Matches the trigger's breakpoint; the portal is outside the header. */}
+      <PopoverContent className="w-44 sm:hidden">
         <nav aria-label="Sections" className="flex flex-col">
           {NAV_ITEMS.map(menuItem)}
           <PopoverSeparator />
